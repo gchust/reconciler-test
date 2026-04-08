@@ -50,8 +50,8 @@ popups:
         resource: { binding: currentCollection }
         fields: [name, level, contact, phone]
         field_layout:
-          - [{name: 16}, {level: 8}]        # 名称宽一些
-          - [{contact: 12}, {phone: 12}]
+          - [name, level]
+          - [contact, phone]
         actions: [submit]
 
   # ── 客户：编辑 ──
@@ -62,8 +62,8 @@ popups:
         resource: { binding: currentRecord }
         fields: [name, level, contact, phone]
         field_layout:
-          - [{name: 16}, {level: 8}]
-          - [{contact: 12}, {phone: 12}]
+          - [name, level]
+          - [contact, phone]
         actions: [submit]
 
   # ── 客户：查看 ──
@@ -74,8 +74,8 @@ popups:
         resource: { binding: currentRecord }
         fields: [name, level, contact, phone]
         field_layout:
-          - [{name: 16}, {level: 8}]
-          - [{contact: 12}, {phone: 12}]
+          - [name, level]
+          - [contact, phone]
         recordActions: [edit]
 
   # ── 产品：新建 ──
