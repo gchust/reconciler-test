@@ -1,0 +1,274 @@
+module: Main
+icon: dashboardoutlined
+pages:
+- blocks:
+  - key: jsBlock_a8a5bd
+    type: jsBlock
+    uid: a8a5bd931dc
+    file: ./js/overview_jsBlock_a8a5bd.js
+  - key: today_s_tasks
+    type: table
+    uid: 63bd120202a
+    title: Today's Tasks
+    coll: nb_crm_activities
+    fields:
+    - subject
+    - activity_date
+    actions:
+    - filter
+    - refresh
+    - link
+    - addNew
+    - ai
+    recordActions:
+    - updateRecord
+    - updateRecord
+  - key: high_score_leads
+    type: table
+    uid: 1bd65d69015
+    title: High Score Leads
+    coll: nb_crm_leads
+    fields:
+    - name
+    - ai_next_best_action
+    - updatedAt
+    js_columns:
+    - uid: 1b7871f06af
+      title: AI Score
+      desc: AI Score Column
+      file: ./js/overview_high_score_leads_col_ai_score.js
+    actions:
+    - filter
+    - refresh
+    - link
+    - ai
+  - key: jsBlock_6d323a
+    type: jsBlock
+    uid: 6d323a21694
+    file: ./js/overview_jsBlock_6d323a.js
+    desc: Activity Calendar Block
+  layout:
+  - - jsBlock_a8a5bd
+  - - high_score_leads: 16
+    - today_s_tasks: 8
+  - - jsBlock_6d323a
+  page: Overview
+  icon: calendaroutlined
+- blocks:
+  - key: table_b3f6e3
+    type: table
+    uid: b3f6e318381
+    coll: nb_crm_leads
+    fields:
+    - name
+    - source
+    - status
+    - industry
+    - owner
+    js_columns:
+    - uid: 720cbfa7842
+      title: Lead Name/Company
+      desc: Lead Info Column (Multi-field)
+      file: ./js/leads_table_b3f6e3_col_lead_name_company.js
+    - uid: d8d8a4a3a80
+      title: Contact
+      desc: Lead Contact Column (Multi-field)
+      file: ./js/leads_table_b3f6e3_col_contact.js
+    - uid: 7f1891a8535
+      title: AI Score
+      desc: AI Score Column
+      file: ./js/leads_table_b3f6e3_col_ai_score.js
+    - uid: c70f578bbb4
+      title: Created
+      desc: Created Ago Column - Leads Module
+      file: ./js/leads_table_b3f6e3_col_created.js
+    actions:
+    - filter
+    - refresh
+    - export
+    - import
+    - addNew
+    - ai
+  - key: filterForm_142c7c
+    type: filterForm
+    uid: 142c7cbc555
+    fields:
+    - name
+    js_items:
+    - uid: 5cdebcce9c3
+      desc: Leads Stats Filter Block
+      file: ./js/leads_filterForm_142c7c_js_leads_stats_filter_block.js
+  layout:
+  - - col:
+      - filterForm_142c7c
+      - table_b3f6e3
+      size: 24
+  page: Leads
+  icon: useraddoutlined
+- blocks:
+  - key: table_d8498e
+    type: table
+    uid: d8498eb45ca
+    coll: nb_crm_customers
+    fields:
+    - name
+    - type
+    - region
+    - level
+    - status
+    - owner
+    js_columns:
+    - uid: 5ebbc5a7f21
+      title: Health Score
+      desc: Health Score Column
+      file: ./js/customers_table_d8498e_col_health_score.js
+    - uid: 084e3b50100
+      title: Last Activity
+      desc: Last Activity Column - Leads Module
+      file: ./js/customers_table_d8498e_col_last_activity.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - workflowTrigger
+    - ai
+  - key: filterForm_e31595
+    type: filterForm
+    uid: e31595cfe5e
+    fields:
+    - name
+    js_items:
+    - uid: 012bee0acfb
+      desc: Customer Stats Filter Block
+      file: ./js/customers_filterForm_e31595_js_customer_stats_filter_block.js
+  layout:
+  - - filterForm_e31595
+  - - table_d8498e
+  page: Customers
+  icon: teamoutlined
+- blocks:
+  - key: jsBlock_a19ac2
+    type: jsBlock
+    uid: a19ac22b220
+    file: ./js/opportunities_jsBlock_a19ac2.js
+    desc: Pipeline Header Block
+  - key: jsBlock_79de06
+    type: jsBlock
+    uid: 79de06ad20d
+    file: ./js/opportunities_jsBlock_79de06.js
+    desc: Kanban Board Block (Resource-based)
+  layout:
+  - - jsBlock_a19ac2
+  - - jsBlock_79de06
+  page: Opportunities
+  icon: fundoutlined
+- blocks:
+  - key: filterForm_89a416
+    type: filterForm
+    uid: 89a416dc6a5
+    fields:
+    - order_no
+    js_items:
+    - uid: 30d65b9f8f5
+      desc: Order Stats Filter Block
+      file: ./js/orders_filterForm_89a416_js_order_stats_filter_block.js
+    field_layout:
+    - - col:
+        - '[JS:Order Stats Filter B]'
+        - order_no
+        size: 24
+  layout:
+  - - filterForm_89a416
+  - - 76b91d81
+  page: Orders
+  icon: shoppingcartoutlined
+- blocks:
+  - key: table_121ad8
+    type: table
+    uid: 121ad8f2da1
+    coll: nb_crm_products
+    fields:
+    - name
+    - product_code
+    - list_price
+    - cost_price
+    - base_currency
+    - unit
+    - specification
+    - category
+    actions:
+    - filter
+    - refresh
+    - addNew
+  - key: jsBlock_67558b
+    type: jsBlock
+    uid: 67558b719dd
+    file: ./js/products_jsBlock_67558b.js
+    desc: Category Tree Filter - Product Category Sidebar
+  layout:
+  - - jsBlock_67558b: 5
+    - table_121ad8: 19
+  page: Products
+  icon: appstoreoutlined
+- blocks:
+  - key: filterForm_sp0bbl
+    type: filterForm
+    uid: sp0bblhcwmj
+    fields:
+    - owner
+    js_items:
+    - uid: xp880ob3lz8
+      file: ./js/analytics_filterForm_sp0bbl_js_xp880o.js
+    field_layout:
+    - - jiuuge55: 10
+      - owner: 5
+      - '[JS]': 5
+  - key: chart_hu4haj
+    type: chart
+    uid: hu4haj59bjz
+    chart_config: ./charts/analytics_chart_hu4haj.json
+  - key: chart_efd8l3
+    type: chart
+    uid: efd8l319buz
+    chart_config: ./charts/analytics_chart_efd8l3.json
+  - key: chart_fado2j
+    type: chart
+    uid: fado2jfs4bz
+    chart_config: ./charts/analytics_chart_fado2j.json
+  - key: chart_dvigfl
+    type: chart
+    uid: dvigfls2dy1
+    chart_config: ./charts/analytics_chart_dvigfl.json
+  - key: chart_iay7yv
+    type: chart
+    uid: iay7yvf7pt5
+    chart_config: ./charts/analytics_chart_iay7yv.json
+  - key: jsBlock_ni91bo
+    type: jsBlock
+    uid: ni91boznxq4
+    file: ./js/analytics_jsBlock_ni91bo.js
+  - key: jsBlock_xgsg79
+    type: jsBlock
+    uid: xgsg794h134
+    file: ./js/analytics_jsBlock_xgsg79.js
+  - key: jsBlock_q59ehm
+    type: jsBlock
+    uid: q59ehmdd4qp
+    file: ./js/analytics_jsBlock_q59ehm.js
+  - key: jsBlock_g71gpl
+    type: jsBlock
+    uid: g71gplt3v3i
+    file: ./js/analytics_jsBlock_g71gpl.js
+  layout:
+  - - filterForm_sp0bbl
+  - - jsBlock_ni91bo
+    - jsBlock_xgsg79
+    - jsBlock_q59ehm
+    - jsBlock_g71gpl
+  - - chart_hu4haj: 15
+    - chart_efd8l3: 9
+  - - chart_fado2j
+  - - chart_dvigfl: 14
+    - chart_iay7yv: 10
+  page: Analytics
+  icon: areachartoutlined
