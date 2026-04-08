@@ -228,24 +228,37 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
     for popup_spec in spec.get("popups", []):
         target_ref = popup_spec.get("target", "")
         try:
-            # resolve_uid auto-picks popup_grid > uid
             target_uid = resolver.resolve_uid(target_ref)
         except KeyError as e:
             print(f"  ! popup: {e}")
             continue
 
-        # Compose blocks inside popup (popup = mini page)
         blocks = _build_compose_blocks(popup_spec)
-        if blocks:
-            try:
+        if not blocks:
+            continue
+
+        try:
+            # Check if popup already has content by navigating the tree
+            existing = nb.get(uid=target_uid)
+            items = _find_popup_items(existing.get("tree", {}))
+            has_content = bool(items)
+        except Exception:
+            has_content = False
+            items = []
+
+        try:
+            if has_content:
+                # Already deployed — only update layouts, don't recreate
+                print(f"  = popup [{target_ref}]: {len(items)} blocks (layout only)")
+                _relayout_existing_popup(nb, items, popup_spec)
+            else:
+                # First time — compose creates everything
                 result = nb.compose(target_uid, blocks, mode="replace")
                 block_count = len(result.get("blocks", []))
                 print(f"  + popup [{target_ref}]: {block_count} blocks")
-
-                # Apply field layouts inside popup blocks
                 _apply_popup_layouts(nb, result, popup_spec)
-            except Exception as e:
-                print(f"  ! popup [{target_ref}]: {e}")
+        except Exception as e:
+            print(f"  ! popup [{target_ref}]: {e}")
 
     for js_spec in spec.get("js", []):
         target_ref = js_spec.get("target", "")
@@ -379,6 +392,111 @@ def _apply_all_layouts(nb: NocoBase, compose_result: dict, page_spec: dict):
                 })
             except Exception:
                 pass
+
+
+def _find_popup_items(tree: dict) -> list[dict]:
+    """Navigate popup tree to find block items.
+
+    Path: Action → page(ChildPage) → tabs[Tab] → grid(BlockGrid) → items
+    """
+    subs = tree.get("subModels", {})
+
+    # Direct grid.items (if target is already a grid/tab)
+    grid = subs.get("grid", {})
+    if isinstance(grid, dict) and grid.get("subModels", {}).get("items"):
+        items = grid["subModels"]["items"]
+        return items if isinstance(items, list) else [items]
+
+    items = subs.get("items", [])
+    if isinstance(items, list) and items and items[0].get("use", "").endswith("BlockModel"):
+        return items
+
+    # Navigate deeper: page → tabs → grid → items
+    page = subs.get("page", {})
+    if isinstance(page, dict):
+        tabs = page.get("subModels", {}).get("tabs", [])
+        if isinstance(tabs, list):
+            for tab in tabs:
+                tab_grid = tab.get("subModels", {}).get("grid", {})
+                if isinstance(tab_grid, dict):
+                    tab_items = tab_grid.get("subModels", {}).get("items", [])
+                    if isinstance(tab_items, list) and tab_items:
+                        return tab_items
+        elif isinstance(tabs, dict):
+            tab_grid = tabs.get("subModels", {}).get("grid", {})
+            if isinstance(tab_grid, dict):
+                tab_items = tab_grid.get("subModels", {}).get("items", [])
+                if isinstance(tab_items, list) and tab_items:
+                    return tab_items
+
+    return []
+
+
+def _relayout_existing_popup(nb: NocoBase, items: list[dict], popup_spec: dict):
+    """Re-apply layout to existing popup blocks without recreating them.
+
+    Only calls setLayout — UIDs stay the same.
+    """
+    block_specs = {bs.get("key", ""): bs for bs in popup_spec.get("blocks", [])}
+
+    for item in items:
+        use = item.get("use", "")
+        grid = item.get("subModels", {}).get("grid", {})
+        grid_uid = grid.get("uid")
+        if not grid_uid:
+            continue
+
+        # Find matching block spec by type
+        type_map = {
+            "CreateFormModel": "createForm",
+            "EditFormModel": "editForm",
+            "DetailsBlockModel": "details",
+        }
+        btype = type_map.get(use, "")
+        bs = None
+        for k, v in block_specs.items():
+            if v.get("type") == btype:
+                bs = v
+                break
+        if not bs or not bs.get("field_layout"):
+            continue
+
+        # Build field name → wrapper UID map from existing items
+        grid_items = grid.get("subModels", {}).get("items", [])
+        if not isinstance(grid_items, list):
+            grid_items = [grid_items] if grid_items else []
+
+        field_uid_map = {}
+        for fi in grid_items:
+            fp = (fi.get("stepParams", {})
+                   .get("fieldSettings", {})
+                   .get("init", {})
+                   .get("fieldPath", ""))
+            label = (fi.get("stepParams", {})
+                      .get("markdownItemSetting", {})
+                      .get("title", {})
+                      .get("label", ""))
+            uid = fi.get("uid", "")
+            if fp:
+                field_uid_map[fp] = uid
+            if label:
+                field_uid_map[label] = uid
+                field_uid_map[f"divider.{label}"] = uid
+
+        layout = bs.get("field_layout", [])
+
+        # Check for new dividers that don't exist yet
+        for row in layout:
+            if isinstance(row, str) and row.strip().startswith("---"):
+                label = row.strip().strip("-").strip()
+                if label not in field_uid_map:
+                    divider_uid = nb.add_divider(grid_uid, label)
+                    field_uid_map[label] = divider_uid
+                    field_uid_map[f"divider.{label}"] = divider_uid
+                    print(f"      + divider: {label}")
+
+        if apply_layout(nb, grid_uid, layout, field_uid_map):
+            print(f"      relayout: {describe_layout(layout)}")
 
 
 def _apply_popup_layouts(nb: NocoBase, compose_result: dict, popup_spec: dict):
