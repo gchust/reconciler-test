@@ -139,6 +139,9 @@ pages:
           delivery_date:
             wrapper: 0r0da2h13z8
             field: gxfmz1uqwzc
+          js_status:
+            wrapper: lzx605oxier
+            field: lzx605oxier
         actions:
           filter:
             uid: 79dyip8klal
@@ -153,3 +156,6 @@ pages:
             uid: sfg3u0xsw64
           view:
             uid: m0pdkoywutx
+      kpi:
+        uid: jqlzbphevtr
+        type: jsBlock

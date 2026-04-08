@@ -58,3 +58,17 @@ popups:
           - "--- 价格与库存 ---"
           - [price, unit, stock]
         actions: [submit]
+
+# ═══════════════════════════════════
+#  JS 区块 + JS 列
+# ═══════════════════════════════════
+
+js:
+  # KPI 统计卡片（页面级 JSBlock）
+  - target: $订单列表.kpi
+    file: ./js/kpi.js
+
+  # 状态标签列（表格 JSColumn）
+  - target: $订单列表.table.fields.js_status
+    file: ./js/status-tag.js
+    title: 状态标签

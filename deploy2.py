@@ -321,12 +321,24 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
         if target_ref and code:
             try:
                 target_uid = resolver.resolve_uid(target_ref)
-                nb.configure(target_uid, {
-                    "changes": [{"path": "jsSettings.runJs.code", "value": code}]
-                })
+                title = js_spec.get("title", "")
+                changes: dict = {"code": code}
+                if title:
+                    changes["title"] = title
+                nb.configure(target_uid, {"changes": changes})
                 print(f"  + js [{target_ref}]: {len(code)} chars")
             except KeyError as e:
                 print(f"  ! js: {e}")
+            except RuntimeError as e:
+                # Fallback to legacy update_model for nodes configure doesn't support
+                try:
+                    sp_patch: dict = {"jsSettings": {"runJs": {"code": code, "version": "v1"}}}
+                    if title:
+                        sp_patch["tableColumnSettings"] = {"title": {"title": title}}
+                    nb.update_model(target_uid, sp_patch)
+                    print(f"  + js [{target_ref}]: {len(code)} chars (legacy)")
+                except Exception as e2:
+                    print(f"  ! js [{target_ref}]: {e2}")
 
     for event_spec in spec.get("events", []):
         target_ref = event_spec.get("target", "")
@@ -338,8 +350,11 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
         except KeyError as e:
             print(f"  ! event: {e}")
             continue
-            nb.set_event_flows(target_uid, {"eventFlows": flows})
-            print(f"  + events [{target_uid}]")
+        try:
+            nb.set_event_flows(target_uid, {"flowRegistry": flows})
+            print(f"  + events [{target_ref}]")
+        except Exception as e:
+            print(f"  ! events [{target_ref}]: {e}")
 
 
 
