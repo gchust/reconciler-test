@@ -201,7 +201,9 @@ class NocoBase:
             raise RuntimeError(f"flowModels:save → {r.status_code}: {r.text[:200]}")
         return r.json().get("data")
 
-    def add_divider(self, grid_uid: str, label: str) -> str:
+    def add_divider(self, grid_uid: str, label: str,
+                    color: str = "#1677ff",
+                    border_color: str = "rgba(5, 5, 5, 0.06)") -> str:
         """Insert a DividerItemModel into a form/detail grid.
 
         Uses legacy flowModels:save (flowSurfaces doesn't support divider yet).
@@ -223,8 +225,8 @@ class NocoBase:
                     "title": {
                         "label": label,
                         "orientation": "left",
-                        "color": "rgba(0, 0, 0, 0.88)",
-                        "borderColor": "rgba(5, 5, 5, 0.06)",
+                        "color": color,
+                        "borderColor": border_color,
                     }
                 }
             },
