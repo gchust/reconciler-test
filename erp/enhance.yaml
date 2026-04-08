@@ -1,0 +1,107 @@
+# ═══════════════════════════════════
+#  ERP 弹窗 — 新建/编辑/详情
+# ═══════════════════════════════════
+
+popups:
+  # ── 产品 ──
+  - target: $产品管理.table.actions.addNew
+    auto: [edit]
+    view_field: name
+    coll: erp_products
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [product_code, name, category, unit, price, cost, stock_qty, min_stock, status, spec]
+        field_layout:
+          - "--- 基本信息 ---"
+          - [product_code, name, category]
+          - [unit, status]
+          - "--- 价格与库存 ---"
+          - [price, cost]
+          - [stock_qty, min_stock]
+          - "--- 描述 ---"
+          - [spec]
+        actions: [submit]
+
+  # ── 客户 ──
+  - target: $客户管理.table.actions.addNew
+    auto: [edit]
+    view_field: name
+    coll: erp_customers
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [name, short_name, contact, phone, email, address, level, payment_terms, credit_limit]
+        field_layout:
+          - "--- 基本信息 ---"
+          - [name, short_name, level]
+          - "--- 联系方式 ---"
+          - [contact, phone, email]
+          - [address]
+          - "--- 财务信息 ---"
+          - [payment_terms, credit_limit]
+        actions: [submit]
+
+  # ── 供应商 ──
+  - target: $供应商管理.table.actions.addNew
+    auto: [edit]
+    view_field: name
+    coll: erp_suppliers
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [name, contact, phone, email, address, category, rating, payment_terms]
+        field_layout:
+          - "--- 基本信息 ---"
+          - [name, category, rating]
+          - "--- 联系方式 ---"
+          - [contact, phone, email]
+          - [address]
+          - "--- 合作条件 ---"
+          - [payment_terms]
+        actions: [submit]
+
+  # ── 采购订单 ──
+  - target: $采购管理.table.actions.addNew
+    auto: [edit]
+    view_field: po_no
+    coll: erp_purchase_orders
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [po_no, supplier_name, total_amount, status, order_date, expected_date, buyer, remark]
+        field_layout:
+          - "--- 订单信息 ---"
+          - [po_no, supplier_name, status]
+          - "--- 金额与日期 ---"
+          - [total_amount, order_date, expected_date]
+          - "--- 采购员 ---"
+          - [buyer]
+          - "--- 备注 ---"
+          - [remark]
+        actions: [submit]
+
+  # ── 销售订单 ──
+  - target: $销售管理.table.actions.addNew
+    auto: [edit]
+    view_field: so_no
+    coll: erp_sales_orders
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [so_no, customer_name, total_amount, status, order_date, delivery_date, sales_rep, remark]
+        field_layout:
+          - "--- 订单信息 ---"
+          - [so_no, customer_name, status]
+          - "--- 金额与日期 ---"
+          - [total_amount, order_date, delivery_date]
+          - "--- 销售员 ---"
+          - [sales_rep]
+          - "--- 备注 ---"
+          - [remark]
+        actions: [submit]

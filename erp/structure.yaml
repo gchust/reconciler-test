@@ -1,0 +1,190 @@
+# ═══════════════════════════════════
+#  ERP 基础模块 — 从零搭建
+# ═══════════════════════════════════
+
+module: ERP系统
+icon: shopoutlined
+
+collections:
+  erp_products:
+    title: 产品
+    fields:
+      - { name: product_code, interface: input, title: 产品编码 }
+      - { name: name, interface: input, title: 产品名称 }
+      - { name: category, interface: select, title: 分类, options: [原材料, 半成品, 成品, 配件] }
+      - { name: unit, interface: input, title: 单位 }
+      - { name: price, interface: number, title: 标准价格 }
+      - { name: cost, interface: number, title: 成本价 }
+      - { name: stock_qty, interface: integer, title: 库存数量 }
+      - { name: min_stock, interface: integer, title: 安全库存 }
+      - { name: status, interface: select, title: 状态, options: [在售, 停产, 开发中] }
+      - { name: spec, interface: textarea, title: 规格描述 }
+
+  erp_customers:
+    title: 客户
+    fields:
+      - { name: name, interface: input, title: 客户名称 }
+      - { name: short_name, interface: input, title: 简称 }
+      - { name: contact, interface: input, title: 联系人 }
+      - { name: phone, interface: input, title: 电话 }
+      - { name: email, interface: input, title: 邮箱 }
+      - { name: address, interface: textarea, title: 地址 }
+      - { name: level, interface: select, title: 等级, options: [A, B, C, D] }
+      - { name: payment_terms, interface: select, title: 付款条件, options: [预付, 月结30天, 月结60天, 月结90天] }
+      - { name: credit_limit, interface: number, title: 信用额度 }
+
+  erp_suppliers:
+    title: 供应商
+    fields:
+      - { name: name, interface: input, title: 供应商名称 }
+      - { name: contact, interface: input, title: 联系人 }
+      - { name: phone, interface: input, title: 电话 }
+      - { name: email, interface: input, title: 邮箱 }
+      - { name: address, interface: textarea, title: 地址 }
+      - { name: category, interface: select, title: 类别, options: [原材料, 包装, 设备, 服务] }
+      - { name: rating, interface: select, title: 评级, options: [优, 良, 中, 差] }
+      - { name: payment_terms, interface: select, title: 付款条件, options: [预付, 月结30天, 月结60天] }
+
+  erp_purchase_orders:
+    title: 采购订单
+    fields:
+      - { name: po_no, interface: input, title: 采购单号 }
+      - { name: supplier_name, interface: input, title: 供应商 }
+      - { name: total_amount, interface: number, title: 总金额 }
+      - { name: status, interface: select, title: 状态, options: [草稿, 已提交, 已审批, 已入库, 已取消] }
+      - { name: order_date, interface: datetime, title: 下单日期 }
+      - { name: expected_date, interface: datetime, title: 预计到货 }
+      - { name: buyer, interface: input, title: 采购员 }
+      - { name: remark, interface: textarea, title: 备注 }
+
+  erp_sales_orders:
+    title: 销售订单
+    fields:
+      - { name: so_no, interface: input, title: 销售单号 }
+      - { name: customer_name, interface: input, title: 客户名称 }
+      - { name: total_amount, interface: number, title: 总金额 }
+      - { name: status, interface: select, title: 状态, options: [草稿, 已确认, 生产中, 已发货, 已签收, 已取消] }
+      - { name: order_date, interface: datetime, title: 下单日期 }
+      - { name: delivery_date, interface: datetime, title: 交货日期 }
+      - { name: sales_rep, interface: input, title: 销售员 }
+      - { name: remark, interface: textarea, title: 备注 }
+
+# ── 页面 ──
+
+pages:
+  # 产品管理
+  - page: 产品管理
+    icon: appstoreoutlined
+    coll: erp_products
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths: [product_code, name, category]
+        js_items:
+          - desc: Product Stats Filter
+            file: ./js/product_stats.js
+
+      - key: table
+        type: table
+        fields: [product_code, name, category, unit, price, cost, stock_qty, status]
+        actions: [filter, refresh, addNew, export]
+        recordActions: [edit, delete]
+
+    layout:
+      - [filter]
+      - [table]
+
+  # 客户管理
+  - page: 客户管理
+    icon: teamoutlined
+    coll: erp_customers
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths: [name, short_name, contact, phone]
+
+      - key: table
+        type: table
+        fields: [name, short_name, contact, phone, level, payment_terms, credit_limit]
+        actions: [filter, refresh, addNew, export]
+        recordActions: [edit, delete]
+
+    layout:
+      - [filter]
+      - [table]
+
+  # 供应商管理
+  - page: 供应商管理
+    icon: solutionoutlined
+    coll: erp_suppliers
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths: [name, contact, phone]
+
+      - key: table
+        type: table
+        fields: [name, contact, phone, category, rating, payment_terms]
+        actions: [filter, refresh, addNew]
+        recordActions: [edit, delete]
+
+    layout:
+      - [filter]
+      - [table]
+
+  # 采购管理
+  - page: 采购管理
+    icon: shoppingcartoutlined
+    coll: erp_purchase_orders
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: po_no
+            label: 搜索
+            filterPaths: [po_no, supplier_name, buyer]
+          - field: status
+            label: 状态
+
+      - key: table
+        type: table
+        fields: [po_no, supplier_name, total_amount, status, order_date, expected_date, buyer]
+        actions: [filter, refresh, addNew, export]
+        recordActions: [edit, delete]
+
+    layout:
+      - [filter]
+      - [table]
+
+  # 销售管理
+  - page: 销售管理
+    icon: fundoutlined
+    coll: erp_sales_orders
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: so_no
+            label: 搜索
+            filterPaths: [so_no, customer_name, sales_rep]
+          - field: status
+            label: 状态
+
+      - key: table
+        type: table
+        fields: [so_no, customer_name, total_amount, status, order_date, delivery_date, sales_rep]
+        actions: [filter, refresh, addNew, export]
+        recordActions: [edit, delete]
+
+    layout:
+      - [filter]
+      - [table]

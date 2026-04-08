@@ -514,13 +514,17 @@ def _replace_js_uids(code: str, block_state_all: dict) -> str:
     if not table_uids:
         return code
 
-    # Replace TARGET_BLOCK_UID = 'old_uid' with first table UID
     target_uid = table_uids[0]
+
+    # Replace TARGET_BLOCK_UID = 'old_uid'
     code = re.sub(
-        r"(TARGET_BLOCK_UID\s*=\s*['\"])[a-z0-9]{11}(['\"])",
+        r"(TARGET_BLOCK_UID\s*=\s*['\"])[a-z0-9_]{11,}(['\"])",
         rf"\g<1>{target_uid}\2",
         code
     )
+    # Replace __TABLE_UID__ placeholder
+    code = code.replace("__TABLE_UID__", target_uid)
+
     return code
 
 
