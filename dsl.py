@@ -27,8 +27,21 @@ import string
 from pathlib import Path
 from typing import Any, Optional
 
+import copy
+
 import requests
 import yaml
+
+
+class _NoAliasDumper(yaml.SafeDumper):
+    """YAML dumper that never emits anchors/aliases."""
+    def ignore_aliases(self, data):
+        return True
+
+
+def _dump_yaml(data: dict) -> str:
+    return yaml.dump(data, Dumper=_NoAliasDumper, allow_unicode=True,
+                     default_flow_style=False, sort_keys=False)
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -76,6 +89,66 @@ class NB:
 
     def routes(self) -> list[dict]:
         return self.get("desktopRoutes:list", paginate="false", tree="true") or []
+
+    def create_page_route(self, title: str, parent_id: int = None,
+                          icon: str = "appstoreoutlined") -> tuple[int, str, str]:
+        """Create a flowPage route. Returns (route_id, page_uid, tab_uid)."""
+        page_uid = gen_uid()
+        menu_uid = gen_uid()
+        tab_uid = gen_uid()
+        body: dict[str, Any] = {
+            "type": "flowPage",
+            "title": title,
+            "schemaUid": page_uid,
+            "menuSchemaUid": menu_uid,
+            "icon": icon,
+            "enableTabs": False,
+            "children": [{"type": "tabs", "schemaUid": tab_uid,
+                          "tabSchemaName": gen_uid(), "hidden": True}],
+        }
+        if parent_id:
+            body["parentId"] = parent_id
+        result = self.post("desktopRoutes:create", body)
+        self.post("uiSchemas:insert",
+                  {"type": "void", "x-component": "FlowRoute", "x-uid": page_uid})
+        return result["id"], page_uid, tab_uid
+
+    def create_group_route(self, title: str, parent_id: int = None,
+                           icon: str = "appstoreoutlined") -> int:
+        """Create a menu group route. Returns route_id."""
+        body: dict[str, Any] = {"type": "group", "title": title, "icon": icon}
+        if parent_id:
+            body["parentId"] = parent_id
+        return self.post("desktopRoutes:create", body)["id"]
+
+    def create_collection(self, name: str, title: str) -> dict:
+        return self.post("collections:create", {
+            "name": name, "title": title, "logging": True,
+            "autoGenId": True, "createdAt": True, "updatedAt": True,
+            "createdBy": True, "updatedBy": True, "sortable": True,
+        })
+
+    def create_field(self, coll: str, name: str, interface: str,
+                     title: str, **opts) -> dict:
+        type_map = {
+            "input": "string", "textarea": "text", "integer": "bigInt",
+            "number": "double", "select": "string", "multipleSelect": "array",
+            "checkbox": "boolean", "datetime": "date", "richText": "text",
+        }
+        body: dict[str, Any] = {
+            "name": name, "type": type_map.get(interface, "string"),
+            "interface": interface,
+            "uiSchema": {"title": title, "x-component": "Input"},
+        }
+        if "options" in opts:
+            body["uiSchema"]["enum"] = [
+                {"value": o, "label": o} for o in opts["options"]
+            ]
+        return self.post(f"collections/{coll}/fields:create", body)
+
+    def collection_exists(self, name: str) -> bool:
+        colls = self.get("collections:list", paginate="false") or []
+        return any(c["name"] == name for c in colls)
 
     def save_model(self, node: dict):
         return self.post("flowModels:save", node)
@@ -244,8 +317,14 @@ def dsl_to_flat(dsl_node: dict, parent_uid: str, sub_key: str,
     dsl_node["uid"] = uid
 
     # Recurse into children
-    child_keys = [k for k in dsl_node
-                  if k not in ("uid", "use", "coll", "field", "popup", "stepParams")]
+    # "field" is excluded by default (it's a fieldPath string), but if it's
+    # a dict with "use" key, it's a child node (e.g., DisplayTextField under TableColumn)
+    skip_keys = {"uid", "use", "coll", "popup", "stepParams"}
+    field_val = dsl_node.get("field")
+    if not (isinstance(field_val, dict) and "use" in field_val):
+        skip_keys.add("field")  # skip string fieldPath, keep dict child
+
+    child_keys = [k for k in dsl_node if k not in skip_keys]
     for ck in child_keys:
         val = dsl_node[ck]
         if isinstance(val, list):
@@ -435,6 +514,69 @@ def sync_routes(nb: NB, routes: list[dict], depth: int = 0,
 
 # ── Apply (DSL → Live) ────────────────────────────────────────────
 
+def _ensure_collections(dsl_grid: dict, nb: NB):
+    """Auto-create collections referenced in DSL if they don't exist."""
+    colls_needed: set[str] = set()
+    _collect_colls(dsl_grid, colls_needed)
+
+    for coll in colls_needed:
+        if not nb.collection_exists(coll):
+            print(f"  + collection: {coll}")
+            nb.create_collection(coll, coll)
+            # Auto-create fields referenced in DSL
+            fields = set()
+            _collect_fields(dsl_grid, coll, fields)
+            for fname in fields:
+                if fname in ("createdAt", "updatedAt", "id"):
+                    continue
+                print(f"    + field: {coll}.{fname}")
+                nb.create_field(coll, fname, "input", fname)
+
+
+def _collect_colls(node: dict, out: set):
+    coll = node.get("coll", "")
+    if coll:
+        out.add(coll)
+    # Also check stepParams.resourceSettings and fieldSettings
+    sp = node.get("stepParams", {})
+    c2 = sp.get("resourceSettings", {}).get("init", {}).get("collectionName", "")
+    if c2:
+        out.add(c2)
+    c3 = sp.get("fieldSettings", {}).get("init", {}).get("collectionName", "")
+    if c3:
+        out.add(c3)
+    for k, v in node.items():
+        if k in ("uid", "use", "coll", "field", "popup", "stepParams"):
+            continue
+        if isinstance(v, list):
+            for child in v:
+                if isinstance(child, dict) and "use" in child:
+                    _collect_colls(child, out)
+        elif isinstance(v, dict) and "use" in v:
+            _collect_colls(v, out)
+
+
+def _collect_fields(node: dict, target_coll: str, out: set):
+    """Collect field names used for a specific collection."""
+    sp = node.get("stepParams", {})
+    node_coll = (node.get("coll", "")
+                 or sp.get("fieldSettings", {}).get("init", {}).get("collectionName", "")
+                 or sp.get("resourceSettings", {}).get("init", {}).get("collectionName", ""))
+    field = (node.get("field") if isinstance(node.get("field"), str) else None
+             or sp.get("fieldSettings", {}).get("init", {}).get("fieldPath", ""))
+    if field and node_coll == target_coll:
+        out.add(field)
+    for k, v in node.items():
+        if k in ("uid", "use", "coll", "field", "popup", "stepParams"):
+            continue
+        if isinstance(v, list):
+            for child in v:
+                if isinstance(child, dict):
+                    _collect_fields(child, target_coll, out)
+        elif isinstance(v, dict) and "use" in v:
+            _collect_fields(v, target_coll, out)
+
+
 def apply_dsl(dsl_path: str, nb: NB, dry_run: bool = False) -> list[dict]:
     """Apply a DSL file to live NocoBase.
 
@@ -442,6 +584,8 @@ def apply_dsl(dsl_path: str, nb: NB, dry_run: bool = False) -> list[dict]:
       - uid exists + unchanged → skip
       - uid exists + changed → update (flowModels:save)
       - uid null → create, write back uid to DSL
+    When tab is null → auto-create route + tab.
+    When collection doesn't exist → auto-create.
     """
     dsl = yaml.safe_load(Path(dsl_path).read_text())
     grid = dsl.get("grid")
@@ -450,11 +594,30 @@ def apply_dsl(dsl_path: str, nb: NB, dry_run: bool = False) -> list[dict]:
         return []
 
     tab_uid = dsl.get("tab")
-    if not tab_uid:
-        print("  No tab uid in DSL.")
-        return []
 
-    # Diff
+    # ── Auto-create route if tab is null ──
+    if not tab_uid:
+        title = dsl.get("page", "Untitled")
+        icon = dsl.get("icon", "appstoreoutlined")
+        parent_id = dsl.get("group_route_id")
+        if dry_run:
+            print(f"\n  Would create route: '{title}'")
+        else:
+            route_id, page_uid, tab_uid = nb.create_page_route(
+                title, parent_id, icon)
+            dsl["tab"] = tab_uid
+            dsl["route"] = route_id
+            dsl["page_uid"] = page_uid
+            print(f"\n  Created route '{title}' → tab={tab_uid}")
+
+    if not tab_uid and dry_run:
+        tab_uid = "(new)"
+
+    # ── Auto-create collections ──
+    if not dry_run:
+        _ensure_collections(grid, nb)
+
+    # ── Diff ──
     diffs = diff_tree(grid, nb)
 
     creates = [d for d in diffs if d["action"] == DiffAction.CREATE]
@@ -473,9 +636,12 @@ def apply_dsl(dsl_path: str, nb: NB, dry_run: bool = False) -> list[dict]:
 
     if not creates and not updates:
         print("\n  Nothing to apply.")
+        # Still write back (route may have been created)
+        Path(dsl_path).write_text(
+            _dump_yaml(dsl))
         return diffs
 
-    # Apply
+    # ── Apply ──
     print(f"\n  Applying...")
 
     # Flatten DSL to flat records, then save each
@@ -484,7 +650,6 @@ def apply_dsl(dsl_path: str, nb: NB, dry_run: bool = False) -> list[dict]:
     applied = 0
     for rec in records:
         uid = rec["uid"]
-        # Check if this node needs action
         node_diff = next((d for d in diffs if d.get("uid") == uid
                           or (d["action"] == DiffAction.CREATE
                               and d["dsl_node"].get("uid") == uid)),
@@ -495,10 +660,7 @@ def apply_dsl(dsl_path: str, nb: NB, dry_run: bool = False) -> list[dict]:
             applied += 1
 
     # Write back UIDs to DSL file
-    Path(dsl_path).write_text(
-        yaml.dump(dsl, allow_unicode=True, default_flow_style=False,
-                  sort_keys=False)
-    )
+    Path(dsl_path).write_text(_dump_yaml(dsl))
 
     print(f"\n  Applied {applied} changes. UIDs written back to {dsl_path}")
     return diffs
@@ -580,24 +742,21 @@ def main():
         # Try as popup parent
         popup_dsl = sync_popup(nb, uid)
         if popup_dsl:
-            print(yaml.dump(popup_dsl, allow_unicode=True,
-                           default_flow_style=False, sort_keys=False))
+            print(_dump_yaml(popup_dsl))
             return
 
         # Try as tree parent
         tree = nb.get_tree(uid)
         if tree:
             dsl = live_to_dsl(tree, nb)
-            print(yaml.dump(dsl, allow_unicode=True,
-                           default_flow_style=False, sort_keys=False))
+            print(_dump_yaml(dsl))
             return
 
         # Try as single model
         model = nb.get_model(uid)
         if model:
             dsl = live_to_dsl(model, nb)
-            print(yaml.dump(dsl, allow_unicode=True,
-                           default_flow_style=False, sort_keys=False))
+            print(_dump_yaml(dsl))
         else:
             print(f"  [{uid}] not found")
 
@@ -620,8 +779,7 @@ def _export_page(nb: NB, route_info: dict, out_dir: str):
 
     slug = slugify(title)
     path = Path(out_dir) / f"{slug}.dsl.yaml"
-    path.write_text(yaml.dump(dsl, allow_unicode=True,
-                              default_flow_style=False, sort_keys=False))
+    path.write_text(_dump_yaml(dsl))
 
     block_count = _count_blocks(dsl.get("grid", {}))
     print(f"    → {path}  ({block_count} blocks)")

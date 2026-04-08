@@ -1,0 +1,70 @@
+page: 任务看板
+tab: 5p0xu2ykq0a
+route: 357750734716928
+page_uid: 9kdwrg0g1eb
+grid:
+  uid: li6obhiur4n
+  use: BlockGrid
+  items:
+  - uid: skjb4cgl4rl
+    use: FilterFormBlock
+    coll: test_tasks
+    grid:
+      uid: 3dwlau2e2bc
+      use: FormGrid
+      fields:
+      - uid: j4c2a1v3urs
+        use: InputField
+        field: title
+      - uid: hktlx0675yd
+        use: SelectField
+        field: status
+  - uid: b5geavetbws
+    use: TableBlock
+    coll: test_tasks
+    columns:
+    - uid: rdaxm5w1obd
+      use: TableColumn
+      field:
+        uid: h4i6zuq4xz3
+        use: DisplayTextField
+      stepParams:
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: af5k8zye689
+      use: TableColumn
+      field:
+        uid: v4n9hodgda9
+        use: DisplayEnumField
+      stepParams:
+        tableColumnSettings:
+          model:
+            use: DisplayEnumFieldModel
+    - uid: huh08u9pfc5
+      use: TableColumn
+      field:
+        uid: jopc4vamrgn
+        use: DisplayTextField
+      stepParams:
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: zykflbr59e3
+      use: TableColumn
+      field:
+        uid: 7r5o9fnwhwe
+        use: DisplayDateField
+      stepParams:
+        tableColumnSettings:
+          model:
+            use: DisplayDateFieldModel
+    actions:
+    - uid: kto58tkkjtl
+      use: FilterAction
+    - uid: xbwtez3ftn3
+      use: RefreshAction
+    - uid: 161rhnw3qeg
+      use: AddNewAction
+    - uid: at1v74i6gxa
+      use: BulkDeleteAction
