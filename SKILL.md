@@ -109,31 +109,72 @@ fields: [sku, product_name, category, price, status]
 
 字段类型由 collection 的 interface 决定（input→文本, select→下拉, number→数字...），不需要在 structure.yaml 里指定。
 
-## state.yaml — UID 注册表
+## $变量引用 — 语义化 UID 查找
 
-deploy 后自动生成，**每个元素都有 UID**。L2 或手动操作时按路径查找：
+state.yaml 存储所有 UID。在 enhance.yaml 中用 `$path` 引用，deploy 时自动解析：
+
+```yaml
+# enhance.yaml
+popups:
+  - target: $产品管理.table.actions.addNew      # → popup_grid UID
+    blocks:
+      - type: form
+        coll: inv_products
+        fields: [sku*, product_name*, category]
+
+js:
+  - target: $产品管理.table.fields.status        # → field UID
+    file: ./status-badge.js
+```
+
+**变量路径规则**：`$页面名.区块key.元素类型.元素名[.属性]`
+
+```
+$产品管理.table.uid                          → 表格区块 UID
+$产品管理.table.fields.sku.field             → SKU 列字段 UID
+$产品管理.table.fields.sku.wrapper           → SKU 列容器 UID
+$产品管理.table.actions.addNew.uid           → 新建按钮 UID
+$产品管理.table.actions.addNew.popup_grid    → 新建弹窗 grid UID
+$产品管理.table.record_actions.edit.uid      → 编辑行按钮 UID
+$产品管理.filter.grid_uid                    → 筛选表单 grid UID
+$产品管理.tab_uid                            → 页面 tab UID
+```
+
+**省略末尾属性时自动选择**：
+- `$xxx.actions.addNew` → 优先返回 `popup_grid`（弹窗目标）
+- `$xxx.fields.status` → 优先返回 `field`（字段 UID）
+- `$xxx.table` → 返回 `uid`（区块 UID）
+
+**查看所有可用变量**：
+```bash
+python refs.py inventory2/state.yaml              # 列出全部
+python refs.py inventory2/state.yaml 产品管理      # 只看某页面
+```
+
+## state.yaml 结构
+
+deploy 后自动生成，**每个元素都有 UID**：
 
 ```yaml
 pages:
   产品管理:
-    tab_uid: xxx                      # 页面 tab
+    tab_uid: xxx
     blocks:
-      table:
-        uid: aaa                      # 表格区块
+      filter:                               # key = 区块语义名
+        uid: aaa
+        grid_uid: bbb
         fields:
-          sku: {wrapper: bbb, field: ccc}
-          product_name: {wrapper: ddd, field: eee}
+          product_name: {wrapper: ccc, field: ddd}
+      table:
+        uid: eee
+        actions_column_uid: fff
+        fields:
+          sku: {wrapper: ggg, field: hhh}
         actions:
-          addNew: {uid: fff, popup_page: ggg, popup_grid: hhh}
+          addNew: {uid: iii, popup_page: jjj, popup_grid: kkk}
         record_actions:
-          edit: {uid: iii, popup_page: jjj, popup_grid: kkk}
+          edit: {uid: lll, popup_page: mmm, popup_grid: nnn}
 ```
-
-**查 UID 路径示例**：
-- 表格区块 UID → `pages.产品管理.blocks.table.uid`
-- SKU 列的字段 UID → `pages.产品管理.blocks.table.fields.sku.field`
-- 新建按钮的弹窗 grid → `pages.产品管理.blocks.table.actions.addNew.popup_grid`
-- 编辑行按钮 UID → `pages.产品管理.blocks.table.record_actions.edit.uid`
 
 ## flowSurfaces API 快速参考
 

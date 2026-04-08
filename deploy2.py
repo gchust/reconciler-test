@@ -209,23 +209,24 @@ def _parse_compose_action(a) -> dict:
 # ══════════════════════════════════════════════════════════════════
 
 def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
-    """Deploy Layer 2: popup content, JS code, event flows."""
+    """Deploy Layer 2: popup content, JS code, event flows.
+
+    All targets use $variable references resolved from state.yaml:
+      $产品管理.table.actions.addNew     → popup_grid UID
+      $产品管理.table.fields.status      → field UID
+    """
+    from refs import RefResolver
+
     print(f"\n  ── Layer 2: Enhance ──")
 
-    pages_state = state.get("pages", {})
+    resolver = RefResolver(state)
 
     for popup_spec in spec.get("popups", []):
-        page_key = _slugify(popup_spec.get("page", ""))
-        ps = pages_state.get(page_key, {})
-        if not ps:
-            print(f"  ! popup: page '{page_key}' not in state, skip")
-            continue
-
-        # Resolve popup target UID
         target_ref = popup_spec.get("target", "")
-        popup_grid_uid = _resolve_popup_uid(ps, target_ref)
-        if not popup_grid_uid:
-            print(f"  ! popup: can't resolve '{target_ref}' in page '{page_key}'")
+        try:
+            popup_grid_uid = resolver.resolve_uid(target_ref)
+        except KeyError as e:
+            print(f"  ! popup: {e}")
             continue
 
         # Compose blocks inside popup
@@ -235,7 +236,7 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
             print(f"  + popup [{target_ref}]: {len(result.get('blocks',[]))} blocks")
 
     for js_spec in spec.get("js", []):
-        target_uid = js_spec.get("uid", "")
+        target_ref = js_spec.get("target", "")
         code = js_spec.get("code", "")
         code_file = js_spec.get("file", "")
 
@@ -244,41 +245,29 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
             if p.exists():
                 code = p.read_text()
 
-        if target_uid and code:
-            nb.configure(target_uid, {
-                "changes": [{"path": "jsSettings.runJs.code", "value": code}]
-            })
-            print(f"  + js [{target_uid}]: {len(code)} chars")
+        if target_ref and code:
+            try:
+                target_uid = resolver.resolve_uid(target_ref)
+                nb.configure(target_uid, {
+                    "changes": [{"path": "jsSettings.runJs.code", "value": code}]
+                })
+                print(f"  + js [{target_ref}]: {len(code)} chars")
+            except KeyError as e:
+                print(f"  ! js: {e}")
 
     for event_spec in spec.get("events", []):
-        target_uid = event_spec.get("uid", "")
+        target_ref = event_spec.get("target", "")
         flows = event_spec.get("flows", {})
-        if target_uid and flows:
+        if not target_ref or not flows:
+            continue
+        try:
+            target_uid = resolver.resolve_uid(target_ref)
+        except KeyError as e:
+            print(f"  ! event: {e}")
+            continue
             nb.set_event_flows(target_uid, {"eventFlows": flows})
             print(f"  + events [{target_uid}]")
 
-
-def _resolve_popup_uid(page_state: dict, ref: str) -> str | None:
-    """Resolve a popup reference like 'table1.actions.addNew' to its grid UID."""
-    blocks = page_state.get("blocks", {})
-
-    # Try direct: "table1.actions.addNew"
-    parts = ref.split(".")
-    if len(parts) >= 3:
-        block_key = parts[0]
-        sub = ".".join(parts[:2])  # "table1.actions"
-        action_key = parts[2]
-        action_state = blocks.get(sub, {}).get(action_key, {})
-        return action_state.get("popup_grid_uid")
-
-    # Try field: "table1.fields.title"
-    if len(parts) >= 3 and parts[1] == "fields":
-        block_key = parts[0]
-        field_key = parts[2]
-        field_state = blocks.get(f"{block_key}.fields", {}).get(field_key, {})
-        return field_state.get("popup_grid_uid")
-
-    return None
 
 
 # ══════════════════════════════════════════════════════════════════
