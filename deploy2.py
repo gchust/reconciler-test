@@ -319,26 +319,45 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
                 code = p.read_text()
 
         if target_ref and code:
+            title = js_spec.get("title", "")
+
+            # Try resolving existing UID
+            target_uid = None
             try:
                 target_uid = resolver.resolve_uid(target_ref)
-                title = js_spec.get("title", "")
-                changes: dict = {"code": code}
-                if title:
-                    changes["title"] = title
-                nb.configure(target_uid, {"changes": changes})
-                print(f"  + js [{target_ref}]: {len(code)} chars")
-            except KeyError as e:
-                print(f"  ! js: {e}")
-            except RuntimeError as e:
-                # Fallback to legacy update_model for nodes configure doesn't support
+            except KeyError:
+                # Auto-create JSColumn if target looks like a table field ref
+                # e.g., $leads复刻.table.fields.js_xxx → addField(table_uid, jsColumn)
+                parts = target_ref.lstrip("$").split(".")
+                # Find the table block UID
                 try:
-                    sp_patch: dict = {"jsSettings": {"runJs": {"code": code, "version": "v1"}}}
+                    table_ref = ".".join(parts[:2])  # e.g., leads复刻.table
+                    table_uid = resolver.resolve_uid(f"${table_ref}")
+                    result = nb.add_field(table_uid, "jsColumn", type="jsColumn")
+                    target_uid = result.get("uid")
+                    # Save to state for future refs
+                    field_key = parts[-1] if len(parts) > 3 else f"js_{title or 'col'}"
+                    # Update resolver
+                    print(f"  + jsColumn [{target_ref}]: created {target_uid}")
+                except Exception as e:
+                    print(f"  ! js create [{target_ref}]: {e}")
+
+            if target_uid and code:
+                try:
+                    changes: dict = {"code": code}
                     if title:
-                        sp_patch["tableColumnSettings"] = {"title": {"title": title}}
-                    nb.update_model(target_uid, sp_patch)
-                    print(f"  + js [{target_ref}]: {len(code)} chars (legacy)")
-                except Exception as e2:
-                    print(f"  ! js [{target_ref}]: {e2}")
+                        changes["title"] = title
+                    nb.configure(target_uid, {"changes": changes})
+                    print(f"  + js [{target_ref}]: {len(code)} chars")
+                except RuntimeError:
+                    try:
+                        sp_patch: dict = {"jsSettings": {"runJs": {"code": code, "version": "v1"}}}
+                        if title:
+                            sp_patch["tableColumnSettings"] = {"title": {"title": title}}
+                        nb.update_model(target_uid, sp_patch)
+                        print(f"  + js [{target_ref}]: {len(code)} chars (legacy)")
+                    except Exception as e2:
+                        print(f"  ! js [{target_ref}]: {e2}")
 
     for event_spec in spec.get("events", []):
         target_ref = event_spec.get("target", "")

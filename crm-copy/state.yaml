@@ -1,0 +1,52 @@
+group_id: 357789966336000
+pages:
+  leads复刻:
+    route_id: 357789966336002
+    page_uid: auivt3gq77y
+    tab_uid: j4j06tkow2y
+    grid_uid: xjv94pmjr8h
+    blocks:
+      filter:
+        uid: sqt7w79jarz
+        type: filterForm
+        grid_uid: l5enkmhj05k
+        fields:
+          name:
+            wrapper: h594y32o73q
+            field: se0pwruw35b
+      table:
+        uid: cmc5jy6y3l4
+        type: table
+        actions_column_uid: rubjjgud3rb
+        fields:
+          name:
+            wrapper: z1isbadghnn
+            field: zzamwt3d9k5
+          source:
+            wrapper: a71dph9dpqo
+            field: g9vtmf3umkx
+          status:
+            wrapper: 2egdr7iy3qq
+            field: u687anbjma2
+          industry:
+            wrapper: biwpa3bj64n
+            field: 74yh73y25pk
+          owner:
+            wrapper: 9fsxk35js7f
+            field: wiwnewsdmxl
+        actions:
+          filter:
+            uid: q1dcv5gz7zh
+          refresh:
+            uid: s764o9yctph
+          export:
+            uid: 851uc796t9t
+          addNew:
+            uid: 64tqutwp0zm
+        record_actions:
+          edit:
+            uid: pop9e4ctddl
+          view:
+            uid: 3jjuxupj3xg
+          delete:
+            uid: fbvc1s2ytci

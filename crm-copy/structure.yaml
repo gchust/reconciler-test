@@ -1,0 +1,30 @@
+# ═══════════════════════════════════
+#  CRM 复刻：Leads 页面
+# ═══════════════════════════════════
+# 从 exports/crm/ 导出 → 复刻到新模块
+# 使用原有 collection (nb_crm_leads)
+
+module: CRM复刻
+icon: rocketoutlined
+
+pages:
+  - page: Leads复刻
+    icon: useraddoutlined
+    coll: nb_crm_leads
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths: [name, company, email, phone]
+
+      - key: table
+        type: table
+        fields: [name, source, status, industry, owner]
+        actions: [filter, refresh, export, addNew]
+        recordActions: [edit, view, delete]
+
+    layout:
+      - [filter]
+      - [table]

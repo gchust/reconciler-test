@@ -1,0 +1,41 @@
+# ═══════════════════════════════════
+#  CRM 复刻：Leads 增强
+# ═══════════════════════════════════
+
+popups:
+  - target: $leads复刻.table.actions.addNew
+    auto: [edit, view]
+    view_field: name
+    coll: nb_crm_leads
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [name, company, source, status, industry, owner, email, phone, mobile_phone]
+        field_layout:
+          - "--- 基本信息 ---"
+          - [name, company]
+          - [source, status, industry]
+          - "--- 负责人 ---"
+          - [owner]
+          - "--- 联系方式 ---"
+          - [email, phone, mobile_phone]
+        actions: [submit]
+
+js:
+  # JS 自定义列 — 从原 CRM 导出的代码
+  - target: $leads复刻.table.fields.js_lead_name
+    file: ./js/table_b3f6e3_col_Lead_Name_Company.js
+    title: Lead Name/Company
+
+  - target: $leads复刻.table.fields.js_contact
+    file: ./js/table_b3f6e3_col_Contact.js
+    title: Contact
+
+  - target: $leads复刻.table.fields.js_ai_score
+    file: ./js/table_b3f6e3_col_AI_Score.js
+    title: AI Score
+
+  - target: $leads复刻.table.fields.js_created
+    file: ./js/table_b3f6e3_col_Created.js
+    title: Created
