@@ -1,70 +1,94 @@
 page: 任务看板
-tab: 5p0xu2ykq0a
-route: 357750734716928
-page_uid: 9kdwrg0g1eb
+tab: 66u433froen
+route: 357751454040064
+page_uid: yj225jtfm3h
 grid:
-  uid: li6obhiur4n
+  uid: koxkvx21t42
   use: BlockGrid
   items:
-  - uid: skjb4cgl4rl
+  - uid: dnipjz5rnw2
     use: FilterFormBlock
-    coll: test_tasks
     grid:
-      uid: 3dwlau2e2bc
-      use: FormGrid
-      fields:
-      - uid: j4c2a1v3urs
-        use: InputField
-        field: title
-      - uid: hktlx0675yd
-        use: SelectField
-        field: status
-  - uid: b5geavetbws
+      uid: 6suxzxaqu4e
+      use: FilterFormGrid
+      items:
+      - uid: yuoi7wfse9p
+        use: FilterFormItem
+        field:
+          uid: cvm6ovd0mya
+          use: InputField
+      - uid: 5eksnj0bfq7
+        use: FilterFormItem
+        field:
+          uid: 10l4hbnjf3e
+          use: SelectField
+    actions:
+    - uid: n0yr3lyhrc4
+      use: FilterAction
+    - uid: u4jd69wjtdb
+      use: ResetAction
+  - uid: 9qfpe570jqj
     use: TableBlock
     coll: test_tasks
     columns:
-    - uid: rdaxm5w1obd
+    - uid: 3r2y2jgr7hj
       use: TableColumn
       field:
-        uid: h4i6zuq4xz3
+        uid: nbc7lwa4qk4
         use: DisplayTextField
       stepParams:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: af5k8zye689
+    - uid: 3e9k3dxh0wj
       use: TableColumn
       field:
-        uid: v4n9hodgda9
+        uid: fefom7sgzwk
         use: DisplayEnumField
       stepParams:
         tableColumnSettings:
           model:
             use: DisplayEnumFieldModel
-    - uid: huh08u9pfc5
+    - uid: 8goh83k1tfa
       use: TableColumn
       field:
-        uid: jopc4vamrgn
+        uid: vzkd584jkwl
         use: DisplayTextField
       stepParams:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: zykflbr59e3
+    - uid: jjwyh5v58gy
       use: TableColumn
       field:
-        uid: 7r5o9fnwhwe
+        uid: 8pgz4w9h8fq
         use: DisplayDateField
       stepParams:
         tableColumnSettings:
           model:
             use: DisplayDateFieldModel
     actions:
-    - uid: kto58tkkjtl
+    - uid: pxnb1p1a11y
       use: FilterAction
-    - uid: xbwtez3ftn3
+    - uid: 2iq8ch71gz3
       use: RefreshAction
-    - uid: 161rhnw3qeg
+    - uid: ogmsbc3uey5
       use: AddNewAction
-    - uid: at1v74i6gxa
+    - uid: yf032i45sz7
       use: BulkDeleteAction
+  stepParams:
+    gridSettings:
+      grid:
+        rows:
+          ew3c7skgwj9:
+          - - dnipjz5rnw2
+          c2m2fo7qz6y:
+          - - 9qfpe570jqj
+        sizes:
+          ew3c7skgwj9:
+          - 24
+          c2m2fo7qz6y:
+          - 24
+        rowOrder:
+        - ew3c7skgwj9
+        - c2m2fo7qz6y
