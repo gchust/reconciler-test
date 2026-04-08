@@ -1,13 +1,11 @@
 popups:
 - page: Leads
   field: name
-  field_uid: 8d0b8114c2f
   mode: embed
   tabs:
   - blocks:
     - key: details_0
       type: details
-      _uid: 8d5a83aff48
       coll: nb_crm_leads
       resource_binding:
         filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
@@ -17,11 +15,9 @@ popups:
       - owner
       - createdAt
       js_items:
-      - _uid: b2aac9fe0ae
-        desc: Lead Key Stats Block
+      - desc: Lead Key Stats Block
         file: ./js/leads_popup_name_tab0_details_0_lead_key_stats_block.js
-      - _uid: f47019b8c64
-        desc: Lead Badges Row Component
+      - desc: Lead Badges Row Component
         file: ./js/leads_popup_name_tab0_details_0_lead_badges_row_component.js
       field_layout:
       - - '---'
@@ -37,27 +33,23 @@ popups:
       - popup
     - key: lead_insights
       type: details
-      _uid: e919ce96625
       title: Lead Insights
       coll: nb_crm_leads
       resource_binding:
         filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
       js_items:
-      - _uid: 6894b1e0152
-        desc: Lead AI Insights Block
+      - desc: Lead AI Insights Block
         file: ./js/leads_popup_name_tab0_lead_insights_lead_ai_insights_block.js
       field_layout:
       - - '[JS:Lead AI Insights Block]'
     - key: lead_owner
       type: details
-      _uid: c266c88d692
       title: Lead Owner
       coll: nb_crm_leads
       resource_binding:
         filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
       js_items:
-      - _uid: b0d574023b4
-        desc: Lead Profile Header Block
+      - desc: Lead Profile Header Block
         file: ./js/leads_popup_name_tab0_lead_owner_lead_profile_header_block.js
       field_layout:
       - - '---'
@@ -68,7 +60,6 @@ popups:
       - popup
     - key: company_information
       type: details
-      _uid: e6f4574459b
       title: Company Information
       coll: nb_crm_leads
       resource_binding:
@@ -85,7 +76,6 @@ popups:
       - - number_of_employees
     - key: contact_information
       type: details
-      _uid: 7e3ec08e24f
       title: Contact Information
       coll: nb_crm_leads
       resource_binding:
@@ -104,17 +94,14 @@ popups:
         - address: 16
     - key: details_5
       type: details
-      _uid: 556bda8b057
       coll: nb_crm_leads
       resource_binding:
         filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
       js_items:
-      - _uid: 7d7bf6b4f5f
-        desc: Lead Stage Flow Block
+      - desc: Lead Stage Flow Block
         file: ./js/leads_popup_name_tab0_details_5_lead_stage_flow_block.js
     - key: comments_6
       type: comments
-      _uid: b8f93fb9444
       coll: nb_crm_comments
       resource_binding:
         associationName: nb_crm_leads.comments
@@ -135,7 +122,6 @@ popups:
   - blocks:
     - key: recordHistory_0
       type: recordHistory
-      _uid: 196609a2fab
       coll: nb_crm_leads
     title: Tab1
   - blocks: []
@@ -144,13 +130,11 @@ popups:
     title: Tab2
 - page: Customers
   field: name
-  field_uid: 95effc54287
   mode: embed
   tabs:
   - blocks:
     - key: details_0
       type: details
-      _uid: c1564673b7c
       coll: nb_crm_customers
       resource_binding:
         filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
@@ -160,11 +144,9 @@ popups:
       - scale
       - region
       js_items:
-      - _uid: 6b84a8f7bcd
-        desc: Customer Statistics Block
+      - desc: Customer Statistics Block
         file: ./js/customers_popup_name_tab0_details_0_customer_statistics_block.js
-      - _uid: 50fe75158e5
-        desc: item_profile - Customer Profile Header
+      - desc: item_profile - Customer Profile Header
         file: ./js/customers_popup_name_tab0_details_0_item_profile_customer_profile_header.js
       field_layout:
       - - '[JS:item_profile - Customer Profile Header]'
@@ -177,17 +159,14 @@ popups:
       - edit
     - key: details_1
       type: details
-      _uid: 20d8ba1d04a
       coll: nb_crm_customers
       resource_binding:
         filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
       js_items:
-      - _uid: 47443fb3685
-        desc: AI Smart Profile Block
+      - desc: AI Smart Profile Block
         file: ./js/customers_popup_name_tab0_details_1_ai_smart_profile_block.js
     - key: contacts
       type: list
-      _uid: 8a885d663ed
       title: Contacts
       coll: nb_crm_contacts
       resource_binding:
@@ -197,8 +176,7 @@ popups:
       - email
       - phone
       item_js:
-      - _uid: 7fde2930ad2
-        desc: Contact Row Column - Customer 360
+      - desc: Contact Row Column - Customer 360
         file: ./js/customers_popup_name_tab0_contacts_contact_row_column_customer_360.js
       item_layout:
       - - '[JS:Contact Row Column - Customer 360]'
@@ -212,19 +190,16 @@ popups:
       - addNew
     - key: opportunities
       type: list
-      _uid: f2faba3ca81
       title: Opportunities
       coll: nb_crm_opportunities
       resource_binding:
         associationName: nb_crm_customers.opportunities
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
       item_js:
-      - _uid: 43c06388f8c
-        desc: Opportunity Row Column - Customer 360
+      - desc: Opportunity Row Column - Customer 360
         file: ./js/customers_popup_name_tab0_opportunities_opportunity_row_column_customer_360.js
     - key: comments_4
       type: comments
-      _uid: 0e874d195d4
       coll: nb_crm_comments
       resource_binding:
         associationName: nb_crm_customers.comments
@@ -243,16 +218,13 @@ popups:
   - blocks:
     - key: recordHistory_0
       type: recordHistory
-      _uid: 5c6b09c4f6e
       coll: nb_crm_customers
     title: Tab1
 - page: Products
   field: name
-  field_uid: 64e29a3db80
   blocks:
   - key: editForm_0
     type: editForm
-    _uid: e83f8480678
     coll: nb_crm_products
     resource_binding:
       filterByTk: '{{ctx.view.inputArgs.filterByTk}}'

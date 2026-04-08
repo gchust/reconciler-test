@@ -97,12 +97,14 @@ def _export_grid(nb: NocoBase, grid: dict, js_dir: Path = None,
     blocks = []
     block_uid_to_key: dict[str, str] = {}
     popup_refs: list[dict] = []
+    state_blocks: dict[str, Any] = {}
 
     for i, item in enumerate(items):
-        block_spec, block_key, _ = _export_block(nb, item, js_dir, prefix, i)
+        block_spec, block_key, block_state = _export_block(nb, item, js_dir, prefix, i)
         if block_spec:
             blocks.append(block_spec)
             block_uid_to_key[item.get("uid", "")] = block_key
+            state_blocks[block_key] = block_state
 
             # Collect popup references from fields
             popups = block_spec.pop("_popups", [])
@@ -116,6 +118,8 @@ def _export_grid(nb: NocoBase, grid: dict, js_dir: Path = None,
         result["layout"] = layout
     if popup_refs:
         result["popups"] = popup_refs
+    # State: UID registry (separate from spec)
+    result["_state"] = {"grid_uid": grid_uid, "blocks": state_blocks}
 
     return result
 
@@ -173,8 +177,6 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     _used_keys.add(key)
 
     spec: dict[str, Any] = {"key": key, "type": btype}
-    # UID as optional _uid (for sync/match, ignored on fresh deploy)
-    spec["_uid"] = uid
     if title:
         spec["title"] = title
 
@@ -291,7 +293,12 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     if popup_refs:
         spec["_popups"] = popup_refs
 
-    return spec, key, {}
+    # Build state for this block
+    block_state: dict[str, Any] = {"uid": uid, "type": btype}
+    if title:
+        block_state["title"] = title
+
+    return spec, key, block_state
 
 
 # ── Table contents ────────────────────────────────────────────────
@@ -315,7 +322,7 @@ def _export_table_contents(item: dict, js_dir: Path = None,
             code = col.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
             col_title = col.get("stepParams", {}).get("tableColumnSettings", {}).get("title", {}).get("title", "")
             desc = _extract_js_desc(code) if code else ""
-            entry: dict[str, Any] = {"_uid": col.get("uid", "")}
+            entry: dict[str, Any] = {}
             if col_title:
                 entry["title"] = col_title
             if desc:
@@ -376,7 +383,7 @@ def _export_form_contents(grid: dict, js_dir: Path = None,
         if "JSItem" in di_use:
             code = di.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
             desc = _extract_js_desc(code) if code else ""
-            entry: dict[str, Any] = {"_uid": di_uid}
+            entry: dict[str, Any] = {}
             if desc:
                 entry["desc"] = desc
             js_name = _slugify(desc) if desc else f"js_{len(js_items)}"

@@ -4,11 +4,9 @@ pages:
 - blocks:
   - key: jsBlock_0
     type: jsBlock
-    _uid: a8a5bd931dc
     file: ./js/overview_jsBlock_0.js
   - key: today_s_tasks
     type: table
-    _uid: 63bd120202a
     title: Today's Tasks
     coll: nb_crm_activities
     fields:
@@ -25,7 +23,6 @@ pages:
     - updateRecord
   - key: high_score_leads
     type: table
-    _uid: 1bd65d69015
     title: High Score Leads
     coll: nb_crm_leads
     fields:
@@ -33,8 +30,7 @@ pages:
     - ai_next_best_action
     - updatedAt
     js_columns:
-    - _uid: 1b7871f06af
-      title: AI Score
+    - title: AI Score
       desc: AI Score Column
       file: ./js/overview_high_score_leads_col_ai_score.js
     actions:
@@ -44,7 +40,6 @@ pages:
     - ai
   - key: activity_calendar_block
     type: jsBlock
-    _uid: 6d323a21694
     desc: Activity Calendar Block
     file: ./js/overview_activity_calendar_block.js
   layout:
@@ -57,7 +52,6 @@ pages:
 - blocks:
   - key: table_0
     type: table
-    _uid: b3f6e318381
     coll: nb_crm_leads
     fields:
     - name
@@ -66,20 +60,16 @@ pages:
     - industry
     - owner
     js_columns:
-    - _uid: 720cbfa7842
-      title: Lead Name/Company
+    - title: Lead Name/Company
       desc: Lead Info Column (Multi-field)
       file: ./js/leads_table_0_col_lead_name_company.js
-    - _uid: d8d8a4a3a80
-      title: Contact
+    - title: Contact
       desc: Lead Contact Column (Multi-field)
       file: ./js/leads_table_0_col_contact.js
-    - _uid: 7f1891a8535
-      title: AI Score
+    - title: AI Score
       desc: AI Score Column
       file: ./js/leads_table_0_col_ai_score.js
-    - _uid: c70f578bbb4
-      title: Created
+    - title: Created
       desc: Created Ago Column - Leads Module
       file: ./js/leads_table_0_col_created.js
     actions:
@@ -91,12 +81,10 @@ pages:
     - ai
   - key: filterForm_1
     type: filterForm
-    _uid: 142c7cbc555
     fields:
     - name
     js_items:
-    - _uid: 5cdebcce9c3
-      desc: Leads Stats Filter Block
+    - desc: Leads Stats Filter Block
       file: ./js/leads_filterForm_1_leads_stats_filter_block.js
   layout:
   - - col:
@@ -108,7 +96,6 @@ pages:
 - blocks:
   - key: table_0
     type: table
-    _uid: d8498eb45ca
     coll: nb_crm_customers
     fields:
     - name
@@ -118,12 +105,10 @@ pages:
     - status
     - owner
     js_columns:
-    - _uid: 5ebbc5a7f21
-      title: Health Score
+    - title: Health Score
       desc: Health Score Column
       file: ./js/customers_table_0_col_health_score.js
-    - _uid: 084e3b50100
-      title: Last Activity
+    - title: Last Activity
       desc: Last Activity Column - Leads Module
       file: ./js/customers_table_0_col_last_activity.js
     actions:
@@ -134,12 +119,10 @@ pages:
     - ai
   - key: filterForm_1
     type: filterForm
-    _uid: e31595cfe5e
     fields:
     - name
     js_items:
-    - _uid: 012bee0acfb
-      desc: Customer Stats Filter Block
+    - desc: Customer Stats Filter Block
       file: ./js/customers_filterForm_1_customer_stats_filter_block.js
   layout:
   - - filterForm_1
@@ -149,12 +132,10 @@ pages:
 - blocks:
   - key: pipeline_header_block
     type: jsBlock
-    _uid: a19ac22b220
     desc: Pipeline Header Block
     file: ./js/opportunities_pipeline_header_block.js
   - key: kanban_board_block_resource_based
     type: jsBlock
-    _uid: 79de06ad20d
     desc: Kanban Board Block (Resource-based)
     file: ./js/opportunities_kanban_board_block_resource_based.js
   layout:
@@ -165,12 +146,10 @@ pages:
 - blocks:
   - key: filterForm_0
     type: filterForm
-    _uid: 89a416dc6a5
     fields:
     - order_no
     js_items:
-    - _uid: 30d65b9f8f5
-      desc: Order Stats Filter Block
+    - desc: Order Stats Filter Block
       file: ./js/orders_filterForm_0_order_stats_filter_block.js
     field_layout:
     - - col:
@@ -185,7 +164,6 @@ pages:
 - blocks:
   - key: table_0
     type: table
-    _uid: 121ad8f2da1
     coll: nb_crm_products
     fields:
     - name
@@ -202,7 +180,6 @@ pages:
     - addNew
   - key: category_tree_filter_product_category_sidebar
     type: jsBlock
-    _uid: 67558b719dd
     desc: Category Tree Filter - Product Category Sidebar
     file: ./js/products_category_tree_filter_product_category_sidebar.js
   layout:
@@ -213,51 +190,40 @@ pages:
 - blocks:
   - key: filterForm_0
     type: filterForm
-    _uid: sp0bblhcwmj
     fields:
     - owner
     js_items:
-    - _uid: xp880ob3lz8
-      file: ./js/analytics_filterForm_0_js_0.js
+    - file: ./js/analytics_filterForm_0_js_0.js
     field_layout:
     - - jiuuge55: 10
       - owner: 5
       - '[JS]': 5
   - key: chart_1
     type: chart
-    _uid: hu4haj59bjz
     chart_config: ./charts/analytics_chart_1.json
   - key: chart_2
     type: chart
-    _uid: efd8l319buz
     chart_config: ./charts/analytics_chart_2.json
   - key: chart_3
     type: chart
-    _uid: fado2jfs4bz
     chart_config: ./charts/analytics_chart_3.json
   - key: chart_4
     type: chart
-    _uid: dvigfls2dy1
     chart_config: ./charts/analytics_chart_4.json
   - key: chart_5
     type: chart
-    _uid: iay7yvf7pt5
     chart_config: ./charts/analytics_chart_5.json
   - key: jsBlock_6
     type: jsBlock
-    _uid: ni91boznxq4
     file: ./js/analytics_jsBlock_6.js
   - key: jsBlock_7
     type: jsBlock
-    _uid: xgsg794h134
     file: ./js/analytics_jsBlock_7.js
   - key: jsBlock_8
     type: jsBlock
-    _uid: q59ehmdd4qp
     file: ./js/analytics_jsBlock_8.js
   - key: jsBlock_9
     type: jsBlock
-    _uid: g71gplt3v3i
     file: ./js/analytics_jsBlock_9.js
   layout:
   - - filterForm_0
