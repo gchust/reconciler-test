@@ -202,9 +202,11 @@ class NocoBase:
         return r.json().get("data")
 
     def update_model(self, uid: str, step_params_patch: dict):
-        """Safe partial update — GET current → merge stepParams → PUT back.
+        """Safe partial update — GET current → merge stepParams → save back.
 
-        Unlike save_model, this preserves parentId/subKey/subType/sortIndex.
+        Uses flowModels:save with ALL structural fields preserved
+        (parentId, subKey, subType, sortIndex). flowModels:update's options
+        format doesn't include parentId and clears it.
         """
         r = self.s.get(f"{self.base}/api/flowModels:get",
                        params={"filterByTk": uid}, timeout=self._timeout)
@@ -220,13 +222,24 @@ class NocoBase:
             else:
                 sp[k] = v
 
-        opts = {k: v for k, v in current.items() if k not in ("uid", "name")}
-        opts["stepParams"] = sp
+        # Use flowModels:save with ALL fields to preserve parentId etc.
+        save_data = {
+            "uid": uid,
+            "use": current.get("use", ""),
+            "parentId": current.get("parentId"),
+            "subKey": current.get("subKey"),
+            "subType": current.get("subType"),
+            "sortIndex": current.get("sortIndex"),
+            "stepParams": sp,
+            "flowRegistry": current.get("flowRegistry", {}),
+        }
+        # Only include non-None structural fields
+        save_data = {k: v for k, v in save_data.items() if v is not None}
 
-        r2 = self.s.post(f"{self.base}/api/flowModels:update?filterByTk={uid}",
-                         json={"options": opts}, timeout=self._timeout)
+        r2 = self.s.post(f"{self.base}/api/flowModels:save",
+                         json=save_data, timeout=self._timeout)
         if not r2.ok:
-            raise RuntimeError(f"flowModels:update {uid} → {r2.status_code}: {r2.text[:200]}")
+            raise RuntimeError(f"flowModels:save {uid} → {r2.status_code}: {r2.text[:200]}")
         return r2.json().get("data")
 
     def add_divider(self, grid_uid: str, label: str,
