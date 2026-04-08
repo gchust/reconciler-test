@@ -81,7 +81,9 @@ pages:
     - export
     - import
     - addNew
-    recordActions: []
+    recordActions:
+    - edit
+    - delete
   - key: filterForm_1
     type: filterForm
     fields:
@@ -121,7 +123,9 @@ pages:
     - refresh
     - addNew
     - triggerWorkflow
-    recordActions: []
+    recordActions:
+    - edit
+    - delete
   - key: filterForm_1
     type: filterForm
     fields:
@@ -171,7 +175,6 @@ pages:
     recordActions: []
   layout:
   - - filterForm_0
-  - - 76b91d81
   page: Orders
   icon: shoppingcartoutlined
 - blocks:
@@ -191,7 +194,9 @@ pages:
     - filter
     - refresh
     - addNew
-    recordActions: []
+    recordActions:
+    - edit
+    - delete
   - key: category_tree_filter_product_category_sidebar
     type: jsBlock
     desc: Category Tree Filter - Product Category Sidebar

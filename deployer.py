@@ -330,8 +330,13 @@ def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
         block["resource"] = {"collectionName": block_coll, "dataSourceKey": "main"}
 
     # Include fields — compose auto-infers display/edit model from interface
+    # filterForm: only include fields if collection is known (otherwise addField fails)
     fields = bs.get("fields", [])
-    if fields and btype in ("table", "filterForm", "createForm", "editForm", "details"):
+    include_fields = btype in ("table", "createForm", "editForm", "details")
+    if btype == "filterForm" and block_coll:
+        include_fields = True  # filterForm with known collection can use compose fields
+
+    if fields and include_fields:
         compose_fields = []
         for f in fields:
             fp = f if isinstance(f, str) else f.get("field", f.get("fieldPath", ""))
