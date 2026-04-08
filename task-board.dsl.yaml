@@ -1,20 +1,20 @@
-page: 任务看板
+page: 任务看板v2
 tab: 66u433froen
 route: 357751454040064
 grid:
-  uid: koxkvx21t42
+  uid: mslyqeh2hye
   use: BlockGrid
   items:
-  - uid: dnipjz5rnw2
+  - uid: v6yec2nnfz9
     use: FilterFormBlock
     grid:
-      uid: 6suxzxaqu4e
+      uid: j60wswb20om
       use: FilterFormGrid
       items:
-      - uid: yuoi7wfse9p
+      - uid: zf2m769hvs0
         use: FilterFormItem
         field:
-          uid: cvm6ovd0mya
+          uid: uizejveqhpf
           use: InputField
         stepParams:
           fieldSettings:
@@ -22,31 +22,33 @@ grid:
               collectionName: test_tasks
               fieldPath: title
               dataSourceKey: main
-      - uid: 5eksnj0bfq7
+      - uid: n1ulj95g7ke
         use: FilterFormItem
         field:
-          uid: 10l4hbnjf3e
-          use: SelectField
+          uid: skx59x0ntjk
+          use: InputField
         stepParams:
           fieldSettings:
             init:
               collectionName: test_tasks
               fieldPath: status
               dataSourceKey: main
-    actions:
-    - uid: n0yr3lyhrc4
-      use: FilterAction
-    - uid: u4jd69wjtdb
-      use: ResetAction
-  - uid: 9qfpe570jqj
+  - uid: vj8wyzzwjbg
     use: TableBlock
     coll: test_tasks
     columns:
-    - uid: 3r2y2jgr7hj
+    - uid: 3qbsqlh1np0
       use: TableColumn
       field:
-        uid: nbc7lwa4qk4
+        uid: hm34auz4vw1
         use: DisplayTextField
+        popup:
+        - null
+        - embed
+        stepParams:
+          displayFieldSettings:
+            clickToOpen:
+              clickToOpen: true
       stepParams:
         fieldSettings:
           init:
@@ -56,10 +58,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: 3e9k3dxh0wj
+    - uid: olvpuuyrkzz
       use: TableColumn
       field:
-        uid: fefom7sgzwk
+        uid: ai09dct8dox
         use: DisplayEnumField
       stepParams:
         fieldSettings:
@@ -70,10 +72,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayEnumFieldModel
-    - uid: 8goh83k1tfa
+    - uid: yoq9fwhz3n4
       use: TableColumn
       field:
-        uid: vzkd584jkwl
+        uid: 6d44jgqxoky
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -84,10 +86,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: jjwyh5v58gy
+    - uid: 8zw838ctdgb
       use: TableColumn
       field:
-        uid: 8pgz4w9h8fq
+        uid: avmqt0d9gxm
         use: DisplayDateField
       stepParams:
         fieldSettings:
@@ -99,12 +101,12 @@ grid:
           model:
             use: DisplayDateFieldModel
     actions:
-    - uid: pxnb1p1a11y
+    - uid: 090spyhvkv4
       use: FilterAction
-    - uid: 2iq8ch71gz3
+    - uid: 5s2puetyc02
       use: RefreshAction
-    - uid: ogmsbc3uey5
+    - uid: wtmb03qd21c
       use: AddNewAction
-    - uid: yf032i45sz7
+    - uid: 9smqlxmesex
       use: BulkDeleteAction
 page_uid: yj225jtfm3h

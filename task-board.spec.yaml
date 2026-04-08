@@ -1,0 +1,17 @@
+# 任务看板 — 功能描述
+# AI 或用户只需要写这个，不用关心 model 名
+
+page: 任务看板v2
+coll: test_tasks
+
+blocks:
+  - type: filter
+    fields: [title, status]
+
+  - type: table
+    columns:
+      - title>embed           # 点击打开详情
+      - status:enum
+      - assignee
+      - due_date:date
+    actions: [filter, refresh, addnew, bulkdelete]
