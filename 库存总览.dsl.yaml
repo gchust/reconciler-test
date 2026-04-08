@@ -1,0 +1,88 @@
+page: 库存总览
+tab: krcpffvyv6q
+route: 357755665121280
+grid:
+  uid: irgnxkgosld
+  use: BlockGrid
+  items:
+  - uid: cjdt4e3h5lp
+    use: TableBlock
+    coll: inv_products
+    columns:
+    - uid: yn5ijp6nwuw
+      use: TableColumn
+      field:
+        uid: vktaza5wqtj
+        use: DisplayTextField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: product_name
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: 9hxsi67fbnt
+      use: TableColumn
+      field:
+        uid: mhrh8wyo9hc
+        use: DisplayEnumField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: category
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayEnumFieldModel
+    - uid: xd5veya1xxu
+      use: TableColumn
+      field:
+        uid: 88x4uujip30
+        use: DisplayNumberField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: stock_qty
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayNumberFieldModel
+    - uid: h62s2qcfitq
+      use: TableColumn
+      field:
+        uid: hx94t59hjog
+        use: DisplayNumberField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: min_qty
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayNumberFieldModel
+    - uid: 3g5ub6ywuqf
+      use: TableColumn
+      field:
+        uid: 8cjf3nrvnwe
+        use: DisplayEnumField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: status
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayEnumFieldModel
+    actions:
+    - uid: dw49fwoj8cv
+      use: FilterAction
+    - uid: ss9wsq7u1b1
+      use: RefreshAction
+icon: dashboardoutlined
+page_uid: et60kicd9ak

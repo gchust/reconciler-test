@@ -1,0 +1,120 @@
+page: 入库记录
+tab: w8jn0xdb264
+route: 357755663024128
+grid:
+  uid: crf0b3qjfmf
+  use: BlockGrid
+  items:
+  - uid: 1nsw63wn7yz
+    use: FilterFormBlock
+    grid:
+      uid: chb9amykkx0
+      use: FilterFormGrid
+      items:
+      - uid: e7tys8suf86
+        use: FilterFormItem
+        field:
+          uid: 4r9pctdgrbu
+          use: InputField
+        stepParams:
+          fieldSettings:
+            init:
+              collectionName: inv_records
+              fieldPath: record_no
+              dataSourceKey: main
+      - uid: ori4c3t189v
+        use: FilterFormItem
+        field:
+          uid: lsnpusk0bgj
+          use: SelectField
+        stepParams:
+          fieldSettings:
+            init:
+              collectionName: inv_records
+              fieldPath: record_type
+              dataSourceKey: main
+  - uid: pb2y7vs65gp
+    use: TableBlock
+    coll: inv_records
+    columns:
+    - uid: vuxwbipc0hu
+      use: TableColumn
+      field:
+        uid: sbze0mzzqi6
+        use: DisplayTextField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_records
+            fieldPath: record_no
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: 4pw235zah5c
+      use: TableColumn
+      field:
+        uid: vey0votp1yj
+        use: DisplayEnumField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_records
+            fieldPath: record_type
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayEnumFieldModel
+    - uid: y7cj8vhejm0
+      use: TableColumn
+      field:
+        uid: bwun9isda3y
+        use: DisplayNumberField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_records
+            fieldPath: quantity
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayNumberFieldModel
+    - uid: 5zlbuogfbli
+      use: TableColumn
+      field:
+        uid: 4ucqzwsiqxc
+        use: DisplayTextField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_records
+            fieldPath: operator
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: t45sm8jdyln
+      use: TableColumn
+      field:
+        uid: 4c1wcv6sitt
+        use: DisplayTextField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_records
+            fieldPath: remark
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    actions:
+    - uid: h4smhl2fkxz
+      use: FilterAction
+    - uid: 2dkfjni8ayb
+      use: RefreshAction
+    - uid: f8ylqkq1s4o
+      use: AddNewAction
+    - uid: nsi2zqasxv8
+      use: ExportAction
+icon: fileoutlined
+page_uid: j9ce2v7gweu

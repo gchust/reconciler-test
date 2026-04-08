@@ -1,0 +1,182 @@
+page: 产品目录
+tab: dkm52579uvc
+route: 357755660926989
+grid:
+  uid: 45lz6ar92ja
+  use: BlockGrid
+  items:
+  - uid: 48irn11anh6
+    use: FilterFormBlock
+    grid:
+      uid: iksedhsxgmp
+      use: FilterFormGrid
+      items:
+      - uid: od1c7n0j02x
+        use: FilterFormItem
+        field:
+          uid: 448kxi35c25
+          use: InputField
+        stepParams:
+          fieldSettings:
+            init:
+              collectionName: inv_products
+              fieldPath: product_name
+              dataSourceKey: main
+      - uid: 8tc61bojyjq
+        use: FilterFormItem
+        field:
+          uid: nowqp69ge55
+          use: SelectField
+        stepParams:
+          fieldSettings:
+            init:
+              collectionName: inv_products
+              fieldPath: category
+              dataSourceKey: main
+      - uid: n6vebi0lcgu
+        use: FilterFormItem
+        field:
+          uid: hl93z12557y
+          use: SelectField
+        stepParams:
+          fieldSettings:
+            init:
+              collectionName: inv_products
+              fieldPath: status
+              dataSourceKey: main
+  - uid: c5a2li3dofw
+    use: TableBlock
+    coll: inv_products
+    columns:
+    - uid: yooaeiss1gk
+      use: TableColumn
+      field:
+        uid: w5v3uljgb8a
+        use: DisplayTextField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: sku
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: 7oo8rdaobwn
+      use: TableColumn
+      field:
+        uid: 7la66mrg6hg
+        use: DisplayTextField
+        popup:
+        - null
+        - embed
+        stepParams:
+          displayFieldSettings:
+            clickToOpen:
+              clickToOpen: true
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: product_name
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: ybeu7g1athq
+      use: TableColumn
+      field:
+        uid: 3xfpdxctv4b
+        use: DisplayEnumField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: category
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayEnumFieldModel
+    - uid: zpp6c68d7so
+      use: TableColumn
+      field:
+        uid: w9vqg1aqjtv
+        use: DisplayTextField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: unit
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayTextFieldModel
+    - uid: m8hp8nxs5fj
+      use: TableColumn
+      field:
+        uid: unuyr0fg8yy
+        use: DisplayNumberField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: price
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayNumberFieldModel
+    - uid: qbxqcrw1p9b
+      use: TableColumn
+      field:
+        uid: pv2l11q9b1w
+        use: DisplayNumberField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: stock_qty
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayNumberFieldModel
+    - uid: nbbhl1gir1n
+      use: TableColumn
+      field:
+        uid: ods9o1pqlvz
+        use: DisplayNumberField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: min_qty
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayNumberFieldModel
+    - uid: t9ss8veu8he
+      use: TableColumn
+      field:
+        uid: 83pw8o91ti0
+        use: DisplayEnumField
+      stepParams:
+        fieldSettings:
+          init:
+            collectionName: inv_products
+            fieldPath: status
+            dataSourceKey: main
+        tableColumnSettings:
+          model:
+            use: DisplayEnumFieldModel
+    actions:
+    - uid: 8e0jkds1vf1
+      use: FilterAction
+    - uid: jm2cv8s79sj
+      use: RefreshAction
+    - uid: a5h29srulnu
+      use: AddNewAction
+    - uid: x2gxvyvusgx
+      use: ExportAction
+    - uid: sj10ecfv4ss
+      use: BulkDeleteAction
+icon: appstoreoutlined
+page_uid: f8gm0c7jrfb

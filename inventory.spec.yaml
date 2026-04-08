@@ -1,0 +1,118 @@
+# ══════════════════════════════════════════════════
+#  库存管理模块 — 完整测试
+# ══════════════════════════════════════════════════
+#
+# 结构: group > 3 pages > 各种区块
+#
+#   库存管理/
+#   ├── 产品目录 — filter + table
+#   ├── 入库记录 — filter + table
+#   └── 库存总览 — detail + js
+
+module: 库存管理
+icon: shoppingoutlined
+
+collections:
+  inv_products:
+    title: 产品目录
+    fields:
+      - name: sku
+        interface: input
+        title: SKU
+      - name: product_name
+        interface: input
+        title: 产品名称
+      - name: category
+        interface: select
+        title: 分类
+        options: [原材料, 半成品, 成品, 包装]
+      - name: unit
+        interface: input
+        title: 单位
+      - name: price
+        interface: number
+        title: 单价
+      - name: stock_qty
+        interface: integer
+        title: 库存数量
+      - name: min_qty
+        interface: integer
+        title: 最低库存
+      - name: status
+        interface: select
+        title: 状态
+        options: [正常, 缺货, 停用]
+
+  inv_records:
+    title: 入库记录
+    fields:
+      - name: record_no
+        interface: input
+        title: 单号
+      - name: record_type
+        interface: select
+        title: 类型
+        options: [入库, 出库, 调拨, 盘点]
+      - name: quantity
+        interface: integer
+        title: 数量
+      - name: operator
+        interface: input
+        title: 经办人
+      - name: remark
+        interface: textarea
+        title: 备注
+
+pages:
+  - page: 产品目录
+    icon: appstoreoutlined
+    coll: inv_products
+    blocks:
+      - type: filter
+        fields:
+          - product_name
+          - category:enum
+          - status:enum
+
+      - type: table
+        columns:
+          - sku
+          - product_name>embed
+          - category:enum
+          - unit
+          - price:number
+          - stock_qty:number
+          - min_qty:number
+          - status:enum
+        actions: [filter, refresh, addnew, export, bulkdelete]
+
+  - page: 入库记录
+    icon: fileoutlined
+    coll: inv_records
+    blocks:
+      - type: filter
+        fields:
+          - record_no
+          - record_type:enum
+
+      - type: table
+        columns:
+          - record_no
+          - record_type:enum
+          - quantity:number
+          - operator
+          - remark
+        actions: [filter, refresh, addnew, export]
+
+  - page: 库存总览
+    icon: dashboardoutlined
+    coll: inv_products
+    blocks:
+      - type: table
+        columns:
+          - product_name
+          - category:enum
+          - stock_qty:number
+          - min_qty:number
+          - status:enum
+        actions: [filter, refresh]
