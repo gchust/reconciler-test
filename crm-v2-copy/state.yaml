@@ -1,51 +1,51 @@
 group_id: 357851148648448
 pages:
   customers:
-    route_id: 357851148648449
-    page_uid: g3gz6p53zgi
-    tab_uid: t27kj2ejylj
-    grid_uid: yhfgu4bxe4v
+    route_id: 357852704735232
+    page_uid: sxg7sxy036u
+    tab_uid: zcfati1wnbn
+    grid_uid: rnc9war0d15
     blocks:
       filter:
-        uid: zde85boo3ae
+        uid: y5xg06igsaw
         type: filterForm
-        grid_uid: 7oyu6ed3op6
+        grid_uid: 9rjprr30x49
         fields:
           name:
-            wrapper: mpbh3dkeenm
-            field: 2ctanq3nzug
+            wrapper: zwlevxd8bzm
+            field: 6vhz6umni1l
       table:
-        uid: qiesqk6fnva
+        uid: 9sg3um8yjjx
         type: table
         grid_uid: ''
         fields:
           name:
-            wrapper: gpa673ivr2n
-            field: zvbmj9f1rx6
+            wrapper: 4anjqd8elc4
+            field: dolx1tor4is
           type:
-            wrapper: s6qkh2ll9na
-            field: liwoyuas12w
+            wrapper: 1g713j90ka9
+            field: gqmgaop54sr
           region:
-            wrapper: y2a3tuv6c49
-            field: c0ree8hzlyw
+            wrapper: fham2g0qql7
+            field: 3u0m3zpfasg
           level:
-            wrapper: pxnbpgb62st
-            field: bzl0mxngk0g
+            wrapper: iek37lbwgu7
+            field: 9p4tx1m4n6m
           status:
-            wrapper: 9wm5d647qig
-            field: nu85cmknyn8
+            wrapper: 2bqc5v75kcu
+            field: chipsjq7fhg
           owner:
-            wrapper: 6zi2qvaae5r
-            field: tmkc2bga0n4
+            wrapper: 6stmillw9gt
+            field: x9v5t10fbwc
         actions:
           filter:
-            uid: ef4lcz652wc
+            uid: lsnhl6w9hiv
           refresh:
-            uid: f52f4uiqcyd
+            uid: 0z9t5n9ep56
           addNew:
-            uid: gjkg7siywjl
+            uid: cf8hijpacu9
         record_actions:
           edit:
-            uid: rcy3hsfmwat
+            uid: 7zvqneqb5vf
           delete:
-            uid: 5xbvy297oxx
+            uid: x5bxn7em8n5

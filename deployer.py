@@ -187,11 +187,29 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
                     continue
                 if compose_idx < len(composed):
                     cr = composed[compose_idx]
-                    blocks_state[key] = {
+                    bs_entry: dict[str, Any] = {
                         "uid": cr["uid"],
                         "type": cr["type"],
                         "grid_uid": cr.get("gridUid", ""),
                     }
+                    # Track field UIDs from compose result
+                    cr_fields = cr.get("fields", [])
+                    if cr_fields:
+                        bs_entry["fields"] = {
+                            f.get("fieldPath", f.get("key", "")): {
+                                "wrapper": f.get("wrapperUid", f.get("uid", "")),
+                                "field": f.get("fieldUid", ""),
+                            } for f in cr_fields
+                        }
+                    # Track action UIDs
+                    for atype_key in ("actions", "recordActions"):
+                        cr_acts = cr.get(atype_key, [])
+                        if cr_acts:
+                            bs_entry[atype_key.replace("A", "_a")] = {
+                                a.get("key", a.get("type", "")): {"uid": a.get("uid", "")}
+                                for a in cr_acts
+                            }
+                    blocks_state[key] = bs_entry
                     compose_idx += 1
 
             # Step 2: Fill each NEW block with content
@@ -272,7 +290,11 @@ LEGACY_TYPES = {"comments", "recordHistory"}
 
 
 def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
-    """Convert block spec to compose-compatible shell (no fields/actions)."""
+    """Convert block spec to compose block WITH fields (for auto type inference).
+
+    compose with fields auto-infers display/edit models from collection interface.
+    Without fields, all columns render as plain text.
+    """
     btype = bs.get("type", "")
     key = bs.get("key", btype)
 
@@ -296,12 +318,146 @@ def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
     elif block_coll and btype not in ("filterForm", "jsBlock", "chart", "markdown"):
         block["resource"] = {"collectionName": block_coll, "dataSourceKey": "main"}
 
+    # Include fields — compose auto-infers display/edit model from interface
+    fields = bs.get("fields", [])
+    if fields and btype in ("table", "filterForm", "createForm", "editForm", "details"):
+        compose_fields = []
+        for f in fields:
+            fp = f if isinstance(f, str) else f.get("field", f.get("fieldPath", ""))
+            if fp and not fp.startswith("["):
+                compose_fields.append({"fieldPath": fp})
+        if compose_fields:
+            block["fields"] = compose_fields
+
+    # Include actions — compose handles standard action types
+    actions = list(bs.get("actions", []))
+    record_actions = list(bs.get("recordActions", []))
+
+    # Auto-fix: edit/delete on details → recordActions
+    if btype == "details":
+        for a in list(actions):
+            if a in ("edit", "delete", "duplicate", "view"):
+                record_actions.append(a)
+                actions.remove(a)
+
+    if actions:
+        block["actions"] = [{"type": a} if isinstance(a, str) else a for a in actions]
+    if record_actions:
+        block["recordActions"] = [{"type": a} if isinstance(a, str) else a for a in record_actions]
+
     return block
 
 
 # ══════════════════════════════════════════════════════════════════
 #  Fill block content
 # ══════════════════════════════════════════════════════════════════
+
+# Interface → correct display model mapping (from NocoBase source)
+DISPLAY_MODEL_MAP = {
+    "input": "DisplayTextFieldModel",
+    "textarea": "DisplayTextFieldModel",
+    "email": "DisplayTextFieldModel",
+    "phone": "DisplayTextFieldModel",
+    "url": "DisplayURLFieldModel",
+    "select": "DisplayEnumFieldModel",
+    "radioGroup": "DisplayEnumFieldModel",
+    "multipleSelect": "DisplayEnumFieldModel",
+    "checkboxGroup": "DisplayEnumFieldModel",
+    "checkbox": "DisplayCheckboxFieldModel",
+    "integer": "DisplayNumberFieldModel",
+    "number": "DisplayNumberFieldModel",
+    "percent": "DisplayPercentFieldModel",
+    "date": "DisplayDateTimeFieldModel",
+    "datetime": "DisplayDateTimeFieldModel",
+    "createdAt": "DisplayDateTimeFieldModel",
+    "updatedAt": "DisplayDateTimeFieldModel",
+    "time": "DisplayTimeFieldModel",
+    "color": "DisplayColorFieldModel",
+    "m2o": "DisplayTextFieldModel",
+    "o2m": "DisplayNumberFieldModel",
+    "createdBy": "DisplaySubItemFieldModel",
+    "updatedBy": "DisplaySubItemFieldModel",
+    "richText": "DisplayHtmlFieldModel",
+    "json": "DisplayJSONFieldModel",
+}
+
+
+def _fix_display_models(nb: NocoBase, block_uid: str, coll: str, btype: str):
+    """Fix display models after compose (which defaults everything to DisplayTextFieldModel).
+
+    Reads collection metadata, then updates each field's display model to match its interface.
+    """
+    meta = nb.field_meta(coll)
+    data = nb.get(uid=block_uid)
+    tree = data.get("tree", {})
+
+    if btype == "table":
+        cols = tree.get("subModels", {}).get("columns", [])
+        if not isinstance(cols, list):
+            return
+        for col in cols:
+            fp = col.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
+            if not fp or fp not in meta:
+                continue
+            iface = meta[fp].get("interface", "input")
+            correct_model = DISPLAY_MODEL_MAP.get(iface, "DisplayTextFieldModel")
+            if correct_model == "DisplayTextFieldModel":
+                continue  # already correct
+
+            # Update the child display field model
+            field = col.get("subModels", {}).get("field", {})
+            if isinstance(field, dict) and field.get("uid"):
+                field_uid = field["uid"]
+                current_use = field.get("use", "")
+                if current_use != correct_model:
+                    # Change the model use via save
+                    nb.save_model({
+                        "uid": field_uid,
+                        "use": correct_model,
+                        "parentId": col.get("uid", ""),
+                        "subKey": "field",
+                        "subType": "object",
+                        "sortIndex": field.get("sortIndex", 0),
+                        "stepParams": field.get("stepParams", {}),
+                        "flowRegistry": field.get("flowRegistry", {}),
+                    })
+                    # Also update tableColumnSettings.model.use
+                    col_uid = col.get("uid", "")
+                    nb.update_model(col_uid, {
+                        "tableColumnSettings": {"model": {"use": correct_model}}
+                    })
+
+    elif btype == "details":
+        grid = tree.get("subModels", {}).get("grid", {})
+        items = grid.get("subModels", {}).get("items", []) if isinstance(grid, dict) else []
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if "DetailsItem" not in item.get("use", ""):
+                continue
+            fp = item.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
+            if not fp or fp not in meta:
+                continue
+            iface = meta[fp].get("interface", "input")
+            correct_model = DISPLAY_MODEL_MAP.get(iface, "DisplayTextFieldModel")
+            if correct_model == "DisplayTextFieldModel":
+                continue
+
+            field = item.get("subModels", {}).get("field", {})
+            if isinstance(field, dict) and field.get("uid"):
+                field_uid = field["uid"]
+                if field.get("use", "") != correct_model:
+                    nb.save_model({
+                        "uid": field_uid,
+                        "use": correct_model,
+                        "parentId": item.get("uid", ""),
+                        "subKey": "field",
+                        "subType": "object",
+                        "sortIndex": 0,
+                        "stepParams": field.get("stepParams", {}),
+                        "flowRegistry": field.get("flowRegistry", {}),
+                    })
+
 
 def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 bs: dict, default_coll: str, mod: Path,
@@ -311,31 +467,16 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
     coll = bs.get("coll", default_coll)
 
     # ── Fields ──
-    fields = bs.get("fields", [])
-    field_states = {}
-    for f in fields:
-        fp = f if isinstance(f, str) else f.get("field", f.get("fieldPath", f.get("name", "")))
-        if not fp:
-            continue
-        # compose already added fields — we just track UIDs
-        # (compose with empty shell won't add fields, so we need addField)
-
-    # Actually, compose shell has NO fields. Add them now.
-    if fields and btype in ("table", "filterForm", "createForm", "editForm", "details"):
-        for f in fields:
-            fp = f if isinstance(f, str) else f.get("field", f.get("fieldPath", ""))
-            if not fp or fp.startswith("["):
-                continue
-            try:
-                result = nb.add_field(block_uid, fp)
-                field_states[fp] = {
-                    "wrapper": result.get("wrapperUid", result.get("uid", "")),
-                    "field": result.get("fieldUid", ""),
-                }
-            except Exception as e:
-                print(f"      ! field {fp}: {e}")
-
+    # compose includes fields but uses DisplayTextFieldModel for all.
+    # Fix display model based on collection interface.
+    field_states = block_state.get("fields", {})
+    if field_states and coll and btype in ("table", "details"):
+        _fix_display_models(nb, block_uid, coll, btype)
     block_state["fields"] = field_states
+
+    # ── Actions ──
+    # compose now includes actions — UIDs already in block_state
+    pass
 
     # ── JS Block code ──
     if btype == "jsBlock":
@@ -378,38 +519,9 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                     }, timeout=30)
 
     # ── Actions ──
-    actions = list(bs.get("actions", []))
-    record_actions = list(bs.get("recordActions", []))
-
-    # Auto-fix: edit/delete on details → recordActions
-    if btype == "details":
-        for a in list(actions):
-            if a in ("edit", "delete", "duplicate", "view"):
-                record_actions.append(a)
-                actions.remove(a)
-
-    action_states = {}
-    for a in actions:
-        atype = a if isinstance(a, str) else a.get("type", "")
-        try:
-            result = nb.add_action(block_uid, atype)
-            action_states[atype] = {"uid": result.get("uid", "")}
-        except Exception as e:
-            print(f"      ! action {atype}: {e}")
-
-    rec_action_states = {}
-    for a in record_actions:
-        atype = a if isinstance(a, str) else a.get("type", "")
-        try:
-            result = nb.add_record_action(block_uid, atype)
-            rec_action_states[atype] = {"uid": result.get("uid", "")}
-        except Exception as e:
-            print(f"      ! recordAction {atype}: {e}")
-
-    if action_states:
-        block_state["actions"] = action_states
-    if rec_action_states:
-        block_state["record_actions"] = rec_action_states
+    # compose now includes actions — UIDs already in block_state
+    # Only add actions that compose didn't handle (unsupported types)
+    pass
 
     # ── JS Items (inside detail/form grid) ──
     js_items = bs.get("js_items", [])
