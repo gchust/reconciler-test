@@ -1,9 +1,10 @@
 # ═══════════════════════════════════
 #  CRM 复刻：增强
 # ═══════════════════════════════════
+# 弹窗 = 页面：可以有多 tab、多 block、JS item
 
 popups:
-  # ── Leads：新建 + 编辑（auto 派生） ──
+  # ── Leads 新建 + 编辑 ──
   - target: $leads复刻.table.actions.addNew
     auto: [edit]
     coll: nb_crm_leads
@@ -22,63 +23,66 @@ popups:
           - [email, phone, mobile_phone]
         actions: [submit]
 
-  # ── Leads：详情弹窗（绑到 name 字段点击） ──
+  # ── Leads 详情弹窗（多 tab 子页面） ──
   - target: $leads复刻.table.fields.name
+    mode: page
     coll: nb_crm_leads
-    blocks:
-      # 主要信息
-      - key: detail_main
-        type: details
-        resource: { binding: currentRecord }
-        fields: [company, title, owner, createdAt]
-        field_layout:
-          - [company, title]
-          - [owner, createdAt]
-        recordActions: [edit]
+    tabs:
+      - title: 详情
+        blocks:
+          - key: detail_header
+            type: details
+            resource: { binding: currentRecord }
+            fields: [company, title, owner, createdAt]
+            field_layout:
+              - [company, title]
+              - [owner, createdAt]
+            recordActions: [edit]
 
-      # 公司信息
-      - key: detail_company
-        type: details
-        resource: { binding: currentRecord }
-        fields: [industry, annual_revenue, number_of_employees, company]
-        field_layout:
-          - "--- 公司信息 ---"
-          - [industry, annual_revenue]
-          - [number_of_employees, company]
+          - key: detail_company
+            type: details
+            resource: { binding: currentRecord }
+            fields: [industry, annual_revenue, number_of_employees, company]
+            field_layout:
+              - "--- 公司信息 ---"
+              - [industry, annual_revenue]
+              - [number_of_employees, company]
 
-      # 联系方式
-      - key: detail_contact
-        type: details
-        resource: { binding: currentRecord }
-        fields: [email, phone, mobile_phone, website, address]
-        field_layout:
-          - "--- 联系方式 ---"
-          - [email, phone, mobile_phone]
-          - [website, address]
+          - key: detail_contact
+            type: details
+            resource: { binding: currentRecord }
+            fields: [email, phone, mobile_phone, website, address]
+            field_layout:
+              - "--- 联系方式 ---"
+              - [email, phone, mobile_phone]
+              - [website, address]
+
+      - title: 历史记录
+        blocks:
+          - key: history
+            type: recordHistory
+            resource: { binding: currentRecord }
 
 js:
-  # ── 筛选表单 JS 统计按钮 ──
+  # ── 筛选 JS 统计按钮 ──
   - target: $leads复刻.filter.fields.js_stats
     file: ./js/leads_filter_stats.js
 
-  # ── 表格 JS 自定义列 ──
+  # ── 表格 JS 列 ──
   - target: $leads复刻.table.fields.js_lead_name
     file: ./js/table_b3f6e3_col_Lead_Name_Company.js
     title: Lead Name/Company
-
   - target: $leads复刻.table.fields.js_contact
     file: ./js/table_b3f6e3_col_Contact.js
     title: Contact
-
   - target: $leads复刻.table.fields.js_ai_score
     file: ./js/table_b3f6e3_col_AI_Score.js
     title: AI Score
-
   - target: $leads复刻.table.fields.js_created
     file: ./js/table_b3f6e3_col_Created.js
     title: Created
 
-  # ── 仪表盘 JS 统计 ──
+  # ── 仪表盘 JS ──
   - target: $仪表盘.js_stats1
     file: ./js/stats1.js
   - target: $仪表盘.js_stats2
@@ -88,7 +92,6 @@ js:
   - target: $仪表盘.js_stats4
     file: ./js/stats4.js
 
-# ── 仪表盘 Chart 配置 ──
 charts:
   - target: $仪表盘.chart_pipeline
     config_file: ./chart_hu4haj.json

@@ -248,6 +248,12 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
             print(f"  ! popup: {e}")
             continue
 
+        # Multi-tab popup (popup = page)
+        if popup_spec.get("tabs"):
+            _deploy_tabbed_popup(nb, target_uid, target_ref, popup_spec, mod)
+            continue
+
+        # Simple popup (single set of blocks)
         blocks = _build_compose_blocks(popup_spec)
         if not blocks:
             continue
@@ -675,6 +681,81 @@ def _expand_auto_popups(popups: list[dict]) -> list[dict]:
             result.append(view_popup)
 
     return result
+
+
+def _deploy_tabbed_popup(nb: NocoBase, target_uid: str, target_ref: str,
+                         popup_spec: dict, mod: Path):
+    """Deploy a multi-tab popup (popup = sub-page).
+
+    1. Set click-to-open / popup mode on the target
+    2. For each tab: compose blocks + apply layout
+    """
+    tabs_spec = popup_spec.get("tabs", [])
+    mode = popup_spec.get("mode", "drawer")
+    coll = popup_spec.get("coll", "")
+
+    # 1. Set click-to-open on target field
+    # TODO: use flowSurfaces:configure when supported
+    nb.update_model(target_uid, {
+        "popupSettings": {
+            "openView": {
+                "collectionName": coll,
+                "dataSourceKey": "main",
+                "mode": mode,
+                "size": "large",
+                "pageModelClass": "ChildPageModel",
+                "uid": target_uid,  # self-reference
+            }
+        },
+        "displayFieldSettings": {
+            "clickToOpen": {"clickToOpen": True}
+        },
+    })
+
+    # 2. Read popup structure — get existing tabs
+    data = nb.get(uid=target_uid)
+    tree = data.get("tree", {})
+    popup_page = tree.get("subModels", {}).get("page", {})
+
+    if not popup_page:
+        print(f"  ! popup [{target_ref}]: no popup page created yet")
+        return
+
+    existing_tabs = popup_page.get("subModels", {}).get("tabs", [])
+    if not isinstance(existing_tabs, list):
+        existing_tabs = [existing_tabs] if existing_tabs else []
+
+    print(f"  + popup [{target_ref}]: mode={mode}, {len(tabs_spec)} tabs")
+
+    # 3. For each tab: compose blocks
+    for i, tab_spec in enumerate(tabs_spec):
+        tab_title = tab_spec.get("title", f"Tab{i}")
+
+        # Get or create tab
+        if i < len(existing_tabs):
+            tab_uid = existing_tabs[i].get("uid", "")
+        else:
+            # Need to add a tab
+            try:
+                popup_page_uid = popup_page.get("uid", "")
+                result = nb.add_popup_tab(popup_page_uid, tab_title)
+                tab_uid = result.get("tabUid", result.get("uid", ""))
+            except Exception as e:
+                print(f"    ! tab '{tab_title}': {e}")
+                continue
+
+        # Compose blocks in this tab
+        blocks = _build_compose_blocks(tab_spec)
+        if blocks:
+            try:
+                result = nb.compose(tab_uid, blocks, mode="replace")
+                block_count = len(result.get("blocks", []))
+                print(f"    tab '{tab_title}': {block_count} blocks")
+
+                # Apply layouts
+                _apply_popup_layouts(nb, result, tab_spec)
+            except Exception as e:
+                print(f"    ! tab '{tab_title}': {e}")
 
 
 def _find_popup_items(tree: dict) -> list[dict]:
