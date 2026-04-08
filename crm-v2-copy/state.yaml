@@ -1,51 +1,51 @@
-group_id: 357848552374272
+group_id: 357850295107584
 pages:
   customers:
-    route_id: 357848552374273
-    page_uid: laku7ybqwt6
-    tab_uid: ub0z0xqotn1
-    grid_uid: ukic4p2ikec
+    route_id: 357850295107585
+    page_uid: t5g5x2k427f
+    tab_uid: r1f6w4ws35e
+    grid_uid: gdab2c7d12q
     blocks:
       filter:
-        uid: 3mhfyp1sbiq
+        uid: u5dhjfmdxmc
         type: filterForm
-        grid_uid: qn4y3nqawsh
+        grid_uid: zxx4385c3yr
         fields:
           name:
-            wrapper: 4gweupf7e4t
-            field: ru6tla8juba
+            wrapper: pxk7cq9s9qm
+            field: j9ngbndjc4b
       table:
-        uid: ef8p0aiyaw9
+        uid: dc920eqz2x3
         type: table
-        actions_column_uid: u4627n0mlxk
+        grid_uid: ''
         fields:
           name:
-            wrapper: bpqqaglz9hn
-            field: 469xwuxtb75
+            wrapper: nmrlu3oqkeg
+            field: n6yjst812l6
           type:
-            wrapper: h0bkanhp31t
-            field: fsrwvzlitnw
+            wrapper: 7ckivm6viuy
+            field: 030ih7wbk50
           region:
-            wrapper: ptxyet15o3j
-            field: 0gfdbtqgi5l
+            wrapper: xha8ma4surb
+            field: idj81q0mvhi
           level:
-            wrapper: c8mjfnn2qda
-            field: gm1tqo2ojqq
+            wrapper: 135k7dec33x
+            field: 29elnri5ryf
           status:
-            wrapper: 1geg42b8ov5
-            field: v2uon3gcrqc
+            wrapper: mx94ymg1yqo
+            field: 0705mwyl2w2
           owner:
-            wrapper: o9222m5v26i
-            field: 2if348rfuiz
+            wrapper: ke4z513m8ou
+            field: av4ynpmlral
         actions:
           filter:
-            uid: 8n2ngajn6yy
+            uid: h21id77jpye
           refresh:
-            uid: mykoclqldg2
+            uid: 694dae8ivju
           addNew:
-            uid: h31s5u3m73y
+            uid: o7w1p4cyjxm
         record_actions:
           edit:
-            uid: hhu1t24qvk2
+            uid: nw3ju9rybv7
           delete:
-            uid: z387b1946wh
+            uid: y7sqojtjojh

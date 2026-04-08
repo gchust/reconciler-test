@@ -1,155 +1,155 @@
-group_id: 357766989938695
+group_id: 357849926008832
 pages:
   客户:
-    route_id: 357766989938697
-    page_uid: o47iwumag5w
-    tab_uid: fn90hxl963o
-    grid_uid: vqnujthrzwc
+    route_id: 357849926008833
+    page_uid: zuagn0y4mx1
+    tab_uid: urk8ajru3hq
+    grid_uid: euzjb4me7hj
     blocks:
       filter:
-        uid: w8axn3pfvb4
+        uid: e7isl3d0abg
         type: filterForm
-        grid_uid: 0fjxzt50uzw
+        grid_uid: iuqic36r1tw
         fields:
           name:
-            wrapper: tk3ah8k44rm
-            field: z9r7d35e1rc
+            wrapper: 83c35j23bgp
+            field: bdyrh9rhe3z
           level:
-            wrapper: yzvi52y32rn
-            field: ozbqurksdbi
+            wrapper: 9eyrq12cndv
+            field: 0tuv0ga8gw0
       table:
-        uid: ngk7ahvhvsc
+        uid: ra24urou6cm
         type: table
-        actions_column_uid: 98z6xkuiut0
+        grid_uid: ''
         fields:
           name:
-            wrapper: bumxwong6r3
-            field: klsb2yv8fsv
+            wrapper: jlcm513mpsu
+            field: cwkwenois5y
           contact:
-            wrapper: j1r9nfin3o6
-            field: eaf4xzku043
+            wrapper: yi49781kbcz
+            field: g8qlumwoqx6
           phone:
-            wrapper: nbecq42ecyz
-            field: fxers3l6rgc
+            wrapper: qlo4b00fvaw
+            field: rdud9r5h46k
           level:
-            wrapper: 2ymobs75xvf
-            field: 2lr8xuyebh1
+            wrapper: l3pmetf992x
+            field: 453domhfrco
         actions:
           filter:
-            uid: coupp2wkrpv
+            uid: eommt5jrllb
           refresh:
-            uid: xl02q2namij
+            uid: bt8y9l612p4
           addNew:
-            uid: 3d4as4diub3
+            uid: yxoq94g5vzx
         record_actions:
           edit:
-            uid: ho2f1596zrq
+            uid: l0ya7rzioln
           view:
-            uid: 225pzzojgeo
+            uid: metmmloaosk
           delete:
-            uid: spkkpp13e0d
+            uid: cmnvlauwg7y
   产品:
-    route_id: 357766992035840
-    page_uid: z0qlwvujiw2
-    tab_uid: 2jho9t5a53e
-    grid_uid: 1391lctao19
+    route_id: 357849928105984
+    page_uid: liu1xo7ypsr
+    tab_uid: 8zolod0yf21
+    grid_uid: p34dfbi6jzm
     blocks:
       filter:
-        uid: kln0k0x9b0e
+        uid: q6kp4r11vqe
         type: filterForm
-        grid_uid: b85yycojcbt
+        grid_uid: u5iro745x31
         fields:
           name:
-            wrapper: zwuhg8nh0rl
-            field: 8hvbzrjyf06
+            wrapper: qas4rqqj4v4
+            field: lhvrx5zr9jy
           sku:
-            wrapper: t35kcfjpmhh
-            field: 3drdho530f4
+            wrapper: 35jbpu2cd0v
+            field: o6grsje0s7x
       table:
-        uid: gtc1ga6636h
+        uid: ks9k5tmlgb1
         type: table
-        actions_column_uid: t2qxkhg2x81
+        grid_uid: ''
         fields:
           sku:
-            wrapper: jktte6r34ue
-            field: 1hm275pzyi6
+            wrapper: zve4k90ywve
+            field: i5xi0a9r6cw
           name:
-            wrapper: gw4pbvn9m0r
-            field: gmfdkajaxgn
+            wrapper: klov5z7nsmi
+            field: nkfr8gvcf67
           price:
-            wrapper: 6zabhi7c3iq
-            field: qqrcmcoi1kh
+            wrapper: m6zxmlgbr8p
+            field: 8ukb3w3nbza
           unit:
-            wrapper: ho68mgfh6es
-            field: zv4jv0y68zu
+            wrapper: xc2xj98jukh
+            field: 4qkclj5epkg
           stock:
-            wrapper: osbzb87g1co
-            field: xfbav03h7kf
+            wrapper: fz3hojmyidg
+            field: ewwql489ooo
         actions:
           filter:
-            uid: bqvub6w6u8i
+            uid: 4b6en8sifal
           refresh:
-            uid: f6zvfw7vbni
+            uid: q8qwjqi41b7
           addNew:
-            uid: ijni9whusox
+            uid: xqbrjd0w2bb
           export:
-            uid: algryu0fqe8
+            uid: 3xitlkbbsvy
         record_actions:
           edit:
-            uid: q7bbaivxlxc
+            uid: q4ebsc55lak
           delete:
-            uid: zy56gvb45oi
+            uid: 2y2whe9y7cs
   订单列表:
-    route_id: 357766992035843
-    page_uid: xcydnqwkte3
-    tab_uid: r38q3640cps
-    grid_uid: ainr3c8iehp
+    route_id: 357849928105986
+    page_uid: zl9nj479zq7
+    tab_uid: i75xcbocey3
+    grid_uid: 4s8pa2lbao7
     blocks:
       filter:
-        uid: m8k0vmcjvwf
+        uid: an5fnk6yu9v
         type: filterForm
-        grid_uid: 9qx5t2e10ck
+        grid_uid: tqkxx1kpunh
         fields:
           order_no:
-            wrapper: bgr055rgr1d
-            field: imlcaamu2wo
+            wrapper: 2bz40d0d4qf
+            field: ekfm5vxlfdp
           status:
-            wrapper: 4rh9wwqnouh
-            field: brhbb11lycg
+            wrapper: dvbl1wji7y3
+            field: dewgo4snas0
       table:
-        uid: qes6y8fw3i2
+        uid: db2rni13dkt
         type: table
-        actions_column_uid: epsv4r5jns2
+        grid_uid: ''
         fields:
           order_no:
-            wrapper: l4rq96svzav
-            field: pj5m09yewgi
+            wrapper: xwg944aont3
+            field: ivt5f7azlqh
           customer_name:
-            wrapper: oqwjue28idr
-            field: ep83no25oeq
+            wrapper: 9qa51ziacnr
+            field: 59tfoq4fe9n
           total_amount:
-            wrapper: e3qq8nvkw48
-            field: zla6l2lzt0u
+            wrapper: 4nql1e4xrjb
+            field: b3sjubhq7o4
           status:
-            wrapper: 8owhdg24yji
-            field: fclwaz2brbe
+            wrapper: ntgpqde7r32
+            field: 28fjagoqkif
           order_date:
-            wrapper: 7s1vrs45wj8
-            field: hwikysts1pd
+            wrapper: hxdj8j1f5lb
+            field: o5eacc4xhjt
           delivery_date:
-            wrapper: 6gqaeegw3d6
-            field: g90rvxjudsq
+            wrapper: mfben8to2i7
+            field: htgmfdrw9y5
         actions:
           filter:
-            uid: bcgi9jxnk0n
+            uid: p8i3110a8aj
           refresh:
-            uid: zo5p7bp8xak
+            uid: k8jd0w95fxc
           addNew:
-            uid: x1yxckd2eoo
+            uid: hxxz62v84h3
           export:
-            uid: fcc96atsrj7
+            uid: zlkdqxrrjgf
         record_actions:
           edit:
-            uid: ir21tmsg9vz
+            uid: j2cdbemu58f
           view:
-            uid: 1snboxi2ifx
+            uid: 5i4m95ta3qm
