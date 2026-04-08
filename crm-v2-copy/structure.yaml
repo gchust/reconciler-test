@@ -16,6 +16,9 @@ pages:
         js_items:
           - desc: Customer Stats Filter Block
             file: ./js/customers_filterForm_e31595_js_customer_stats_filter_block.js
+        field_layout:
+          - ["[JS:Customer Stats Filter Block]"]
+          - [name]
 
       - key: table
         type: table
