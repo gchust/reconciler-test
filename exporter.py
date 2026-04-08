@@ -35,7 +35,7 @@ def export_page_surface(nb: NocoBase, tab_uid: str,
     tree = data.get("tree", {})
     grid = tree.get("subModels", {}).get("grid", {})
 
-    return _export_grid(nb, grid, js_dir, page_key)
+    return _export_grid(nb, grid, js_dir, page_key, reset_keys=True)
 
 
 def export_popup_surface(nb: NocoBase, field_uid: str,
@@ -80,10 +80,14 @@ def export_popup_surface(nb: NocoBase, field_uid: str,
 
 
 def _export_grid(nb: NocoBase, grid: dict, js_dir: Path = None,
-                 prefix: str = "") -> dict:
+                 prefix: str = "", reset_keys: bool = False) -> dict:
     """Export a BlockGridModel and its contents."""
+    global _used_keys
     if not isinstance(grid, dict):
         return {"blocks": [], "layout": []}
+
+    if reset_keys:
+        _used_keys = set()
 
     grid_uid = grid.get("uid", "")
     items = grid.get("subModels", {}).get("items", [])
@@ -95,7 +99,7 @@ def _export_grid(nb: NocoBase, grid: dict, js_dir: Path = None,
     popup_refs: list[dict] = []
 
     for i, item in enumerate(items):
-        block_spec, block_key = _export_block(nb, item, js_dir, prefix, i)
+        block_spec, block_key, _ = _export_block(nb, item, js_dir, prefix, i)
         if block_spec:
             blocks.append(block_spec)
             block_uid_to_key[item.get("uid", "")] = block_key
@@ -116,8 +120,11 @@ def _export_grid(nb: NocoBase, grid: dict, js_dir: Path = None,
     return result
 
 
+_used_keys: set[str] = set()
+
+
 def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
-                  prefix: str = "", index: int = 0) -> tuple[dict | None, str]:
+                  prefix: str = "", index: int = 0) -> tuple[dict | None, str, dict]:
     """Export a single block node."""
     use = item.get("use", "")
     uid = item.get("uid", "")
@@ -142,18 +149,32 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
 
     btype = type_map.get(use)
     if not btype:
-        return None, ""
+        return None, "", {}
 
     # Block title
     title = sp.get("cardSettings", {}).get("titleDescription", {}).get("title", "")
 
-    # Generate semantic key
+    # Generate semantic key: title > JS desc > type+index
     if title:
         key = _slugify(title)
+    elif btype == "jsBlock":
+        code = sp.get("jsSettings", {}).get("runJs", {}).get("code", "")
+        desc = _extract_js_desc(code)
+        key = _slugify(desc) if desc else f"{btype}_{index}"
     else:
-        key = f"{btype}_{uid[:6]}"
+        key = f"{btype}_{index}"
 
-    spec: dict[str, Any] = {"key": key, "type": btype, "uid": uid}
+    # Deduplicate key within same page
+    base_key = key
+    counter = 2
+    while key in _used_keys:
+        key = f"{base_key}_{counter}"
+        counter += 1
+    _used_keys.add(key)
+
+    spec: dict[str, Any] = {"key": key, "type": btype}
+    # UID as optional _uid (for sync/match, ignored on fresh deploy)
+    spec["_uid"] = uid
     if title:
         spec["title"] = title
 
@@ -178,13 +199,14 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
 
     if btype == "jsBlock":
         code = sp.get("jsSettings", {}).get("runJs", {}).get("code", "")
-        if code and js_dir:
+        if code:
             desc = _extract_js_desc(code)
-            fname = f"{prefix}_{key}.js" if prefix else f"{key}.js"
-            (js_dir / fname).write_text(code)
-            spec["file"] = f"./js/{fname}"
             if desc:
                 spec["desc"] = desc
+            if js_dir:
+                fname = f"{prefix}_{key}.js" if prefix else f"{key}.js"
+                (js_dir / fname).write_text(code)
+                spec["file"] = f"./js/{fname}"
 
     elif btype == "chart":
         config = sp.get("chartSettings", {}).get("configure", {})
@@ -269,7 +291,7 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     if popup_refs:
         spec["_popups"] = popup_refs
 
-    return spec, key
+    return spec, key, {}
 
 
 # ── Table contents ────────────────────────────────────────────────
@@ -292,14 +314,14 @@ def _export_table_contents(item: dict, js_dir: Path = None,
         if col_use == "JSColumnModel":
             code = col.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
             col_title = col.get("stepParams", {}).get("tableColumnSettings", {}).get("title", {}).get("title", "")
-            entry: dict[str, Any] = {"uid": col.get("uid", "")}
+            desc = _extract_js_desc(code) if code else ""
+            entry: dict[str, Any] = {"_uid": col.get("uid", "")}
             if col_title:
                 entry["title"] = col_title
-            desc = _extract_js_desc(code) if code else ""
             if desc:
                 entry["desc"] = desc
             if code and js_dir:
-                safe = _slugify(col_title or col.get("uid", "")[:8])
+                safe = _slugify(col_title or desc or f"col_{len(js_cols)}")
                 fname = f"{prefix}_{block_key}_col_{safe}.js"
                 (js_dir / fname).write_text(code)
                 entry["file"] = f"./js/{fname}"
@@ -354,16 +376,17 @@ def _export_form_contents(grid: dict, js_dir: Path = None,
         if "JSItem" in di_use:
             code = di.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
             desc = _extract_js_desc(code) if code else ""
-            entry: dict[str, Any] = {"uid": di_uid}
+            entry: dict[str, Any] = {"_uid": di_uid}
             if desc:
                 entry["desc"] = desc
-            js_name = f"js_{_slugify(desc)}" if desc else f"js_{di_uid[:6]}"
+            js_name = _slugify(desc) if desc else f"js_{len(js_items)}"
             if code and js_dir:
                 fname = f"{prefix}_{block_key}_{js_name}.js"
                 (js_dir / fname).write_text(code)
                 entry["file"] = f"./js/{fname}"
             js_items.append(entry)
-            uid_to_name[di_uid] = f"[JS:{desc[:20]}]" if desc else f"[JS]"
+            # Full desc in layout reference (not truncated)
+            uid_to_name[di_uid] = f"[JS:{desc}]" if desc else "[JS]"
 
         elif "DividerItem" in di_use or "MarkdownItem" in di_use:
             label = di.get("stepParams", {}).get("markdownItemSetting", {}).get("title", {}).get("label", "")
