@@ -1,0 +1,53 @@
+group_id: 357842091048960
+pages:
+  customers:
+    route_id: 357842210586624
+    page_uid: 43wtoetrimk
+    tab_uid: m3ljhgjmi1i
+    grid_uid: an8c21srwct
+    blocks:
+      filter:
+        uid: 0q4k90qaz63
+        type: filterForm
+        grid_uid: w96ukyhkxns
+        fields:
+          name:
+            wrapper: a1lv3ef46gt
+            field: 6imc8sytwmc
+      table:
+        uid: tujlau5x8xo
+        type: table
+        actions_column_uid: 4dwsdypopgz
+        fields:
+          name:
+            wrapper: n4y0ydihfrx
+            field: xbjtaf4kmaj
+          type:
+            wrapper: ys14iq6x6en
+            field: 29qaoa2j2yg
+          region:
+            wrapper: 0fgatndwsdq
+            field: x47jwvms7tv
+          level:
+            wrapper: b1qiuwgww68
+            field: fgt9rbfqc8h
+          status:
+            wrapper: c39jzogwyc5
+            field: 3nv3q6qjytq
+          owner:
+            wrapper: ar6l14d1vzn
+            field: gk6eruh5sym
+        actions:
+          filter:
+            uid: gi2nflclog8
+          refresh:
+            uid: lcg84joe0he
+          addNew:
+            uid: lx3wodlyj73
+        record_actions:
+          edit:
+            uid: 9468mmv54lp
+          view:
+            uid: h1rhtkmebzr
+          delete:
+            uid: f8x6dql4r9b

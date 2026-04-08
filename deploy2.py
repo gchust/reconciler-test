@@ -751,30 +751,46 @@ def _deploy_tabbed_popup(nb: NocoBase, target_uid: str, target_ref: str,
         },
     })
 
-    # 2. Read popup structure — get existing tabs
+    # 2. First tab: compose on target_uid directly (creates ChildPageModel if needed)
+    first_tab = tabs_spec[0] if tabs_spec else None
+    if first_tab:
+        blocks = _build_compose_blocks(first_tab)
+        if blocks:
+            try:
+                result = nb.compose(target_uid, blocks, mode="replace")
+                block_count = len(result.get("blocks", []))
+                tab_title = first_tab.get("title", "Tab0")
+                print(f"    tab '{tab_title}': {block_count} blocks")
+                _apply_popup_layouts(nb, result, first_tab)
+
+                # Apply tab-level layout if specified
+                tab_layout = first_tab.get("layout")
+                if tab_layout and result.get("layout", {}).get("uid"):
+                    from layout import build_grid, apply_layout
+                    block_map = {b["key"]: b["uid"] for b in result.get("blocks", [])}
+                    apply_layout(nb, result["layout"]["uid"], tab_layout, block_map)
+                    print(f"      tab layout applied")
+            except Exception as e:
+                print(f"    ! tab '{first_tab.get('title', 'Tab0')}': {e}")
+
+    # 3. Read popup structure for remaining tabs
     data = nb.get(uid=target_uid)
     tree = data.get("tree", {})
     popup_page = tree.get("subModels", {}).get("page", {})
-
     if not popup_page:
-        print(f"  ! popup [{target_ref}]: no popup page created yet")
         return
 
     existing_tabs = popup_page.get("subModels", {}).get("tabs", [])
     if not isinstance(existing_tabs, list):
         existing_tabs = [existing_tabs] if existing_tabs else []
 
-    print(f"  + popup [{target_ref}]: mode={mode}, {len(tabs_spec)} tabs")
-
-    # 3. For each tab: compose blocks
-    for i, tab_spec in enumerate(tabs_spec):
+    # 4. Remaining tabs
+    for i, tab_spec in enumerate(tabs_spec[1:], start=1):
         tab_title = tab_spec.get("title", f"Tab{i}")
 
-        # Get or create tab
         if i < len(existing_tabs):
             tab_uid = existing_tabs[i].get("uid", "")
         else:
-            # Need to add a tab
             try:
                 popup_page_uid = popup_page.get("uid", "")
                 result = nb.add_popup_tab(popup_page_uid, tab_title)
@@ -783,18 +799,17 @@ def _deploy_tabbed_popup(nb: NocoBase, target_uid: str, target_ref: str,
                 print(f"    ! tab '{tab_title}': {e}")
                 continue
 
-        # Compose blocks in this tab
         blocks = _build_compose_blocks(tab_spec)
         if blocks:
             try:
                 result = nb.compose(tab_uid, blocks, mode="replace")
                 block_count = len(result.get("blocks", []))
                 print(f"    tab '{tab_title}': {block_count} blocks")
-
-                # Apply layouts
                 _apply_popup_layouts(nb, result, tab_spec)
             except Exception as e:
                 print(f"    ! tab '{tab_title}': {e}")
+        elif not blocks:
+            print(f"    tab '{tab_title}': (no compose blocks)")
 
 
 def _find_popup_items(tree: dict) -> list[dict]:

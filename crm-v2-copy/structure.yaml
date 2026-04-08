@@ -1,0 +1,25 @@
+# CRM v2 复刻 — 从 exports/crm-v2 导出
+module: CRMv2
+icon: teamoutlined
+
+pages:
+  - page: Customers
+    icon: teamoutlined
+    coll: nb_crm_customers
+    blocks:
+      - key: filter
+        type: filterForm
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths: [name, phone, website]
+
+      - key: table
+        type: table
+        fields: [name, type, region, level, status, owner]
+        actions: [filter, refresh, addNew]
+        recordActions: [edit, view, delete]
+
+    layout:
+      - [filter]
+      - [table]

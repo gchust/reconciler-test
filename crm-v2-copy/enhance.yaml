@@ -1,0 +1,99 @@
+# CRM v2 复刻 — Customers 增强
+
+popups:
+  # ── 新建 + 编辑 ──
+  - target: $customers.table.actions.addNew
+    auto: [edit]
+    coll: nb_crm_customers
+    blocks:
+      - key: form
+        type: createForm
+        resource: { binding: currentCollection }
+        fields: [name, type, region, level, status, owner, phone, website]
+        field_layout:
+          - "--- 基本信息 ---"
+          - [name, type, level]
+          - [region, status]
+          - "--- 负责人 ---"
+          - [owner]
+          - "--- 联系方式 ---"
+          - [phone, website]
+        actions: [submit]
+
+  # ── 详情弹窗（多 tab）──
+  - target: $customers.table.fields.name
+    mode: embed
+    coll: nb_crm_customers
+    tabs:
+      - title: 详情
+        blocks:
+          # 主信息 + 统计（含2个JS item）
+          - key: detail_main
+            type: details
+            resource: { binding: currentRecord }
+            fields: [level, type, region, status]
+            field_layout:
+              - [level, type, region, status]
+            recordActions: [edit]
+
+          # AI 分析
+          - key: ai_profile
+            type: details
+            resource: { binding: currentRecord }
+
+          # 关联商机列表
+          - key: opportunities
+            type: list
+            title: Opportunities
+            coll: nb_crm_opportunities
+            resource: { binding: associatedRecords }
+
+          # 关联联系人列表
+          - key: contacts
+            type: list
+            title: Contacts
+            coll: nb_crm_contacts
+            resource: { binding: associatedRecords }
+
+          # 评论
+          - key: comments
+            type: comments
+            coll: nb_crm_comments
+            resource: { binding: currentRecord }
+
+        layout:
+          - [{col: [detail_main, opportunities], size: 16},
+             {col: [contacts, ai_profile, comments], size: 8}]
+
+      - title: 历史记录
+        blocks:
+          - key: history
+            type: recordHistory
+            resource: { binding: currentRecord }
+
+js:
+  # ── 筛选 JS 统计按钮 ──
+  - target: $customers.filter.fields.js_stats
+    file: ./js/customers_filterForm_e31595_js_customer_stats_filter_block.js
+
+  # ── 表格 JS 列 ──
+  - target: $customers.table.fields.js_health
+    file: ./js/customers_table_d8498e_col_health_score.js
+    title: Health Score
+
+  - target: $customers.table.fields.js_activity
+    file: ./js/customers_table_d8498e_col_last_activity.js
+    title: Last Activity
+
+  # ── 详情弹窗 JS items ──
+  - target: $customers.detail_main.js_profile
+    file: ./js/customers_popup_name_tab0_details_c15646_js_item_profile_customer_profile_header.js
+    desc: Customer Profile Header
+
+  - target: $customers.detail_main.js_stats
+    file: ./js/customers_popup_name_tab0_details_c15646_js_customer_statistics_block.js
+    desc: Customer Statistics
+
+  - target: $customers.ai_profile.js_ai
+    file: ./js/customers_popup_name_tab0_details_20d8ba_js_ai_smart_profile_block.js
+    desc: AI Smart Profile
