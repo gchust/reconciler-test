@@ -705,7 +705,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 
     # ── Filter field connections (filterPaths) ──
     if btype == "filterForm":
-        _configure_filter(nb, bs, block_uid, field_states, default_coll)
+        _configure_filter(nb, bs, block_uid, field_states, default_coll, all_blocks_state)
 
     # ── Block title ──
     title = bs.get("title", "")
@@ -719,43 +719,85 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 
 
 def _configure_filter(nb: NocoBase, bs: dict, block_uid: str,
-                      field_states: dict, coll: str):
-    """Configure filter field connections."""
+                      field_states: dict, coll: str,
+                      all_blocks_state: dict = None):
+    """Configure filter field connections.
+
+    Supports connecting one filter field to multiple target blocks/fields:
+      fields:
+        - field: name
+          label: Search
+          filterPaths: [name, company, email, phone]  # search these columns
+          # Auto-connects to all table blocks in same page
+
+    Or explicit multi-target:
+      fields:
+        - field: name
+          targets:
+            - block: table_0
+              paths: [name, company]
+            - block: table_1
+              paths: [name, phone]
+    """
+    # Find target table UIDs from same-page state
+    target_uids = []
+    if all_blocks_state:
+        for bkey, binfo in all_blocks_state.items():
+            if isinstance(binfo, dict) and binfo.get("type") == "table":
+                target_uids.append(binfo.get("uid", ""))
+    default_target = target_uids[0] if target_uids else ""
+
     for f in bs.get("fields", []):
         if not isinstance(f, dict):
             continue
         fp = f.get("field", f.get("name", ""))
         label = f.get("label", "")
         filter_paths = f.get("filterPaths")
-        if not fp or (not label and not filter_paths):
+        explicit_targets = f.get("targets")
+        if not fp or (not label and not filter_paths and not explicit_targets):
             continue
 
         wrapper_uid = field_states.get(fp, {}).get("wrapper", "")
         if not wrapper_uid:
             continue
 
-        settings: dict = {}
-        if filter_paths:
+        settings: dict = {
+            "init": {
+                "filterField": {"name": fp, "title": label or fp, "interface": "input", "type": "string"},
+            },
+        }
+
+        if default_target:
+            settings["init"]["defaultTargetUid"] = default_target
+
+        if explicit_targets:
+            # Multi-target: [{block: "table_0", paths: [...]}, ...]
+            targets = []
+            for t in explicit_targets:
+                t_block = t.get("block", "")
+                t_paths = t.get("paths", [fp])
+                t_uid = all_blocks_state.get(t_block, {}).get("uid", "") if all_blocks_state else ""
+                if t_uid:
+                    targets.append({"targetId": t_uid, "filterPaths": t_paths})
+            if targets:
+                settings["connectFields"] = {"value": {"targets": targets}}
+        elif filter_paths and default_target:
+            # Single target with multiple paths
             settings["connectFields"] = {"value": {"targets": [{
-                "targetId": "",  # will auto-connect
+                "targetId": default_target,
                 "filterPaths": filter_paths,
             }]}}
+
         if label:
             settings["label"] = {"label": label}
+            settings["showLabel"] = {"showLabel": True}
 
-        if settings:
-            try:
-                nb.update_settings(wrapper_uid, {
-                    "settings": {"filterFormItemSettings": settings}
-                })
-                print(f"      filter {fp}: {label or fp}")
-            except Exception:
-                # Fallback to update_model
-                try:
-                    nb.update_model(wrapper_uid, {"filterFormItemSettings": settings})
-                    print(f"      filter {fp}: {label or fp} (legacy)")
-                except Exception as e2:
-                    print(f"      ! filter {fp}: {e2}")
+        try:
+            nb.update_model(wrapper_uid, {"filterFormItemSettings": settings})
+            paths_str = f" → {filter_paths}" if filter_paths else ""
+            print(f"      filter {fp}: {label or fp}{paths_str}")
+        except Exception as e:
+            print(f"      ! filter {fp}: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════
