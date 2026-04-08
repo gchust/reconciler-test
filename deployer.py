@@ -320,7 +320,7 @@ COMPOSE_TYPES = {
 }
 
 # Types that need legacy API
-LEGACY_TYPES = {"comments", "recordHistory"}
+LEGACY_TYPES = {"comments", "recordHistory", "reference"}
 
 
 def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
@@ -824,6 +824,36 @@ def _create_legacy_block(nb: NocoBase, grid_uid: str, bs: dict,
     sp: dict = {"resourceSettings": {"init": res_init}}
     if title:
         sp["cardSettings"] = {"titleDescription": {"title": title}}
+
+    # Handle ReferenceBlock specially
+    if btype == "reference":
+        template_uid = bs.get("template_uid", "")
+        template_name = bs.get("template_name", "")
+        ref_mode = bs.get("reference_mode", "reference")
+        if not template_uid:
+            print(f"    ! reference: no template_uid")
+            return None
+        try:
+            nb.save_model({
+                "uid": block_uid, "use": "ReferenceBlockModel",
+                "parentId": grid_uid, "subKey": "items", "subType": "array",
+                "sortIndex": 99, "flowRegistry": {},
+                "stepParams": {
+                    "referenceSettings": {
+                        "target": {"targetUid": template_uid, "mode": ref_mode},
+                        "useTemplate": {
+                            "templateUid": template_uid,
+                            "templateName": template_name,
+                            "mode": ref_mode,
+                        }
+                    }
+                },
+            })
+            print(f'    + reference:"{template_name}" (legacy)')
+            return block_uid
+        except Exception as e:
+            print(f"    ! reference: {e}")
+            return None
 
     use_map = {
         "comments": "CommentsBlockModel",

@@ -96,6 +96,8 @@ popups:
       - - '[JS:Lead Key Stats Block]'
       actions:
       - edit
+      - popup
+      - popup
     - key: lead_insights
       type: details
       title: Lead Insights
@@ -107,8 +109,6 @@ popups:
         file: ./js/leads_popup_name_tab0_lead_insights_lead_ai_insights_block.js
       field_layout:
       - - '[JS:Lead AI Insights Block]'
-      actions: []
-      fields: []
     - key: lead_owner
       type: details
       title: Lead Owner
@@ -121,8 +121,10 @@ popups:
       field_layout:
       - - '---'
       - - '[JS:Lead Profile Header Block]'
-      actions: []
-      fields: []
+      actions:
+      - popup
+      - popup
+      - popup
     - key: company_information
       type: details
       title: Company Information
@@ -139,7 +141,6 @@ popups:
         - industry
         - annual_revenue
       - - number_of_employees
-      actions: []
     - key: contact_information
       type: details
       title: Contact Information
@@ -158,7 +159,6 @@ popups:
         - mobile_phone
       - - website: 8
         - address: 16
-      actions: []
     - key: details_5
       type: details
       coll: nb_crm_leads
@@ -167,16 +167,12 @@ popups:
       js_items:
       - desc: Lead Stage Flow Block
         file: ./js/leads_popup_name_tab0_details_5_lead_stage_flow_block.js
-      actions: []
-      fields: []
     - key: comments_6
       type: comments
       coll: nb_crm_comments
       resource_binding:
         associationName: nb_crm_leads.comments
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      actions: []
-      fields: []
     layout:
     - - col:
         - details_0
@@ -194,8 +190,6 @@ popups:
     - key: recordHistory_0
       type: recordHistory
       coll: nb_crm_leads
-      actions: []
-      fields: []
     title: Tab1
   - blocks: []
     layout:
@@ -213,6 +207,7 @@ popups:
       fields:
       - level
       - type
+      - scale
       - region
       js_items:
       - desc: Customer Statistics Block
@@ -236,8 +231,6 @@ popups:
       js_items:
       - desc: AI Smart Profile Block
         file: ./js/customers_popup_name_tab0_details_1_ai_smart_profile_block.js
-      actions: []
-      fields: []
     - key: contacts
       type: list
       title: Contacts
@@ -261,7 +254,6 @@ popups:
       - filter
       - refresh
       - addNew
-      fields: []
     - key: opportunities
       type: list
       title: Opportunities
@@ -272,16 +264,12 @@ popups:
       item_js:
       - desc: Opportunity Row Column - Customer 360
         file: ./js/customers_popup_name_tab0_opportunities_opportunity_row_column_customer_360.js
-      actions: []
-      fields: []
     - key: comments_4
       type: comments
       coll: nb_crm_comments
       resource_binding:
         associationName: nb_crm_customers.comments
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      actions: []
-      fields: []
     layout:
     - - col:
         - details_0
@@ -297,8 +285,6 @@ popups:
     - key: recordHistory_0
       type: recordHistory
       coll: nb_crm_customers
-      actions: []
-      fields: []
     title: Tab1
   target: $customers.table_0.fields.name
 - blocks:

@@ -123,7 +123,7 @@ pages:
     - filter
     - refresh
     - addNew
-    - triggerWorkflow
+    - workflowTrigger
     recordActions:
     - edit
     - delete
@@ -175,8 +175,16 @@ pages:
         size: 24
     actions: []
     recordActions: []
+  - key: reference_1
+    type: reference
+    template_uid: yjwjoi4erle
+    template_name: 'Table: Orders'
+    reference_mode: reference
+    actions: []
+    recordActions: []
   layout:
   - - filterForm_0
+  - - reference_1
   page: Orders
   icon: shoppingcartoutlined
 - blocks:

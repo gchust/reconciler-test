@@ -149,6 +149,7 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
         "CommentsBlockModel": "comments",
         "RecordHistoryBlockModel": "recordHistory",
         "IframeBlockModel": "iframe",
+        "ReferenceBlockModel": "reference",
     }
 
     btype = type_map.get(use)
@@ -282,6 +283,15 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
         actions = _export_actions(subs.get("actions", []))
         if actions:
             spec["actions"] = actions
+
+    elif btype == "reference":
+        # ReferenceBlock — references a template
+        ref_settings = sp.get("referenceSettings", {})
+        use_template = ref_settings.get("useTemplate", {})
+        if use_template:
+            spec["template_uid"] = use_template.get("templateUid", "")
+            spec["template_name"] = use_template.get("templateName", "")
+            spec["reference_mode"] = use_template.get("mode", "reference")
 
     elif btype == "comments":
         # Comments block — preserve association binding

@@ -156,9 +156,14 @@ pages:
         - '[JS:Order Stats Filter Block]'
         - order_no
         size: 24
+  - key: reference_1
+    type: reference
+    template_uid: yjwjoi4erle
+    template_name: 'Table: Orders'
+    reference_mode: reference
   layout:
   - - filterForm_0
-  - - 76b91d81
+  - - reference_1
   page: Orders
   icon: shoppingcartoutlined
 - blocks:
