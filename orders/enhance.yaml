@@ -1,10 +1,15 @@
 # ═══════════════════════════════════
 #  Layer 2: 订单管理 — 弹窗内容
 # ═══════════════════════════════════
+#
+# 只定义 addNew，auto 自动生成 edit + view
+# view_field: 查看绑定到表格字段点击
 
 popups:
-  # ── 订单：新建 ──
+  # ── 订单 ──
   - target: $订单列表.table.actions.addNew
+    auto: [edit, view]
+    view_field: order_no
     blocks:
       - key: form
         type: createForm
@@ -19,40 +24,10 @@ popups:
           - [remark]
         actions: [submit]
 
-  # ── 订单：编辑 ──
-  - target: $订单列表.table.record_actions.edit
-    blocks:
-      - key: form
-        type: editForm
-        resource: { binding: currentRecord }
-        fields: [order_no, customer_name, total_amount, status, order_date, delivery_date, remark]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [order_no, customer_name, status]
-          - "--- 金额与日期 ---"
-          - [total_amount, order_date, delivery_date]
-          - "--- 备注 ---"
-          - [remark]
-        actions: [submit]
-
-  # ── 订单：查看 ──
-  - target: $订单列表.table.record_actions.view
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [order_no, customer_name, status, total_amount, order_date, delivery_date, remark]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [order_no, customer_name, status]
-          - "--- 金额与日期 ---"
-          - [total_amount, order_date, delivery_date]
-          - "--- 备注 ---"
-          - [remark]
-        recordActions: [edit]
-
-  # ── 客户：新建 ──
+  # ── 客户 ──
   - target: $客户.table.actions.addNew
+    auto: [edit, view]
+    view_field: name
     blocks:
       - key: form
         type: createForm
@@ -65,54 +40,14 @@ popups:
           - [contact, phone]
         actions: [submit]
 
-  # ── 客户：编辑 ──
-  - target: $客户.table.record_actions.edit
-    blocks:
-      - key: form
-        type: editForm
-        resource: { binding: currentRecord }
-        fields: [name, level, contact, phone]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [name, level]
-          - "--- 联系方式 ---"
-          - [contact, phone]
-        actions: [submit]
-
-  # ── 客户：查看 ──
-  - target: $客户.table.record_actions.view
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [name, level, contact, phone]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [name, level]
-          - "--- 联系方式 ---"
-          - [contact, phone]
-        recordActions: [edit]
-
-  # ── 产品：新建 ──
+  # ── 产品 ──
   - target: $产品.table.actions.addNew
+    auto: [edit, view]
+    view_field: name
     blocks:
       - key: form
         type: createForm
         resource: { binding: currentCollection }
-        fields: [sku, name, price, unit, stock]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [sku, name]
-          - "--- 价格与库存 ---"
-          - [price, unit, stock]
-        actions: [submit]
-
-  # ── 产品：编辑 ──
-  - target: $产品.table.record_actions.edit
-    blocks:
-      - key: form
-        type: editForm
-        resource: { binding: currentRecord }
         fields: [sku, name, price, unit, stock]
         field_layout:
           - "--- 基本信息 ---"

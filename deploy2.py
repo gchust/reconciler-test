@@ -237,7 +237,10 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
 
     resolver = RefResolver(state)
 
-    for popup_spec in spec.get("popups", []):
+    # Expand auto-derived popups (edit, view from addNew)
+    all_popups = _expand_auto_popups(spec.get("popups", []))
+
+    for popup_spec in all_popups:
         target_ref = popup_spec.get("target", "")
         try:
             target_uid = resolver.resolve_uid(target_ref)
@@ -250,7 +253,6 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
             continue
 
         try:
-            # Check if popup already has content by navigating the tree
             existing = nb.get(uid=target_uid)
             items = _find_popup_items(existing.get("tree", {}))
             has_content = bool(items)
@@ -260,17 +262,39 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
 
         try:
             if has_content:
-                # Already deployed — only update layouts, don't recreate
                 print(f"  = popup [{target_ref}]: {len(items)} blocks (layout only)")
                 _relayout_existing_popup(nb, items, popup_spec)
             else:
-                # First time — compose creates everything
                 result = nb.compose(target_uid, blocks, mode="replace")
                 block_count = len(result.get("blocks", []))
                 print(f"  + popup [{target_ref}]: {block_count} blocks")
                 _apply_popup_layouts(nb, result, popup_spec)
         except Exception as e:
             print(f"  ! popup [{target_ref}]: {e}")
+
+        # If this is an addNew with view_field, bind click-to-open on the column
+        view_field = popup_spec.get("_view_field")
+        view_target = popup_spec.get("_view_target_ref")
+        if view_field and view_target:
+            try:
+                field_uid = resolver.resolve_uid(view_target)
+                nb.update_settings(field_uid, {
+                    "settings": {
+                        "popupSettings": {
+                            "openView": {
+                                "mode": "drawer",
+                                "size": "large",
+                                "pageModelClass": "ChildPageModel",
+                            }
+                        },
+                        "displayFieldSettings": {
+                            "clickToOpen": {"clickToOpen": True}
+                        }
+                    }
+                })
+                print(f"    → click [{view_field}] opens detail")
+            except Exception as e:
+                print(f"    ! view_field bind: {e}")
 
     for js_spec in spec.get("js", []):
         target_ref = js_spec.get("target", "")
@@ -475,6 +499,85 @@ def _configure_filter_fields(nb: NocoBase, compose_result: dict, page_spec: dict
                     print(f"      filter {field_name}: {label or field_name}{paths_str}")
                 except Exception as e:
                     print(f"      ! filter {field_name}: {e}")
+
+
+def _expand_auto_popups(popups: list[dict]) -> list[dict]:
+    """Expand auto-derived popups from addNew definitions.
+
+    When a popup has `auto: [edit, view]`, generates:
+    - edit popup: same fields/layout, type=editForm, resource=currentRecord
+    - view popup: same fields/layout, type=details, resource=currentRecord,
+                  recordActions=[edit] instead of actions=[submit]
+
+    When `view_field` is set, the view popup is bound to clicking
+    that field in the table (instead of a separate view button).
+    """
+    import copy
+    result = []
+
+    for ps in popups:
+        result.append(ps)  # always include the original
+
+        auto = ps.get("auto", [])
+        if not auto:
+            continue
+
+        target_ref = ps.get("target", "")
+        # Derive base path: $xxx.table.actions.addNew → $xxx.table
+        # So edit = $xxx.table.record_actions.edit
+        parts = target_ref.rstrip(".").split(".")
+        # Find the block key part (before "actions")
+        base_parts = []
+        for p in parts:
+            if p in ("actions", "record_actions"):
+                break
+            base_parts.append(p)
+        base_ref = ".".join(base_parts)
+
+        blocks_spec = ps.get("blocks", [])
+        if not blocks_spec:
+            continue
+        src_block = blocks_spec[0]  # the createForm definition
+
+        view_field = ps.get("view_field")
+
+        if "edit" in auto:
+            edit_block = copy.deepcopy(src_block)
+            edit_block["key"] = "form"
+            edit_block["type"] = "editForm"
+            edit_block["resource"] = {"binding": "currentRecord"}
+
+            edit_popup = {
+                "target": f"{base_ref}.record_actions.edit",
+                "blocks": [edit_block],
+            }
+            result.append(edit_popup)
+
+        if "view" in auto:
+            view_block = copy.deepcopy(src_block)
+            view_block["key"] = "detail"
+            view_block["type"] = "details"
+            view_block["resource"] = {"binding": "currentRecord"}
+            # details uses recordActions, not actions
+            view_block.pop("actions", None)
+            view_block["recordActions"] = ["edit"]
+
+            if view_field:
+                # View binds to field click, not record_actions.view
+                view_popup = {
+                    "target": f"{base_ref}.fields.{view_field}",
+                    "blocks": [view_block],
+                    "_view_field": view_field,
+                    "_view_target_ref": f"{base_ref}.fields.{view_field}",
+                }
+            else:
+                view_popup = {
+                    "target": f"{base_ref}.record_actions.view",
+                    "blocks": [view_block],
+                }
+            result.append(view_popup)
+
+    return result
 
 
 def _find_popup_items(tree: dict) -> list[dict]:
