@@ -145,7 +145,7 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
                 if key in blocks_state and blocks_state[key].get("uid"):
                     block_uid = blocks_state[key]["uid"]
                     block_grid = blocks_state[key].get("grid_uid", "")
-                    _fill_block(nb, block_uid, block_grid, bs, coll, mod, blocks_state[key])
+                    _fill_block(nb, block_uid, block_grid, bs, coll, mod, blocks_state[key], blocks_state)
         else:
             print(f"    = {len(existing)} blocks exist (skip)")
 
@@ -232,7 +232,7 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
                     continue
                 block_uid = blocks_state[key]["uid"]
                 block_grid = blocks_state[key].get("grid_uid", "")
-                _fill_block(nb, block_uid, block_grid, bs, coll, mod, blocks_state[key])
+                _fill_block(nb, block_uid, block_grid, bs, coll, mod, blocks_state[key], blocks_state)
 
         except Exception as e:
             print(f"    ! compose: {e}")
@@ -470,9 +470,35 @@ def _fix_display_models(nb: NocoBase, block_uid: str, coll: str, btype: str):
                     })
 
 
+def _replace_js_uids(code: str, block_state_all: dict) -> str:
+    """Replace TARGET_BLOCK_UID and similar hardcoded UID references in JS code.
+
+    Scans for const TARGET_BLOCK_UID = 'xxx' pattern and replaces
+    with the actual UID from current deploy state.
+    """
+    import re
+    # Find all table block UIDs in current state (potential targets)
+    table_uids = []
+    for bkey, binfo in block_state_all.items():
+        if isinstance(binfo, dict) and binfo.get("type") == "table":
+            table_uids.append(binfo.get("uid", ""))
+
+    if not table_uids:
+        return code
+
+    # Replace TARGET_BLOCK_UID = 'old_uid' with first table UID
+    target_uid = table_uids[0]
+    code = re.sub(
+        r"(TARGET_BLOCK_UID\s*=\s*['\"])[a-z0-9]{11}(['\"])",
+        rf"\g<1>{target_uid}\2",
+        code
+    )
+    return code
+
+
 def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 bs: dict, default_coll: str, mod: Path,
-                block_state: dict):
+                block_state: dict, all_blocks_state: dict = None):
     """Fill a compose-created block with fields, actions, JS items, dividers."""
     btype = bs.get("type", "")
     coll = bs.get("coll", default_coll)
@@ -588,6 +614,10 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 
                 if already:
                     continue
+
+                # Auto-replace TARGET_BLOCK_UID references
+                if all_blocks_state:
+                    code = _replace_js_uids(code, all_blocks_state)
 
                 js_uid_val = uid()
                 nb.save_model({
