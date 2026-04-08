@@ -69,7 +69,7 @@ def deploy(mod_dir: str, force: bool = False):
         page_key = _slugify(page_title)
         page_state = state["pages"].get(page_key, {})
 
-        if not page_state.get("tab_uid") or force:
+        if not page_state.get("tab_uid"):
             result = nb.create_page(page_title, group_id,
                                     icon=ps.get("icon", "fileoutlined"))
             page_state = {
@@ -135,10 +135,21 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
         for i, bs in enumerate(blocks_spec)
     )
 
-    if all_exist and not force:
-        # All blocks exist — only update layout
-        print(f"    = {len(existing)} blocks exist (skip compose)")
-        # Still apply layout in case it changed
+    if all_exist:
+        if force:
+            # Force: re-apply content fixes (display models, JS code, layout)
+            # but do NOT recreate blocks
+            print(f"    ~ {len(existing)} blocks exist (update in-place)")
+            for bs in blocks_spec:
+                key = bs.get("key", "")
+                if key in blocks_state and blocks_state[key].get("uid"):
+                    block_uid = blocks_state[key]["uid"]
+                    block_grid = blocks_state[key].get("grid_uid", "")
+                    _fill_block(nb, block_uid, block_grid, bs, coll, mod, blocks_state[key])
+        else:
+            print(f"    = {len(existing)} blocks exist (skip)")
+
+        # Apply layout (always, in case it changed)
         grid_uid = ""
         for getter in [lambda: nb.get(tabSchemaUid=tab_uid), lambda: nb.get(uid=tab_uid)]:
             try:
@@ -826,26 +837,37 @@ def _deploy_popup(nb: NocoBase, target_uid: str, target_ref: str,
     coll = popup_spec.get("coll", "")
     tabs_spec = popup_spec.get("tabs")
 
-    # Check if popup already has content (skip if not forced)
-    if not force:
-        try:
-            data = nb.get(uid=target_uid)
-            tree = data.get("tree", {})
-            popup_page = tree.get("subModels", {}).get("page", {})
-            if popup_page and popup_page.get("subModels", {}).get("tabs"):
-                tabs = popup_page["subModels"]["tabs"]
-                has_content = False
-                for t in (tabs if isinstance(tabs, list) else [tabs]):
-                    g = t.get("subModels", {}).get("grid", {})
-                    items = g.get("subModels", {}).get("items", [])
-                    if isinstance(items, list) and items:
-                        has_content = True
-                        break
-                if has_content:
+    # Check if popup already has content
+    try:
+        data = nb.get(uid=target_uid)
+        tree = data.get("tree", {})
+        popup_page = tree.get("subModels", {}).get("page", {})
+        if popup_page and popup_page.get("subModels", {}).get("tabs"):
+            tabs_existing = popup_page["subModels"]["tabs"]
+            has_content = False
+            for t in (tabs_existing if isinstance(tabs_existing, list) else [tabs_existing]):
+                g = t.get("subModels", {}).get("grid", {})
+                items = g.get("subModels", {}).get("items", [])
+                if isinstance(items, list) and items:
+                    has_content = True
+                    break
+            if has_content:
+                if force:
+                    # Force: re-apply display model fixes, JS code updates
+                    print(f"  ~ popup [{target_ref}] (update in-place)")
+                    # Re-fix display models for popup detail blocks
+                    for t in (tabs_existing if isinstance(tabs_existing, list) else [tabs_existing]):
+                        g = t.get("subModels", {}).get("grid", {})
+                        for item in (g.get("subModels", {}).get("items", []) if isinstance(g, dict) else []):
+                            if "DetailsBlock" in item.get("use", ""):
+                                block_uid = item.get("uid", "")
+                                if block_uid and coll:
+                                    _fix_display_models(nb, block_uid, coll, "details")
+                else:
                     print(f"  = popup [{target_ref}] (exists, skip)")
-                    return
-        except Exception:
-            pass
+                return
+    except Exception:
+        pass
 
     # Set click-to-open
     nb.update_model(target_uid, {
