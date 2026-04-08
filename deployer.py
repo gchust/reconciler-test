@@ -538,25 +538,67 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
     js_items = bs.get("js_items", [])
     js_item_uids: dict[str, str] = {}  # desc → uid (for layout)
     if js_items and grid_uid:
-        for js_spec in js_items:
-            js_file = js_spec.get("file", "")
-            if not js_file:
-                continue
-            p = mod / js_file
-            if not p.exists():
-                continue
-            code = p.read_text()
-            js_uid = uid()
-            nb.save_model({
-                "uid": js_uid, "use": "JSItemModel",
-                "parentId": grid_uid, "subKey": "items", "subType": "array",
-                "sortIndex": 0, "flowRegistry": {},
-                "stepParams": {"jsSettings": {"runJs": {"code": code, "version": "v1"}}},
-            })
-            desc = js_spec.get("desc", "")
-            if desc:
-                js_item_uids[f"[JS:{desc}]"] = js_uid
-            print(f"      + JS: {desc[:40]}")
+        # Check existing JS items to avoid duplicates
+        existing_js_count = 0
+        try:
+            grid_data = nb.get(uid=grid_uid)
+            grid_tree = grid_data.get("tree", {})
+            grid_items = grid_tree.get("subModels", {}).get("items", [])
+            existing_js_count = sum(1 for i in (grid_items if isinstance(grid_items, list) else [])
+                                    if "JSItem" in i.get("use", ""))
+            # Map existing JS items for layout
+            for i in (grid_items if isinstance(grid_items, list) else []):
+                if "JSItem" in i.get("use", ""):
+                    i_code = i.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
+                    i_desc = ""
+                    for line in i_code.split("\n"):
+                        if line.strip().startswith("*") and len(line.strip()) > 3:
+                            i_desc = line.strip().lstrip("* ").strip()
+                            break
+                    if i_desc:
+                        js_item_uids[f"[JS:{i_desc}]"] = i.get("uid", "")
+        except Exception:
+            pass
+
+        if existing_js_count >= len(js_items):
+            pass  # Already have enough JS items, skip
+        else:
+            for js_spec in js_items:
+                js_file = js_spec.get("file", "")
+                if not js_file:
+                    continue
+                p = mod / js_file
+                if not p.exists():
+                    continue
+                code = p.read_text()
+                desc = js_spec.get("desc", "")
+
+                # Skip if already exists (match by desc in existing code)
+                already = False
+                if existing_js_count > 0:
+                    try:
+                        for i in (grid_items if isinstance(grid_items, list) else []):
+                            if "JSItem" in i.get("use", ""):
+                                i_code = i.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
+                                if desc and desc in i_code:
+                                    already = True
+                                    break
+                    except Exception:
+                        pass
+
+                if already:
+                    continue
+
+                js_uid_val = uid()
+                nb.save_model({
+                    "uid": js_uid_val, "use": "JSItemModel",
+                    "parentId": grid_uid, "subKey": "items", "subType": "array",
+                    "sortIndex": 0, "flowRegistry": {},
+                    "stepParams": {"jsSettings": {"runJs": {"code": code, "version": "v1"}}},
+                })
+                if desc:
+                    js_item_uids[f"[JS:{desc}]"] = js_uid_val
+                print(f"      + JS: {desc[:40]}")
 
     # ── JS Columns (table) ──
     js_cols = bs.get("js_columns", [])
@@ -650,7 +692,12 @@ def _configure_filter(nb: NocoBase, bs: dict, block_uid: str,
                 })
                 print(f"      filter {fp}: {label or fp}")
             except Exception:
-                pass
+                # Fallback to update_model
+                try:
+                    nb.update_model(wrapper_uid, {"filterFormItemSettings": settings})
+                    print(f"      filter {fp}: {label or fp} (legacy)")
+                except Exception as e2:
+                    print(f"      ! filter {fp}: {e2}")
 
 
 # ══════════════════════════════════════════════════════════════════

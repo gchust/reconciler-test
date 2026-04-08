@@ -13,6 +13,9 @@ pages:
           - field: name
             label: 搜索
             filterPaths: [name, phone, website]
+        js_items:
+          - desc: Customer Stats Filter Block
+            file: ./js/customers_filterForm_e31595_js_customer_stats_filter_block.js
 
       - key: table
         type: table
