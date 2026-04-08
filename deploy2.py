@@ -114,35 +114,7 @@ def deploy_l1(nb: NocoBase, spec: dict, state: dict, mod: Path) -> dict:
         blocks_spec = _build_compose_blocks(ps)
         if blocks_spec:
             result = nb.compose(page_state["tab_uid"], blocks_spec, mode="replace")
-            # Save block UIDs to state
-            page_state["blocks"] = {}
-            for b in result.get("blocks", []):
-                key = b["key"]
-                page_state["blocks"][key] = {
-                    "uid": b["uid"],
-                    "type": b["type"],
-                }
-                # Save popup UIDs from actions (for L2)
-                for act in b.get("actions", []):
-                    if act.get("popupPageUid"):
-                        page_state["blocks"].setdefault(f"{key}.actions", {})
-                        page_state["blocks"][f"{key}.actions"][act["key"]] = {
-                            "uid": act["uid"],
-                            "popup_page_uid": act.get("popupPageUid"),
-                            "popup_tab_uid": act.get("popupTabUid"),
-                            "popup_grid_uid": act.get("popupGridUid"),
-                        }
-                # Save popup UIDs from fields (for L2)
-                for f in b.get("fields", []):
-                    if f.get("popupPageUid"):
-                        page_state["blocks"].setdefault(f"{key}.fields", {})
-                        page_state["blocks"][f"{key}.fields"][f["fieldPath"]] = {
-                            "uid": f["uid"],
-                            "popup_page_uid": f.get("popupPageUid"),
-                            "popup_tab_uid": f.get("popupTabUid"),
-                            "popup_grid_uid": f.get("popupGridUid"),
-                        }
-
+            page_state["blocks"] = _extract_block_state(result)
             block_count = len(result.get("blocks", []))
             print(f"    composed {block_count} blocks")
 
@@ -308,6 +280,90 @@ def _resolve_popup_uid(page_state: dict, ref: str) -> str | None:
 # ══════════════════════════════════════════════════════════════════
 #  Helpers
 # ══════════════════════════════════════════════════════════════════
+
+def _extract_block_state(compose_result: dict) -> dict:
+    """Extract deep UID registry from compose response.
+
+    State structure (AI reads this to find any UID):
+      blocks:
+        filter:
+          uid: aaa
+          type: filterForm
+          grid_uid: bbb
+          fields:
+            product_name: {wrapper: ccc, field: ddd}
+            status: {wrapper: eee, field: fff}
+          actions: {}
+        table:
+          uid: ggg
+          type: table
+          actions_column_uid: hhh
+          fields:
+            sku: {wrapper: iii, field: jjj}
+          actions:
+            filter: {uid: kkk}
+            addNew: {uid: lll, popup_page: mmm, popup_tab: nnn, popup_grid: ooo}
+          record_actions:
+            edit: {uid: ppp, popup_page: qqq, popup_tab: rrr, popup_grid: sss}
+    """
+    blocks = {}
+    for b in compose_result.get("blocks", []):
+        key = b["key"]
+        entry: dict = {
+            "uid": b["uid"],
+            "type": b["type"],
+        }
+
+        # Optional UIDs
+        if b.get("gridUid"):
+            entry["grid_uid"] = b["gridUid"]
+        if b.get("actionsColumnUid"):
+            entry["actions_column_uid"] = b["actionsColumnUid"]
+
+        # Fields — deep UID
+        fields = {}
+        for f in b.get("fields", []):
+            fp = f.get("fieldPath", f.get("key", ""))
+            field_entry: dict = {
+                "wrapper": f.get("wrapperUid", f.get("uid")),
+                "field": f.get("fieldUid", ""),
+            }
+            if f.get("popupPageUid"):
+                field_entry["popup_page"] = f["popupPageUid"]
+                field_entry["popup_tab"] = f.get("popupTabUid", "")
+                field_entry["popup_grid"] = f.get("popupGridUid", "")
+            fields[fp] = field_entry
+        if fields:
+            entry["fields"] = fields
+
+        # Actions — deep UID
+        actions = {}
+        for a in b.get("actions", []):
+            act_entry: dict = {"uid": a["uid"]}
+            if a.get("popupPageUid"):
+                act_entry["popup_page"] = a["popupPageUid"]
+                act_entry["popup_tab"] = a.get("popupTabUid", "")
+                act_entry["popup_grid"] = a.get("popupGridUid", "")
+            actions[a["key"]] = act_entry
+        if actions:
+            entry["actions"] = actions
+
+        # Record actions — deep UID
+        rec_actions = {}
+        for a in b.get("recordActions", []):
+            act_entry: dict = {"uid": a["uid"]}
+            if a.get("popupPageUid"):
+                act_entry["popup_page"] = a["popupPageUid"]
+                act_entry["popup_tab"] = a.get("popupTabUid", "")
+                act_entry["popup_grid"] = a.get("popupGridUid", "")
+            rec_actions[a["key"]] = act_entry
+        if rec_actions:
+            entry["record_actions"] = rec_actions
+
+        blocks[key] = entry
+
+    return blocks
+
 
 def _ensure_collection(nb: NocoBase, name: str, coll_def: dict):
     title = coll_def.get("title", name)

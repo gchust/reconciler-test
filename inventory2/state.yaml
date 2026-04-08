@@ -7,11 +7,64 @@ pages:
     grid_uid: j1zqwyt2cp7
     blocks:
       filter:
-        uid: wig2tfjat23
+        uid: 5eceqrkghhz
         type: filterForm
+        grid_uid: xuhdycd0gbl
+        fields:
+          product_name:
+            wrapper: bq1mg1x5iwx
+            field: a9evvoel86r
+          category:
+            wrapper: r2h6anm00tc
+            field: 4csg92130h9
+          status:
+            wrapper: vv4hrm8yukh
+            field: yr3wqlq2i12
       table:
-        uid: zg67a7t0tdi
+        uid: ty78vfg061y
         type: table
+        actions_column_uid: gbp1xnd8hac
+        fields:
+          sku:
+            wrapper: ab8ty0n0o61
+            field: yqkzwcyvikf
+          product_name:
+            wrapper: y0xecw9lxmr
+            field: l4dfsxbydyk
+          category:
+            wrapper: tei7tx82mng
+            field: fix7p03dner
+          unit:
+            wrapper: 93gxeute7mh
+            field: 3mwc7bie8gx
+          price:
+            wrapper: c9p5e1jf0ve
+            field: cocprrvyzva
+          stock_qty:
+            wrapper: dxteuws02l9
+            field: kii0pz9lyd3
+          min_qty:
+            wrapper: f7pjm2h7ljz
+            field: lkli52500vo
+          status:
+            wrapper: h7nmt24horf
+            field: 82azhga4648
+        actions:
+          filter:
+            uid: kxtqeybrirh
+          refresh:
+            uid: 45ne15wbxt7
+          addNew:
+            uid: ahyzntggaew
+          export:
+            uid: 8okfu7q6yp0
+        record_actions:
+          edit:
+            uid: e5hbj78y1jp
+          view:
+            uid: nihwn42mrat
+          delete:
+            uid: i6ahmyyfbyw
   出入库:
     route_id: 357759823970310
     page_uid: 87wyi7w9985
@@ -19,8 +72,42 @@ pages:
     grid_uid: 16wv3st1iu9
     blocks:
       filter:
-        uid: 1ci5nzymehf
+        uid: nzjfcloqi9a
         type: filterForm
+        grid_uid: 0k7788l7skq
+        fields:
+          record_no:
+            wrapper: otq13867gpr
+            field: k44d6leep0s
+          record_type:
+            wrapper: nsk2bvhbptu
+            field: 3hpafgkvp1n
       table:
-        uid: anspb1nrpe6
+        uid: zopmud3rtlb
         type: table
+        actions_column_uid: 7clkfi7s33o
+        fields:
+          record_no:
+            wrapper: lamjm6bwlbp
+            field: jj6b93r96lc
+          record_type:
+            wrapper: 9b1qsk8pxzc
+            field: 2gwzkbn5ci9
+          quantity:
+            wrapper: 8jg9j55w6to
+            field: 6t6mqf3ugqi
+          operator:
+            wrapper: 83hav3y212l
+            field: 6z3tq58y5n6
+        actions:
+          filter:
+            uid: 9elihvc5qqg
+          refresh:
+            uid: owfwmfsj112
+          addNew:
+            uid: axx7osqb8a1
+        record_actions:
+          edit:
+            uid: dfdmhmanu3o
+          view:
+            uid: 7ycx8p7uv3o
