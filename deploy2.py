@@ -311,13 +311,15 @@ def _resolve_popup_uid(page_state: dict, ref: str) -> str | None:
 
 def _ensure_collection(nb: NocoBase, name: str, coll_def: dict):
     title = coll_def.get("title", name)
-    if nb.collection_exists(name):
+    exists = nb.collection_exists(name)
+
+    if not exists:
+        nb.create_collection(name, title)
+        print(f"  + collection: {name}")
+    else:
         print(f"  = collection: {name}")
-        return
 
-    nb.create_collection(name, title)
-    print(f"  + collection: {name}")
-
+    # Always check for new fields (even if collection exists)
     meta = nb.field_meta(name)
     for fdef in coll_def.get("fields", []):
         fname = fdef["name"]

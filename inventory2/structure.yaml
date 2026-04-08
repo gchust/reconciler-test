@@ -12,8 +12,10 @@ collections:
       - { name: sku, interface: input, title: SKU }
       - { name: product_name, interface: input, title: 产品名称 }
       - { name: category, interface: select, title: 分类, options: [原材料, 半成品, 成品] }
+      - { name: unit, interface: input, title: 单位 }
       - { name: price, interface: number, title: 单价 }
       - { name: stock_qty, interface: integer, title: 库存数量 }
+      - { name: min_qty, interface: integer, title: 最低库存 }
       - { name: status, interface: select, title: 状态, options: [正常, 缺货, 停用] }
 
   inv2_records:
@@ -35,7 +37,7 @@ pages:
 
       - key: table
         type: table
-        fields: [sku, product_name, category, price, stock_qty, status]
+        fields: [sku, product_name, category, unit, price, stock_qty, min_qty, status]
         actions: [filter, refresh, addNew, export]
         recordActions: [edit, view, delete]
 
@@ -51,3 +53,4 @@ pages:
         type: table
         fields: [record_no, record_type, quantity, operator]
         actions: [filter, refresh, addNew]
+        recordActions: [edit, view]

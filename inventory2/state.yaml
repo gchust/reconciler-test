@@ -7,10 +7,10 @@ pages:
     grid_uid: j1zqwyt2cp7
     blocks:
       filter:
-        uid: y9ksw6cew12
+        uid: wig2tfjat23
         type: filterForm
       table:
-        uid: hy8q7vtjv97
+        uid: zg67a7t0tdi
         type: table
   出入库:
     route_id: 357759823970310
@@ -19,8 +19,8 @@ pages:
     grid_uid: 16wv3st1iu9
     blocks:
       filter:
-        uid: yceojhzjkjo
+        uid: 1ci5nzymehf
         type: filterForm
       table:
-        uid: nobotxr2sr8
+        uid: anspb1nrpe6
         type: table
