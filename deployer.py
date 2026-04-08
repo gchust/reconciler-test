@@ -83,7 +83,9 @@ def deploy(mod_dir: str, force: bool = False):
             print(f"  = page: {page_title}")
 
         # Deploy surface (blocks + layout)
-        blocks_state = deploy_surface(nb, page_state["tab_uid"], ps, mod, force)
+        existing_blocks = page_state.get("blocks", {})
+        blocks_state = deploy_surface(nb, page_state["tab_uid"], ps, mod, force,
+                                       existing_blocks)
         page_state["blocks"] = blocks_state
         state["pages"][page_key] = page_state
 
@@ -112,44 +114,79 @@ def deploy(mod_dir: str, force: bool = False):
 # ══════════════════════════════════════════════════════════════════
 
 def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
-                   mod: Path, force: bool = False) -> dict:
+                   mod: Path, force: bool = False,
+                   existing_state: dict = None) -> dict:
     """Deploy blocks into a surface (page tab or popup tab).
 
+    Incremental: if existing_state has block UIDs, skip those blocks.
     Returns blocks state dict {key: {uid, type, ...}}.
     """
     coll = spec.get("coll", "")
     blocks_spec = spec.get("blocks", [])
     if not blocks_spec:
-        return {}
+        return existing_state or {}
 
-    # Step 1: Compose empty block shells
+    existing = existing_state or {}
+    blocks_state = dict(existing)  # preserve existing UIDs
+
+    # Check if all blocks already exist in state
+    all_exist = all(
+        bs.get("key", f"{bs.get('type','')}_{i}") in existing
+        for i, bs in enumerate(blocks_spec)
+    )
+
+    if all_exist and not force:
+        # All blocks exist — only update layout
+        print(f"    = {len(existing)} blocks exist (skip compose)")
+        # Still apply layout in case it changed
+        grid_uid = ""
+        for getter in [lambda: nb.get(tabSchemaUid=tab_uid), lambda: nb.get(uid=tab_uid)]:
+            try:
+                data = getter()
+                g = data.get("tree", {}).get("subModels", {}).get("grid", {})
+                if isinstance(g, dict) and g.get("uid"):
+                    grid_uid = g["uid"]
+                    break
+            except Exception:
+                continue
+
+        layout_spec = spec.get("layout")
+        if layout_spec and grid_uid:
+            uid_map = {k: v["uid"] for k, v in blocks_state.items() if "uid" in v}
+            layout = parse_layout_spec(layout_spec, list(uid_map.keys()))
+            apply_layout(nb, grid_uid, layout, uid_map)
+
+        return blocks_state
+
+    # Step 1: Compose empty block shells (only new ones)
     compose_blocks = []
     for bs in blocks_spec:
-        btype = bs.get("type", "")
-        key = bs.get("key", f"{btype}_{len(compose_blocks)}")
+        key = bs.get("key", f"{bs.get('type','')}_{len(compose_blocks)}")
+        if key in existing and not force:
+            continue  # skip existing
         cb = _to_compose_block(bs, coll)
         if cb:
             compose_blocks.append(cb)
 
-    blocks_state = {}
-
     if compose_blocks:
         try:
-            result = nb.compose(tab_uid, compose_blocks, mode="replace")
+            # Use append mode if some blocks already exist, replace if fresh
+            mode = "append" if existing else "replace"
+            result = nb.compose(tab_uid, compose_blocks, mode=mode)
             composed = result.get("blocks", [])
-            grid_uid = result.get("layout", {}).get("uid", "")
             print(f"    composed {len(composed)} block shells")
 
             # Map compose results to spec keys
             compose_idx = 0
             for bs in blocks_spec:
-                btype = bs.get("type", "")
+                key = bs.get("key", "")
+                if key in existing and not force:
+                    continue
                 cb = _to_compose_block(bs, coll)
                 if not cb:
                     continue
                 if compose_idx < len(composed):
                     cr = composed[compose_idx]
-                    key = bs.get("key", cr.get("key", f"{btype}_{compose_idx}"))
                     blocks_state[key] = {
                         "uid": cr["uid"],
                         "type": cr["type"],
@@ -157,9 +194,11 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
                     }
                     compose_idx += 1
 
-            # Step 2: Fill each block with content
+            # Step 2: Fill each NEW block with content
             for bs in blocks_spec:
                 key = bs.get("key", "")
+                if key in existing and not force:
+                    continue
                 if key not in blocks_state:
                     continue
                 block_uid = blocks_state[key]["uid"]
@@ -674,6 +713,27 @@ def _deploy_popup(nb: NocoBase, target_uid: str, target_ref: str,
     mode = popup_spec.get("mode", "drawer")
     coll = popup_spec.get("coll", "")
     tabs_spec = popup_spec.get("tabs")
+
+    # Check if popup already has content (skip if not forced)
+    if not force:
+        try:
+            data = nb.get(uid=target_uid)
+            tree = data.get("tree", {})
+            popup_page = tree.get("subModels", {}).get("page", {})
+            if popup_page and popup_page.get("subModels", {}).get("tabs"):
+                tabs = popup_page["subModels"]["tabs"]
+                has_content = False
+                for t in (tabs if isinstance(tabs, list) else [tabs]):
+                    g = t.get("subModels", {}).get("grid", {})
+                    items = g.get("subModels", {}).get("items", [])
+                    if isinstance(items, list) and items:
+                        has_content = True
+                        break
+                if has_content:
+                    print(f"  = popup [{target_ref}] (exists, skip)")
+                    return
+        except Exception:
+            pass
 
     # Set click-to-open
     nb.update_model(target_uid, {
