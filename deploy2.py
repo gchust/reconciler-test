@@ -272,25 +272,46 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
         except Exception as e:
             print(f"  ! popup [{target_ref}]: {e}")
 
-        # If this is an addNew with view_field, bind click-to-open on the column
+        # If this is a view popup bound to field click, set click-to-open
         view_field = popup_spec.get("_view_field")
         view_target = popup_spec.get("_view_target_ref")
         if view_field and view_target:
             try:
                 field_uid = resolver.resolve_uid(view_target)
-                nb.update_settings(field_uid, {
-                    "settings": {
+                # Read the field to get its popup page UID
+                field_data = nb.get(uid=field_uid)
+                field_tree = field_data.get("tree", {})
+                popup_page_uid = (field_tree.get("subModels", {})
+                                  .get("page", {}).get("uid", ""))
+                # Get collection from the page's table block
+                coll = ""
+                for bkey, binfo in state.get("pages", {}).items():
+                    blocks = binfo.get("blocks", {})
+                    for _, bval in blocks.items():
+                        fields = bval.get("fields", {})
+                        if view_field in fields:
+                            # Found — get coll from structure
+                            pass
+
+                # Use legacy API to set clickToOpen + popupSettings
+                # TODO: switch to flowSurfaces:configure when supported
+                nb.save_model({
+                    "uid": field_uid,
+                    "use": field_tree.get("use", "DisplayTextFieldModel"),
+                    "stepParams": {
                         "popupSettings": {
                             "openView": {
                                 "mode": "drawer",
                                 "size": "large",
                                 "pageModelClass": "ChildPageModel",
+                                "uid": popup_page_uid,
                             }
                         },
                         "displayFieldSettings": {
                             "clickToOpen": {"clickToOpen": True}
                         }
-                    }
+                    },
+                    "flowRegistry": {},
                 })
                 print(f"    → click [{view_field}] opens detail")
             except Exception as e:
