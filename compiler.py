@@ -386,22 +386,80 @@ def _compile(spec: dict) -> dict:
 # ── Block compilers ──────────────────────────────────────────────
 
 def _compile_filter(bs: dict, coll: str) -> dict:
-    """filter → FilterFormBlock + FilterFormGrid + FilterFormItem..."""
+    """filter → FilterFormBlock + FilterFormGrid + FilterFormItem...
+
+    Spec format for filter fields:
+      fields:
+        - title                          # simple: filter by title
+        - status:enum                    # with type hint
+        - field: name                    # dict format
+          label: Search
+          targets:                       # connect to multiple blocks/fields
+            - block: table1              # (resolved to UID after apply)
+              paths: [name, company, email]
+            - block: table2
+              paths: [name, phone]
+    """
     fields = _parse_fields(bs.get("fields", []))
 
     items = []
     for f in fields:
         edit = EDIT.get(f["type"], "InputField")
+
+        # Build filterFormItemSettings
+        filter_sp: dict[str, Any] = {
+            "init": {
+                "filterField": {
+                    "name": f["name"],
+                    "title": f.get("label", f["name"]),
+                    "interface": _type_to_interface(f["type"]),
+                    "type": _type_to_dbtype(f["type"]),
+                },
+            },
+        }
+
+        # Label
+        label = f.get("label", "")
+        if label:
+            filter_sp["label"] = {"label": label}
+
+        # Connect targets (if specified in dict format)
+        raw = f.get("_raw")
+        if isinstance(raw, dict) and raw.get("targets"):
+            targets = []
+            for t in raw["targets"]:
+                targets.append({
+                    "targetId": t.get("block", ""),  # placeholder, resolved post-apply
+                    "filterPaths": t.get("paths", [f["name"]]),
+                })
+            filter_sp["connectFields"] = {"value": {"targets": targets}}
+
+        sp: dict[str, Any] = {
+            "fieldSettings": {"init": {
+                "collectionName": coll, "fieldPath": f["name"],
+                "dataSourceKey": "main"}},
+            "filterFormItemSettings": filter_sp,
+        }
+
         items.append({
             "uid": None, "use": "FilterFormItem",
             "field": {"uid": None, "use": edit},
-            "stepParams": {"fieldSettings": {"init": {
-                "collectionName": coll, "fieldPath": f["name"],
-                "dataSourceKey": "main"}}},
+            "stepParams": sp,
         })
 
     block: dict[str, Any] = {
         "uid": None, "use": "FilterFormBlock",
+        "stepParams": {
+            "formFilterBlockModelSettings": {
+                "layout": {
+                    "layout": "horizontal",
+                    "labelAlign": "left",
+                    "labelWidth": 120,
+                    "labelWrap": False,
+                    "colon": True,
+                }
+            }
+        },
         "grid": {"uid": None, "use": "FilterFormGrid", "items": items},
     }
 
@@ -410,6 +468,22 @@ def _compile_filter(bs: dict, coll: str) -> dict:
         block["actions"] = _compile_actions(actions, "filter")
 
     return block
+
+
+def _type_to_interface(ftype: str) -> str:
+    """Map spec field type to NocoBase interface name."""
+    return {"text": "input", "enum": "select", "number": "integer",
+            "integer": "integer", "date": "date", "datetime": "datetime",
+            "checkbox": "checkbox", "select": "select",
+            }.get(ftype, "input")
+
+
+def _type_to_dbtype(ftype: str) -> str:
+    """Map spec field type to NocoBase db type."""
+    return {"text": "string", "enum": "string", "number": "double",
+            "integer": "bigInt", "date": "date", "datetime": "date",
+            "checkbox": "boolean", "select": "string",
+            }.get(ftype, "string")
 
 
 def _compile_table(bs: dict, coll: str) -> dict:
@@ -553,6 +627,8 @@ def _parse_field(f) -> dict:
             "type": f.get("type", f.get("display", "text")),
             "required": f.get("required", False),
             "click": f.get("click", ""),
+            "label": f.get("label", ""),
+            "_raw": f,  # keep original dict for advanced features (targets, etc.)
         }
 
     s = str(f).strip()

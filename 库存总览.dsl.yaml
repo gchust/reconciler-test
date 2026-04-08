@@ -2,17 +2,17 @@ page: 库存总览
 tab: krcpffvyv6q
 route: 357755665121280
 grid:
-  uid: irgnxkgosld
+  uid: 0rg6ur4jme7
   use: BlockGrid
   items:
-  - uid: cjdt4e3h5lp
+  - uid: 6onplts0rn6
     use: TableBlock
     coll: inv_products
     columns:
-    - uid: yn5ijp6nwuw
+    - uid: 51co47s3kdl
       use: TableColumn
       field:
-        uid: vktaza5wqtj
+        uid: g4r17cz4ej0
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -23,10 +23,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: 9hxsi67fbnt
+    - uid: jxbtsqcad1f
       use: TableColumn
       field:
-        uid: mhrh8wyo9hc
+        uid: f5lmzn0vrle
         use: DisplayEnumField
       stepParams:
         fieldSettings:
@@ -37,10 +37,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayEnumFieldModel
-    - uid: xd5veya1xxu
+    - uid: g5gtzf38kcj
       use: TableColumn
       field:
-        uid: 88x4uujip30
+        uid: fqof73lzils
         use: DisplayNumberField
       stepParams:
         fieldSettings:
@@ -51,10 +51,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayNumberFieldModel
-    - uid: h62s2qcfitq
+    - uid: cvnfdqsqsr5
       use: TableColumn
       field:
-        uid: hx94t59hjog
+        uid: 2x624miqz8j
         use: DisplayNumberField
       stepParams:
         fieldSettings:
@@ -65,10 +65,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayNumberFieldModel
-    - uid: 3g5ub6ywuqf
+    - uid: gqcfedtn370
       use: TableColumn
       field:
-        uid: 8cjf3nrvnwe
+        uid: a0p4z8wtkdo
         use: DisplayEnumField
       stepParams:
         fieldSettings:
@@ -80,9 +80,9 @@ grid:
           model:
             use: DisplayEnumFieldModel
     actions:
-    - uid: dw49fwoj8cv
+    - uid: m0cjwx87ln0
       use: FilterAction
-    - uid: ss9wsq7u1b1
+    - uid: 7srvfs3sly7
       use: RefreshAction
 icon: dashboardoutlined
 page_uid: et60kicd9ak

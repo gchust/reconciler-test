@@ -2,19 +2,27 @@ page: 产品目录
 tab: dkm52579uvc
 route: 357755660926989
 grid:
-  uid: 45lz6ar92ja
+  uid: dyn3hrc76g7
   use: BlockGrid
   items:
-  - uid: 48irn11anh6
+  - uid: 6nle131juoo
     use: FilterFormBlock
+    stepParams:
+      formFilterBlockModelSettings:
+        layout:
+          layout: horizontal
+          labelAlign: left
+          labelWidth: 120
+          labelWrap: false
+          colon: true
     grid:
-      uid: iksedhsxgmp
+      uid: df0qb4o8zk5
       use: FilterFormGrid
       items:
-      - uid: od1c7n0j02x
+      - uid: etbt86i0n3t
         use: FilterFormItem
         field:
-          uid: 448kxi35c25
+          uid: x5ymqlymaz8
           use: InputField
         stepParams:
           fieldSettings:
@@ -22,10 +30,17 @@ grid:
               collectionName: inv_products
               fieldPath: product_name
               dataSourceKey: main
-      - uid: 8tc61bojyjq
+          filterFormItemSettings:
+            init:
+              filterField:
+                name: product_name
+                title: product_name
+                interface: input
+                type: string
+      - uid: tmtalahhh65
         use: FilterFormItem
         field:
-          uid: nowqp69ge55
+          uid: ejvdejxao4e
           use: SelectField
         stepParams:
           fieldSettings:
@@ -33,10 +48,17 @@ grid:
               collectionName: inv_products
               fieldPath: category
               dataSourceKey: main
-      - uid: n6vebi0lcgu
+          filterFormItemSettings:
+            init:
+              filterField:
+                name: category
+                title: category
+                interface: select
+                type: string
+      - uid: d7okat180yh
         use: FilterFormItem
         field:
-          uid: hl93z12557y
+          uid: 8c45169x7fn
           use: SelectField
         stepParams:
           fieldSettings:
@@ -44,14 +66,21 @@ grid:
               collectionName: inv_products
               fieldPath: status
               dataSourceKey: main
-  - uid: c5a2li3dofw
+          filterFormItemSettings:
+            init:
+              filterField:
+                name: status
+                title: status
+                interface: select
+                type: string
+  - uid: 6e351bv1i1v
     use: TableBlock
     coll: inv_products
     columns:
-    - uid: yooaeiss1gk
+    - uid: rbbq0wot1br
       use: TableColumn
       field:
-        uid: w5v3uljgb8a
+        uid: tp5aeopx8yb
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -62,10 +91,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: 7oo8rdaobwn
+    - uid: 2ggfgkw456o
       use: TableColumn
       field:
-        uid: 7la66mrg6hg
+        uid: uevumxokc3z
         use: DisplayTextField
         popup:
         - null
@@ -83,10 +112,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: ybeu7g1athq
+    - uid: v6lohnu9qyb
       use: TableColumn
       field:
-        uid: 3xfpdxctv4b
+        uid: be8a0u5gv42
         use: DisplayEnumField
       stepParams:
         fieldSettings:
@@ -97,10 +126,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayEnumFieldModel
-    - uid: zpp6c68d7so
+    - uid: 63eh5gstabp
       use: TableColumn
       field:
-        uid: w9vqg1aqjtv
+        uid: vbdllzmf29x
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -111,10 +140,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: m8hp8nxs5fj
+    - uid: gty24de43jv
       use: TableColumn
       field:
-        uid: unuyr0fg8yy
+        uid: ruiqe1s2fql
         use: DisplayNumberField
       stepParams:
         fieldSettings:
@@ -125,10 +154,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayNumberFieldModel
-    - uid: qbxqcrw1p9b
+    - uid: k88kbveqss5
       use: TableColumn
       field:
-        uid: pv2l11q9b1w
+        uid: b7cm0b2badg
         use: DisplayNumberField
       stepParams:
         fieldSettings:
@@ -139,10 +168,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayNumberFieldModel
-    - uid: nbbhl1gir1n
+    - uid: yonr7bifp2s
       use: TableColumn
       field:
-        uid: ods9o1pqlvz
+        uid: 3rahkskcjxk
         use: DisplayNumberField
       stepParams:
         fieldSettings:
@@ -153,10 +182,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayNumberFieldModel
-    - uid: t9ss8veu8he
+    - uid: bu44755w4wo
       use: TableColumn
       field:
-        uid: 83pw8o91ti0
+        uid: 4605l98g8l4
         use: DisplayEnumField
       stepParams:
         fieldSettings:
@@ -168,15 +197,15 @@ grid:
           model:
             use: DisplayEnumFieldModel
     actions:
-    - uid: 8e0jkds1vf1
+    - uid: dgqno3k6daw
       use: FilterAction
-    - uid: jm2cv8s79sj
+    - uid: th1v5114zr2
       use: RefreshAction
-    - uid: a5h29srulnu
+    - uid: bhxlbkw6teb
       use: AddNewAction
-    - uid: x2gxvyvusgx
+    - uid: gpjgmt1ozd6
       use: ExportAction
-    - uid: sj10ecfv4ss
+    - uid: 895122x8jd0
       use: BulkDeleteAction
 icon: appstoreoutlined
 page_uid: f8gm0c7jrfb

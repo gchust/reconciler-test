@@ -2,19 +2,27 @@ page: 入库记录
 tab: w8jn0xdb264
 route: 357755663024128
 grid:
-  uid: crf0b3qjfmf
+  uid: mcix4d99mmb
   use: BlockGrid
   items:
-  - uid: 1nsw63wn7yz
+  - uid: s8lboxbg36y
     use: FilterFormBlock
+    stepParams:
+      formFilterBlockModelSettings:
+        layout:
+          layout: horizontal
+          labelAlign: left
+          labelWidth: 120
+          labelWrap: false
+          colon: true
     grid:
-      uid: chb9amykkx0
+      uid: 0kwhzclleqy
       use: FilterFormGrid
       items:
-      - uid: e7tys8suf86
+      - uid: krkfnmi3484
         use: FilterFormItem
         field:
-          uid: 4r9pctdgrbu
+          uid: 4zg1x3ouqkf
           use: InputField
         stepParams:
           fieldSettings:
@@ -22,10 +30,17 @@ grid:
               collectionName: inv_records
               fieldPath: record_no
               dataSourceKey: main
-      - uid: ori4c3t189v
+          filterFormItemSettings:
+            init:
+              filterField:
+                name: record_no
+                title: record_no
+                interface: input
+                type: string
+      - uid: bbok07r7l86
         use: FilterFormItem
         field:
-          uid: lsnpusk0bgj
+          uid: 6cblewh5chc
           use: SelectField
         stepParams:
           fieldSettings:
@@ -33,14 +48,21 @@ grid:
               collectionName: inv_records
               fieldPath: record_type
               dataSourceKey: main
-  - uid: pb2y7vs65gp
+          filterFormItemSettings:
+            init:
+              filterField:
+                name: record_type
+                title: record_type
+                interface: select
+                type: string
+  - uid: rxk4xndo0xf
     use: TableBlock
     coll: inv_records
     columns:
-    - uid: vuxwbipc0hu
+    - uid: ccut8y2uf52
       use: TableColumn
       field:
-        uid: sbze0mzzqi6
+        uid: 5k4p5fdxhls
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -51,10 +73,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: 4pw235zah5c
+    - uid: 2w8hmwzbk6k
       use: TableColumn
       field:
-        uid: vey0votp1yj
+        uid: 2x4d9scx0b4
         use: DisplayEnumField
       stepParams:
         fieldSettings:
@@ -65,10 +87,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayEnumFieldModel
-    - uid: y7cj8vhejm0
+    - uid: udevpvz349w
       use: TableColumn
       field:
-        uid: bwun9isda3y
+        uid: 8qtwo2ged4i
         use: DisplayNumberField
       stepParams:
         fieldSettings:
@@ -79,10 +101,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayNumberFieldModel
-    - uid: 5zlbuogfbli
+    - uid: 6ba4cwsjxr7
       use: TableColumn
       field:
-        uid: 4ucqzwsiqxc
+        uid: 6kqalf89h1n
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -93,10 +115,10 @@ grid:
         tableColumnSettings:
           model:
             use: DisplayTextFieldModel
-    - uid: t45sm8jdyln
+    - uid: loe10o5v409
       use: TableColumn
       field:
-        uid: 4c1wcv6sitt
+        uid: 3a0mrps88ty
         use: DisplayTextField
       stepParams:
         fieldSettings:
@@ -108,13 +130,13 @@ grid:
           model:
             use: DisplayTextFieldModel
     actions:
-    - uid: h4smhl2fkxz
+    - uid: mnwy704i85z
       use: FilterAction
-    - uid: 2dkfjni8ayb
+    - uid: ekfo1oblp9r
       use: RefreshAction
-    - uid: f8ylqkq1s4o
+    - uid: fl5na52lmw1
       use: AddNewAction
-    - uid: nsi2zqasxv8
+    - uid: 7s92wq4cp51
       use: ExportAction
 icon: fileoutlined
 page_uid: j9ce2v7gweu
