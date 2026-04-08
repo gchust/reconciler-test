@@ -28,3 +28,31 @@ pages:
     layout:
       - [filter]
       - [table]
+
+  - page: 仪表盘
+    icon: areachartoutlined
+    blocks:
+      - key: chart_pipeline
+        type: chart
+      - key: chart_funnel
+        type: chart
+      - key: chart_orders
+        type: chart
+      - key: chart_customers
+        type: chart
+      - key: chart_industry
+        type: chart
+      - key: js_stats1
+        type: jsBlock
+      - key: js_stats2
+        type: jsBlock
+      - key: js_stats3
+        type: jsBlock
+      - key: js_stats4
+        type: jsBlock
+
+    layout:
+      - [chart_pipeline, chart_funnel]
+      - [chart_orders, chart_customers]
+      - [chart_industry]
+      - [js_stats1, js_stats2, js_stats3, js_stats4]

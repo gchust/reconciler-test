@@ -359,6 +359,37 @@ def deploy_l2(nb: NocoBase, spec: dict, state: dict, mod: Path):
                     except Exception as e2:
                         print(f"  ! js [{target_ref}]: {e2}")
 
+    # ── Charts: inject chart config ──
+    for chart_spec in spec.get("charts", []):
+        target_ref = chart_spec.get("target", "")
+        config_file = chart_spec.get("config_file", "")
+        if not target_ref or not config_file:
+            continue
+
+        config_path = mod / config_file
+        if not config_path.exists():
+            print(f"  ! chart [{target_ref}]: file not found {config_file}")
+            continue
+
+        import json as _json
+        config = _json.loads(config_path.read_text())
+
+        try:
+            target_uid = resolver.resolve_uid(target_ref)
+            nb.configure(target_uid, {"changes": config})
+            print(f"  + chart [{target_ref}]: configured from {config_file}")
+        except KeyError as e:
+            print(f"  ! chart: {e}")
+        except RuntimeError:
+            # Fallback to legacy
+            try:
+                nb.update_model(target_uid, {
+                    "chartSettings": {"configure": config}
+                })
+                print(f"  + chart [{target_ref}]: configured (legacy)")
+            except Exception as e2:
+                print(f"  ! chart [{target_ref}]: {e2}")
+
     for event_spec in spec.get("events", []):
         target_ref = event_spec.get("target", "")
         flows = event_spec.get("flows", {})

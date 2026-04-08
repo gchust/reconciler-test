@@ -1,5 +1,5 @@
 # ═══════════════════════════════════
-#  CRM 复刻：Leads 增强
+#  CRM 复刻：增强
 # ═══════════════════════════════════
 
 popups:
@@ -23,7 +23,7 @@ popups:
         actions: [submit]
 
 js:
-  # JS 自定义列 — 从原 CRM 导出的代码
+  # ── Leads 自定义列 ──
   - target: $leads复刻.table.fields.js_lead_name
     file: ./js/table_b3f6e3_col_Lead_Name_Company.js
     title: Lead Name/Company
@@ -39,3 +39,26 @@ js:
   - target: $leads复刻.table.fields.js_created
     file: ./js/table_b3f6e3_col_Created.js
     title: Created
+
+  # ── 仪表盘 JS 区块 ──
+  - target: $仪表盘.js_stats1
+    file: ./js/stats1.js
+  - target: $仪表盘.js_stats2
+    file: ./js/stats2.js
+  - target: $仪表盘.js_stats3
+    file: ./js/stats3.js
+  - target: $仪表盘.js_stats4
+    file: ./js/stats4.js
+
+# ── 仪表盘 Chart 配置 ──
+charts:
+  - target: $仪表盘.chart_pipeline
+    config_file: ./chart_hu4haj.json
+  - target: $仪表盘.chart_funnel
+    config_file: ./chart_efd8l3.json
+  - target: $仪表盘.chart_orders
+    config_file: ./chart_fado2j.json
+  - target: $仪表盘.chart_customers
+    config_file: ./chart_dvigfl.json
+  - target: $仪表盘.chart_industry
+    config_file: ./chart_iay7yv.json
