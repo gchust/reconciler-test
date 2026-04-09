@@ -1,0 +1,322 @@
+popups:
+- target: $employees.table.actions.addNew
+  auto:
+  - edit
+  coll: hrm_employees
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - emp_code
+    - name
+    - department
+    - position
+    - hire_date
+    - status
+    - gender
+    - phone
+    - email
+    - emergency_contact
+    - salary
+    - bank_account
+    actions:
+    - submit
+    field_layout:
+    - '--- Personal Info ---'
+    - - emp_code
+      - name
+      - gender
+    - - phone
+      - email
+    - - emergency_contact
+    - '--- Employment ---'
+    - - department
+      - position
+      - status
+    - - hire_date
+    - '--- Compensation ---'
+    - - salary
+      - bank_account
+- target: $employees.table.fields.name
+  field: name
+  mode: embed
+  coll: hrm_employees
+  tabs:
+  - title: Overview
+    blocks:
+    - key: detail_main
+      type: details
+      coll: hrm_employees
+      resource:
+        binding: currentRecord
+      fields:
+      - emp_code
+      - name
+      - department
+      - position
+      - hire_date
+      - status
+      - gender
+      - phone
+      - email
+      - emergency_contact
+      js_items:
+      - desc: Employee Detail KPI — tenure, salary, department, position, status badge
+        file: ./js/detail_employee_kpi.js
+      field_layout:
+      - - '[JS:Employee Detail KPI — tenure, salary, department, position, status badge]'
+      - '--- Personal Info ---'
+      - - emp_code
+        - name
+        - gender
+      - - phone
+        - email
+      - - emergency_contact
+      - '--- Employment ---'
+      - - department
+        - position
+        - status
+      - - hire_date
+      recordActions:
+      - edit
+    - key: detail_aux
+      type: details
+      coll: hrm_employees
+      resource:
+        binding: currentRecord
+      fields:
+      - salary
+      - bank_account
+      field_layout:
+      - '--- Compensation ---'
+      - - salary
+      - - bank_account
+    layout:
+    - - detail_main: 16
+      - detail_aux: 8
+  - title: History
+    blocks:
+    - key: recordHistory_0
+      type: recordHistory
+      coll: hrm_employees
+- target: $departments.table.actions.addNew
+  auto:
+  - edit
+  - view
+  view_field: code
+  coll: hrm_departments
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - code
+    - name
+    - manager
+    - parent_dept
+    - headcount
+    - budget
+    - status
+    actions:
+    - submit
+    field_layout:
+    - '--- Department Info ---'
+    - - code
+      - name
+      - status
+    - - manager
+      - parent_dept
+    - '--- Resources ---'
+    - - headcount
+      - budget
+- target: $attendance.table.actions.addNew
+  auto:
+  - edit
+  - view
+  view_field: emp_name
+  coll: hrm_attendance
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - emp_name
+    - date
+    - check_in
+    - check_out
+    - status
+    - work_hours
+    - overtime_hours
+    - remark
+    actions:
+    - submit
+    field_layout:
+    - '--- Employee ---'
+    - - emp_name
+      - date
+      - status
+    - '--- Time ---'
+    - - check_in
+      - check_out
+    - - work_hours
+      - overtime_hours
+    - '--- Remark ---'
+    - - remark
+- target: $leave_requests.table.actions.addNew
+  auto:
+  - edit
+  coll: hrm_leave_requests
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - emp_name
+    - leave_type
+    - start_date
+    - end_date
+    - days
+    - status
+    - reason
+    - approver
+    actions:
+    - submit
+    field_layout:
+    - '--- Employee ---'
+    - - emp_name
+      - leave_type
+      - status
+    - '--- Duration ---'
+    - - start_date
+      - end_date
+      - days
+    - '--- Approval ---'
+    - - approver
+    - '--- Reason ---'
+    - - reason
+- target: $leave_requests.table.fields.emp_name
+  field: emp_name
+  mode: embed
+  coll: hrm_leave_requests
+  tabs:
+  - title: Overview
+    blocks:
+    - key: detail_main
+      type: details
+      coll: hrm_leave_requests
+      resource:
+        binding: currentRecord
+      fields:
+      - emp_name
+      - leave_type
+      - start_date
+      - end_date
+      - days
+      - status
+      - reason
+      - approver
+      js_items:
+      - desc: Leave Request Overview — leave type badge, duration, status badge, approver
+        file: ./js/detail_leave_overview.js
+      field_layout:
+      - - '[JS:Leave Request Overview — leave type badge, duration, status badge, approver]'
+      - '--- Employee ---'
+      - - emp_name
+        - leave_type
+        - status
+      - '--- Duration ---'
+      - - start_date
+        - end_date
+        - days
+      - '--- Approval ---'
+      - - approver
+      - '--- Reason ---'
+      - - reason
+      recordActions:
+      - edit
+    layout:
+    - - detail_main
+  - title: History
+    blocks:
+    - key: recordHistory_0
+      type: recordHistory
+      coll: hrm_leave_requests
+- target: $payroll.table.actions.addNew
+  auto:
+  - edit
+  - view
+  view_field: emp_name
+  coll: hrm_payroll
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - emp_name
+    - period
+    - base_salary
+    - overtime_pay
+    - bonus
+    - deductions
+    - tax
+    - net_pay
+    - status
+    actions:
+    - submit
+    field_layout:
+    - '--- Employee ---'
+    - - emp_name
+      - period
+      - status
+    - '--- Earnings ---'
+    - - base_salary
+      - overtime_pay
+      - bonus
+    - '--- Deductions ---'
+    - - deductions
+      - tax
+    - '--- Total ---'
+    - - net_pay
+- target: $recruitment.table.actions.addNew
+  auto:
+  - edit
+  - view
+  view_field: position
+  coll: hrm_recruitment
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - position
+    - department
+    - candidates
+    - status
+    - priority
+    - posted_date
+    - deadline
+    - recruiter
+    - remark
+    actions:
+    - submit
+    field_layout:
+    - '--- Position ---'
+    - - position
+      - department
+      - status
+    - - priority
+      - recruiter
+    - '--- Candidates ---'
+    - - candidates
+    - '--- Timeline ---'
+    - - posted_date
+      - deadline
+    - '--- Remark ---'
+    - - remark

@@ -1,0 +1,12 @@
+{
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT to_char(date, 'YYYY-MM') as month, COUNT(*) as total, SUM(CASE WHEN status IN ('Present', 'Late') THEN 1 ELSE 0 END) as present_count, ROUND(SUM(CASE WHEN status IN ('Present', 'Late') THEN 1 ELSE 0 END)::numeric / GREATEST(COUNT(*), 1) * 100, 1) as rate FROM hrm_attendance WHERE date >= NOW() - INTERVAL '6 months' GROUP BY to_char(date, 'YYYY-MM') ORDER BY month"
+  },
+  "chart": {
+    "option": {
+      "mode": "custom",
+      "raw": "const data = (() => { const raw = ctx.data; if (Array.isArray(raw)) return raw; if (raw && Array.isArray(raw.objects)) return raw.objects; if (raw && Array.isArray(raw.data)) return raw.data; return []; })(); if (data.length === 0) { return { title: { text: 'No Data', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14 } } }; } const months = data.map(d => d.month || ''); const rates = data.map(d => parseFloat(d.rate) || 0); const totals = data.map(d => parseInt(d.total) || 0); return { title: { text: 'Monthly Attendance Rate', left: 'center', textStyle: { fontSize: 14 } }, tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } }, legend: { top: 30, data: ['Rate (%)', 'Records'] }, grid: { top: 70, bottom: 30, left: 60, right: 60 }, xAxis: { type: 'category', data: months }, yAxis: [{ type: 'value', name: 'Rate (%)', min: 0, max: 100 }, { type: 'value', name: 'Records' }], series: [{ name: 'Rate (%)', type: 'line', data: rates, smooth: true, areaStyle: { opacity: 0.1 }, itemStyle: { color: '#10b981' } }, { name: 'Records', type: 'bar', yAxisIndex: 1, data: totals, itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0], opacity: 0.6 } }] };"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT leave_type as name, COUNT(*) as value, COALESCE(SUM(days), 0) as total_days FROM hrm_leave_requests WHERE status IN ('Approved', 'Pending') GROUP BY leave_type ORDER BY value DESC"
+  },
+  "chart": {
+    "option": {
+      "mode": "custom",
+      "raw": "const data = (() => { const raw = ctx.data; if (Array.isArray(raw)) return raw; if (raw && Array.isArray(raw.objects)) return raw.objects; if (raw && Array.isArray(raw.data)) return raw.data; return []; })(); if (data.length === 0) { return { title: { text: 'No Data', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14 } } }; } const pieData = data.map(d => ({ name: d.name || '', value: parseInt(d.value) || 0 })); return { title: { text: 'Leave Types Distribution', left: 'center', textStyle: { fontSize: 14 } }, tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' }, legend: { top: 30, orient: 'horizontal' }, series: [{ type: 'pie', radius: ['40%', '70%'], top: 50, label: { show: true, formatter: '{b}\\n{c}' }, itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 }, data: pieData, color: ['#3b82f6', '#f59e0b', '#10b981', '#8b5cf6', '#ef4444'] }] };"
+    }
+  }
+}

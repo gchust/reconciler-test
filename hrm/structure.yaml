@@ -1,0 +1,570 @@
+module: Human Resource Management
+icon: teamoutlined
+collections:
+  hrm_employees:
+    title: Employees
+    fields:
+    - name: emp_code
+      interface: input
+      title: Employee Code
+    - name: name
+      interface: input
+      title: Name
+    - name: department
+      interface: input
+      title: Department
+    - name: position
+      interface: input
+      title: Position
+    - name: hire_date
+      interface: datetime
+      title: Hire Date
+    - name: status
+      interface: select
+      title: Status
+      options:
+      - Active
+      - On Leave
+      - Resigned
+      - Terminated
+    - name: gender
+      interface: select
+      title: Gender
+      options:
+      - Male
+      - Female
+    - name: phone
+      interface: input
+      title: Phone
+    - name: email
+      interface: input
+      title: Email
+    - name: emergency_contact
+      interface: input
+      title: Emergency Contact
+    - name: salary
+      interface: number
+      title: Salary
+    - name: bank_account
+      interface: input
+      title: Bank Account
+  hrm_departments:
+    title: Departments
+    fields:
+    - name: code
+      interface: input
+      title: Department Code
+    - name: name
+      interface: input
+      title: Department Name
+    - name: manager
+      interface: input
+      title: Manager
+    - name: parent_dept
+      interface: input
+      title: Parent Department
+    - name: headcount
+      interface: integer
+      title: Headcount
+    - name: budget
+      interface: number
+      title: Budget
+    - name: status
+      interface: select
+      title: Status
+      options:
+      - Active
+      - Inactive
+  hrm_attendance:
+    title: Attendance
+    fields:
+    - name: emp_name
+      interface: input
+      title: Employee
+    - name: date
+      interface: datetime
+      title: Date
+    - name: check_in
+      interface: input
+      title: Check In
+    - name: check_out
+      interface: input
+      title: Check Out
+    - name: status
+      interface: select
+      title: Status
+      options:
+      - Present
+      - Late
+      - Absent
+      - Leave
+      - Holiday
+    - name: work_hours
+      interface: number
+      title: Work Hours
+    - name: overtime_hours
+      interface: number
+      title: Overtime Hours
+    - name: remark
+      interface: textarea
+      title: Remark
+  hrm_leave_requests:
+    title: Leave Requests
+    fields:
+    - name: emp_name
+      interface: input
+      title: Employee
+    - name: leave_type
+      interface: select
+      title: Leave Type
+      options:
+      - Annual
+      - Sick
+      - Personal
+      - Maternity
+      - Unpaid
+    - name: start_date
+      interface: datetime
+      title: Start Date
+    - name: end_date
+      interface: datetime
+      title: End Date
+    - name: days
+      interface: number
+      title: Days
+    - name: status
+      interface: select
+      title: Status
+      options:
+      - Pending
+      - Approved
+      - Rejected
+      - Cancelled
+    - name: reason
+      interface: textarea
+      title: Reason
+    - name: approver
+      interface: input
+      title: Approver
+  hrm_payroll:
+    title: Payroll
+    fields:
+    - name: emp_name
+      interface: input
+      title: Employee
+    - name: period
+      interface: input
+      title: Period
+    - name: base_salary
+      interface: number
+      title: Base Salary
+    - name: overtime_pay
+      interface: number
+      title: Overtime Pay
+    - name: bonus
+      interface: number
+      title: Bonus
+    - name: deductions
+      interface: number
+      title: Deductions
+    - name: tax
+      interface: number
+      title: Tax
+    - name: net_pay
+      interface: number
+      title: Net Pay
+    - name: status
+      interface: select
+      title: Status
+      options:
+      - Draft
+      - Calculated
+      - Approved
+      - Paid
+  hrm_recruitment:
+    title: Recruitment
+    fields:
+    - name: position
+      interface: input
+      title: Position
+    - name: department
+      interface: input
+      title: Department
+    - name: candidates
+      interface: integer
+      title: Candidates
+    - name: status
+      interface: select
+      title: Status
+      options:
+      - Open
+      - Screening
+      - Interviewing
+      - Offer
+      - Closed
+      - Cancelled
+    - name: priority
+      interface: select
+      title: Priority
+      options:
+      - Urgent
+      - High
+      - Normal
+      - Low
+    - name: posted_date
+      interface: datetime
+      title: Posted Date
+    - name: deadline
+      interface: datetime
+      title: Deadline
+    - name: recruiter
+      interface: input
+      title: Recruiter
+    - name: remark
+      interface: textarea
+      title: Remark
+pages:
+- page: Employees
+  icon: useroutlined
+  coll: hrm_employees
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: name
+      label: Search
+      filterPaths:
+      - emp_code
+      - name
+      - department
+      - position
+    - field: department
+      label: Department
+    - field: status
+      label: Status
+    js_items:
+    - desc: Employee Stats Filter
+      file: ./js/filter_employees.js
+    field_layout:
+    - - '[JS:Employee Stats Filter]'
+    - - name
+      - department
+      - status
+  - key: table
+    type: table
+    fields:
+    - emp_code
+    - name
+    - department
+    - position
+    - hire_date
+    - gender
+    - phone
+    - salary
+    - status
+    js_columns:
+    - title: Tenure
+      desc: Years+months since hire_date
+      file: ./js/col_tenure.js
+    - title: Salary Band
+      desc: Tag by salary range
+      file: ./js/col_salary_band.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: Departments
+  icon: apartmentoutlined
+  coll: hrm_departments
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: name
+      label: Search
+      filterPaths:
+      - code
+      - name
+      - manager
+    - field: status
+      label: Status
+    js_items:
+    - desc: Department Stats Filter
+      file: ./js/filter_departments.js
+    field_layout:
+    - - '[JS:Department Stats Filter]'
+    - - name
+      - status
+  - key: table
+    type: table
+    fields:
+    - code
+    - name
+    - manager
+    - parent_dept
+    - headcount
+    - budget
+    - status
+    js_columns:
+    - title: Budget Util
+      desc: Budget utilization progress bar
+      file: ./js/col_budget_util.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: Attendance
+  icon: clockcircleoutlined
+  coll: hrm_attendance
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: emp_name
+      label: Search
+      filterPaths:
+      - emp_name
+    - field: status
+      label: Status
+    - field: date
+      label: Date
+    js_items:
+    - desc: Attendance Stats Filter
+      file: ./js/filter_attendance.js
+    field_layout:
+    - - '[JS:Attendance Stats Filter]'
+    - - emp_name
+      - status
+      - date
+  - key: table
+    type: table
+    fields:
+    - emp_name
+    - date
+    - check_in
+    - check_out
+    - status
+    - work_hours
+    - overtime_hours
+    - remark
+    js_columns:
+    - title: Hours
+      desc: Work hours indicator tag
+      file: ./js/col_hours.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: Leave Requests
+  icon: calendaroutlined
+  coll: hrm_leave_requests
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: emp_name
+      label: Search
+      filterPaths:
+      - emp_name
+      - approver
+    - field: status
+      label: Status
+    - field: leave_type
+      label: Type
+    js_items:
+    - desc: Leave Stats Filter
+      file: ./js/filter_leave.js
+    field_layout:
+    - - '[JS:Leave Stats Filter]'
+    - - emp_name
+      - status
+      - leave_type
+  - key: table
+    type: table
+    fields:
+    - emp_name
+    - leave_type
+    - start_date
+    - end_date
+    - days
+    - status
+    - reason
+    - approver
+    js_columns:
+    - title: Duration
+      desc: Leave days count with color
+      file: ./js/col_leave_days.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: Payroll
+  icon: dollaroutlined
+  coll: hrm_payroll
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: emp_name
+      label: Search
+      filterPaths:
+      - emp_name
+      - period
+    - field: period
+      label: Period
+    - field: status
+      label: Status
+    js_items:
+    - desc: Payroll Stats Filter
+      file: ./js/filter_payroll.js
+    field_layout:
+    - - '[JS:Payroll Stats Filter]'
+    - - emp_name
+      - period
+      - status
+  - key: table
+    type: table
+    fields:
+    - emp_name
+    - period
+    - base_salary
+    - overtime_pay
+    - bonus
+    - deductions
+    - tax
+    - net_pay
+    - status
+    js_columns:
+    - title: Net Pay
+      desc: Formatted net pay amount
+      file: ./js/col_net_pay.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: Recruitment
+  icon: solutionoutlined
+  coll: hrm_recruitment
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: position
+      label: Search
+      filterPaths:
+      - position
+      - department
+      - recruiter
+    - field: status
+      label: Status
+    - field: priority
+      label: Priority
+    js_items:
+    - desc: Recruitment Stats Filter
+      file: ./js/filter_recruitment.js
+    field_layout:
+    - - '[JS:Recruitment Stats Filter]'
+    - - position
+      - status
+      - priority
+  - key: table
+    type: table
+    fields:
+    - position
+    - department
+    - candidates
+    - status
+    - priority
+    - posted_date
+    - deadline
+    - recruiter
+    js_columns:
+    - title: Days Open
+      desc: Days since posted_date
+      file: ./js/col_recruit_age.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: Dashboard
+  icon: dashboardoutlined
+  blocks:
+  - key: kpi_headcount
+    type: jsBlock
+    desc: Total Employees KPI Card
+    file: ./js/kpi_headcount.js
+  - key: kpi_attendance
+    type: jsBlock
+    desc: Attendance Rate KPI Card
+    file: ./js/kpi_attendance.js
+  - key: kpi_leave
+    type: jsBlock
+    desc: Pending Leaves KPI Card
+    file: ./js/kpi_leave.js
+  - key: kpi_openings
+    type: jsBlock
+    desc: Open Positions KPI Card
+    file: ./js/kpi_openings.js
+  - key: chart_dept_headcount
+    type: chart
+    chart_config: ./charts/dept_headcount.json
+  - key: chart_attendance_trend
+    type: chart
+    chart_config: ./charts/attendance_trend.json
+  - key: chart_leave_distribution
+    type: chart
+    chart_config: ./charts/leave_distribution.json
+  - key: chart_recruitment_pipeline
+    type: chart
+    chart_config: ./charts/recruitment_pipeline.json
+  layout:
+  - - kpi_headcount
+    - kpi_attendance
+    - kpi_leave
+    - kpi_openings
+  - - chart_dept_headcount: 12
+    - chart_attendance_trend: 12
+  - - chart_leave_distribution: 12
+    - chart_recruitment_pipeline: 12
