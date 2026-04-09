@@ -618,39 +618,42 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
         except Exception:
             pass
 
-        if existing_js_count >= len(js_items):
-            pass  # Already have enough JS items, skip
-        else:
-            for js_spec in js_items:
-                js_file = js_spec.get("file", "")
-                if not js_file:
-                    continue
-                p = mod / js_file
-                if not p.exists():
-                    continue
-                code = p.read_text()
-                desc = js_spec.get("desc", "")
+        for js_spec in js_items:
+            js_file = js_spec.get("file", "")
+            if not js_file:
+                continue
+            p = mod / js_file
+            if not p.exists():
+                continue
+            code = p.read_text()
+            desc = js_spec.get("desc", "")
 
-                # Skip if already exists (match by desc in existing code)
-                already = False
-                if existing_js_count > 0:
-                    try:
-                        for i in (grid_items if isinstance(grid_items, list) else []):
-                            if "JSItem" in i.get("use", ""):
-                                i_code = i.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
-                                if desc and desc in i_code:
-                                    already = True
-                                    break
-                    except Exception:
-                        pass
+            # Auto-replace TARGET_BLOCK_UID references
+            if all_blocks_state:
+                code = _replace_js_uids(code, all_blocks_state)
 
-                if already:
-                    continue
+            # Check if JS item with matching desc already exists → update code
+            existing_item = None
+            if existing_js_count > 0:
+                try:
+                    for i in (grid_items if isinstance(grid_items, list) else []):
+                        if "JSItem" in i.get("use", ""):
+                            i_code = i.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
+                            if desc and desc in i_code:
+                                existing_item = i
+                                break
+                except Exception:
+                    pass
 
-                # Auto-replace TARGET_BLOCK_UID references
-                if all_blocks_state:
-                    code = _replace_js_uids(code, all_blocks_state)
-
+            if existing_item:
+                # Update existing JS item code
+                nb.update_model(existing_item["uid"], {
+                    "jsSettings": {"runJs": {"code": code, "version": "v1"}}
+                })
+                if desc:
+                    js_item_uids[f"[JS:{desc}]"] = existing_item["uid"]
+            else:
+                # Create new
                 js_uid_val = uid()
                 nb.save_model({
                     "uid": js_uid_val, "use": "JSItemModel",
@@ -664,22 +667,49 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 
     # ── JS Columns (table) ──
     js_cols = bs.get("js_columns", [])
-    for jc in js_cols:
-        jc_file = jc.get("file", "")
-        jc_title = jc.get("title", "")
-        if not jc_file:
-            continue
-        p = mod / jc_file
-        if not p.exists():
-            continue
-        code = p.read_text()
+    if js_cols and btype == "table":
+        # Check existing JS columns by title
+        existing_jscols = {}
         try:
-            result = nb.add_field(block_uid, "jsColumn", type="jsColumn")
-            jc_uid = result.get("uid", "")
-            nb.configure(jc_uid, {"changes": {"code": code, "title": jc_title}})
-            print(f"      + JSCol: {jc_title}")
-        except Exception as e:
-            print(f"      ! JSCol {jc_title}: {e}")
+            data = nb.get(uid=block_uid)
+            cols = data.get("tree", {}).get("subModels", {}).get("columns", [])
+            for col in (cols if isinstance(cols, list) else []):
+                if col.get("use") == "JSColumnModel":
+                    t = col.get("stepParams", {}).get("tableColumnSettings", {}).get("title", {}).get("title", "")
+                    if t:
+                        existing_jscols[t] = col.get("uid", "")
+        except Exception:
+            pass
+
+        for jc in js_cols:
+            jc_file = jc.get("file", "")
+            jc_title = jc.get("title", "")
+            if not jc_file:
+                continue
+            p = mod / jc_file
+            if not p.exists():
+                continue
+            code = p.read_text()
+            if all_blocks_state:
+                code = _replace_js_uids(code, all_blocks_state)
+
+            if jc_title in existing_jscols:
+                # Update existing JS column code
+                try:
+                    nb.configure(existing_jscols[jc_title], {"changes": {"code": code}})
+                except Exception:
+                    nb.update_model(existing_jscols[jc_title], {
+                        "jsSettings": {"runJs": {"code": code, "version": "v1"}}
+                    })
+            else:
+                # Create new
+                try:
+                    result = nb.add_field(block_uid, "jsColumn", type="jsColumn")
+                    jc_uid = result.get("uid", "")
+                    nb.configure(jc_uid, {"changes": {"code": code, "title": jc_title}})
+                    print(f"      + JSCol: {jc_title}")
+                except Exception as e:
+                    print(f"      ! JSCol {jc_title}: {e}")
 
     # ── Dividers ──
     # Check field_layout for "--- label ---" entries

@@ -84,4 +84,4 @@ function StatsFilter() {
   );
 }
 
-StatsFilter();
+ctx.render(<StatsFilter />);
