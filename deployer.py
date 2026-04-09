@@ -325,7 +325,113 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
         apply_layout(nb, grid_uid, layout, uid_map)
         print(f"    layout: {describe_layout(layout)}")
 
+    # Step 5: Deploy nested popups from spec blocks + popups/ dir
+    if mod:
+        _deploy_nested_popups(nb, blocks_spec, blocks_state, mod, force)
+
     return blocks_state
+
+
+def _deploy_nested_popups(nb: NocoBase, blocks_spec: list, blocks_state: dict,
+                          mod: Path, force: bool):
+    """Deploy popups defined inside block specs (e.g., table actions, field clicks).
+
+    Scans blocks for popup definitions and deploys them recursively.
+    Also loads matching popup files from popups/ dir.
+    """
+    popups_dir = mod / "popups"
+
+    for bs in blocks_spec:
+        key = bs.get("key", "")
+        binfo = blocks_state.get(key, {})
+        block_uid = binfo.get("uid", "")
+        if not block_uid:
+            continue
+
+        # Collect popup specs from block spec
+        block_popups = bs.get("popups", [])
+
+        # Also check popups/ dir for files matching this block's nested refs
+        if popups_dir.is_dir():
+            for pf in sorted(popups_dir.glob("*.yaml")):
+                try:
+                    popup_spec = yaml.safe_load(pf.read_text())
+                    if not popup_spec or not popup_spec.get("target"):
+                        # Check if this popup belongs to a nested table in current block
+                        # e.g., popups/opp_copy_name_quotation_no.yaml
+                        pass
+                except Exception:
+                    continue
+
+        # Deploy popups referenced in the block's tab specs
+        for tab_spec in bs.get("tabs", []) if bs.get("tabs") else [bs]:
+            tab_blocks = tab_spec.get("blocks", [])
+            for tb in tab_blocks:
+                tb_popups = tb.pop("popups", [])
+                if not tb_popups:
+                    continue
+
+                # Find this block's UID in the live system
+                tb_key = tb.get("key", "")
+                # Look for the actual block in the popup's live tree
+                try:
+                    data = nb.get(uid=block_uid)
+                    tree = data.get("tree", {})
+                    popup_page = tree.get("subModels", {}).get("page", {})
+                    if not popup_page:
+                        continue
+
+                    tabs = popup_page.get("subModels", {}).get("tabs", [])
+                    if not isinstance(tabs, list) or not tabs:
+                        continue
+
+                    for live_tab in tabs:
+                        live_grid = live_tab.get("subModels", {}).get("grid", {})
+                        live_items = live_grid.get("subModels", {}).get("items", [])
+
+                        for live_item in (live_items if isinstance(live_items, list) else []):
+                            live_title = live_item.get("stepParams", {}).get("cardSettings", {}).get("titleDescription", {}).get("title", "")
+
+                            if live_title == tb.get("title", "") or live_item.get("use", "").replace("Model", "").lower() == tb_key:
+                                # Found matching block — deploy its nested popups
+                                for nested_popup in tb_popups:
+                                    field_name = nested_popup.get("field", "")
+                                    if not field_name:
+                                        continue
+
+                                    # Find the field/action UID in this live block
+                                    target_uid = _find_nested_popup_target(live_item, field_name)
+                                    if target_uid:
+                                        _deploy_popup(nb, target_uid, f"nested.{field_name}",
+                                                      nested_popup, {}, mod, force)
+                except Exception:
+                    pass
+
+
+def _find_nested_popup_target(block: dict, field_name: str) -> str | None:
+    """Find the UID of a field or action that should have a popup."""
+    # Check columns for field name
+    for col in block.get("subModels", {}).get("columns", []):
+        fp = col.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
+        if fp == field_name:
+            field = col.get("subModels", {}).get("field", {})
+            return field.get("uid", col.get("uid", "")) if isinstance(field, dict) else col.get("uid", "")
+
+    # Check actions
+    for act in block.get("subModels", {}).get("actions", []):
+        act_type = act.get("use", "").replace("Model", "").replace("Action", "").lower()
+        if act_type == field_name or field_name in act_type:
+            return act.get("uid", "")
+
+    # Check record actions (inside TableActionsColumn)
+    for col in block.get("subModels", {}).get("columns", []):
+        if "TableActionsColumn" in col.get("use", ""):
+            for act in col.get("subModels", {}).get("actions", []):
+                act_type = act.get("use", "").replace("Model", "").replace("Action", "").lower()
+                if act_type == field_name or field_name in act_type:
+                    return act.get("uid", "")
+
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1446,6 +1552,43 @@ def _deploy_tabbed_popup(nb: NocoBase, target_uid: str, target_ref: str,
 
         tab_blocks = deploy_surface(nb, tab_uid, tab_spec, mod)
         print(f"    tab '{tab_title}': {len(tab_blocks)} blocks")
+
+    # Deploy nested popups from ALL tabs (popups are at tab level, not block level)
+    try:
+        data = nb.get(uid=target_uid)
+        popup_page = data.get("tree", {}).get("subModels", {}).get("page", {})
+        if not popup_page:
+            return
+        live_tabs = popup_page.get("subModels", {}).get("tabs", [])
+        if not isinstance(live_tabs, list):
+            return
+    except Exception as e:
+        return
+
+    for tab_idx, tab_spec in enumerate(tabs_spec):
+        nested_popups = tab_spec.get("popups", [])
+        if not nested_popups:
+            continue
+
+        if tab_idx >= len(live_tabs):
+            continue
+        live_tab = live_tabs[tab_idx]
+        live_grid = live_tab.get("subModels", {}).get("grid", {})
+        live_items = live_grid.get("subModels", {}).get("items", [])
+
+        for np in nested_popups:
+            np_field = np.get("field", "")
+            if not np_field:
+                continue
+
+            # Search ALL live blocks in this tab for the field
+            for live_item in (live_items if isinstance(live_items, list) else []):
+                np_target = _find_nested_popup_target(live_item, np_field)
+                if np_target:
+                    print(f"      nested popup: {np_field}")
+                    _deploy_popup(nb, np_target, f"nested.{np_field}",
+                                  np, {}, mod, force)
+                    break
 
 
 # ══════════════════════════════════════════════════════════════════

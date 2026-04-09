@@ -10,7 +10,10 @@ pages:
         uid: crrvvgmrrhz
         type: filterForm
         grid_uid: 7k8eyc01da3
-        fields: {}
+        fields:
+          name:
+            wrapper: s2x898t9qzc
+            field: 4knz960c19h
         js_items:
           Pipeline Stats Filter Block:
             uid: 9qyxmkttmtm
