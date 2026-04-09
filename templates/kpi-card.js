@@ -1,123 +1,93 @@
 /**
- * KPI 卡片积木模板（CRM 同款样式）
+ * KPI 卡片积木模板（CRM 原版样式，零修改）
  *
  * @type JSBlockModel
  * @template kpi-card
  *
  * === AI 修改指南 ===
- * 1. 修改 CONFIG（标题、颜色、前缀）
- * 2. 修改 fetchData 里的 API 调用或 SQL
- * 3. 修改 parseData 提取数值
- * 4. 不要动样式系统和 KpiCard 组件
+ * 只改前 4 行参数，其他不要动！
+ *
+ * LABEL:   卡片标题
+ * COLOR:   主色（文字+趋势）
+ * BG:      浅背景色
+ * SQL_UID: flowSql 注册的 UID（deployer 自动注册）
+ * FMT:     格式化函数（可选，默认 ¥ 格式）
+ *
+ * SQL 要求返回两个字段:
+ *   current_value  — 当前周期数值
+ *   growth_rate    — 环比增长率(%)
+ *
+ * SQL 绑定变量:
+ *   __var1 = 当前周期开始
+ *   __var2 = 当前周期结束
+ *   __var3 = 上一周期开始
+ *   __var4 = 上一周期结束（= 当前周期开始）
  * ====================
  */
+const LABEL = '本月销售额';
+const COLOR = '#3b82f6';
+const BG = '#eff6ff';
+const SQL_UID = '__CHART_SQL_UID__';
+const FMT = (v) => v >= 1e6 ? `¥${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `¥${(v/1e3).toFixed(1)}K` : `¥${v.toFixed(0)}`;
 
-// ─── CONFIG: AI 修改这里 ───────────────────────────
-const CONFIG = {
-  title: '本月销售额',
-  color: '#3b82f6',           // 主色（数值、趋势）
-  bgColor: '#eff6ff',         // 浅背景色
-  prefix: '¥',                // 数值前缀
-  suffix: '',                  // 数值后缀
-  collection: 'nb_erp_sales_orders',
-  dateField: 'order_date',    // 日期字段（用于按月筛选）
-  // 从 API 结果计算数值
-  calcValue: (records) => records.reduce((sum, r) => sum + parseFloat(r.total_amount || 0), 0),
-  // 排除的状态
-  excludeStatus: ['已取消', '草稿'],
-};
-// ─── CONFIG END ────────────────────────────────────
-
-// ─── 样式系统（CRM 同款，不要动） ─────────────────
-const cardStyle = {
-  borderRadius: 0, padding: 24, position: 'relative', overflow: 'hidden',
+// ─── 以下不要动 ───────────────────────────────────
+const cardStyle = () => ({
+  borderRadius: '0', padding: '24px', position: 'relative', overflow: 'hidden',
   border: 'none', boxShadow: 'none',
-  margin: -24, height: 'calc(100% + 48px)', width: 'calc(100% + 48px)',
-  display: 'flex', flexDirection: 'column', background: CONFIG.bgColor,
-};
-const labelStyle = { fontSize: '0.875rem', fontWeight: 500, zIndex: 2, color: '#666' };
-const valueStyle = { fontSize: '2rem', fontWeight: 700, marginTop: 'auto', zIndex: 2, letterSpacing: '-0.03em', color: CONFIG.color };
-const trendStyle = (up) => ({
-  fontSize: '0.75rem', padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+  margin: '-24px', height: 'calc(100% + 48px)', width: 'calc(100% + 48px)',
+  display: 'flex', flexDirection: 'column', cursor: 'pointer',
+});
+const labelStyle = { fontSize: '0.875rem', fontWeight: '500', zIndex: 2 };
+const valueStyle = { fontSize: '2rem', fontWeight: '700', marginTop: 'auto', zIndex: 2, letterSpacing: '-0.03em', color: COLOR };
+const trendPillStyle = (up) => ({
+  fontSize: '0.75rem', padding: '2px 8px', borderRadius: '99px', fontWeight: '600',
   background: up ? '#ecfdf5' : '#fef2f2', color: up ? '#10b981' : '#ef4444',
-  display: 'inline-block',
 });
-const bgCircle = (size, right, top, opacity) => ({
-  position: 'absolute', right, top, width: size, height: size,
-  borderRadius: '50%', background: CONFIG.color, opacity, zIndex: 1,
-});
+const bgChartStyle = { position: 'absolute', bottom: 0, right: 0, width: '140px', height: '90px', zIndex: 1, opacity: 0.5, pointerEvents: 'none' };
 
-const fmt = (v) => {
-  const abs = Math.abs(v);
-  if (abs >= 1e8) return `${CONFIG.prefix}${(v/1e8).toFixed(1)}亿${CONFIG.suffix}`;
-  if (abs >= 1e4) return `${CONFIG.prefix}${(v/1e4).toFixed(1)}万${CONFIG.suffix}`;
-  if (abs >= 1e3) return `${CONFIG.prefix}${v.toLocaleString('zh-CN', {maximumFractionDigits: 0})}${CONFIG.suffix}`;
-  return `${CONFIG.prefix}${v.toFixed(v % 1 ? 1 : 0)}${CONFIG.suffix}`;
-};
-
-// ─── 组件（不要动） ───────────────────────────────
 const { useState, useEffect } = ctx.React;
-const { Spin } = ctx.antd;
+const h = ctx.React.createElement;
 
 const KpiCard = () => {
-  const [state, setState] = useState({ value: 0, previous: 0, loading: true });
+  const [data, setData] = useState({ value: 0, growthRate: 0, loading: true });
+  useEffect(() => { fetchData(); }, []);
+  const fetchData = async () => {
+    try {
+      setData(prev => ({ ...prev, loading: true }));
+      const startDate = ctx.libs.dayjs().startOf('month');
+      const endDate = ctx.libs.dayjs().endOf('month');
+      const periodLength = endDate.diff(startDate, 'day');
+      const previousStart = startDate.subtract(periodLength, 'day');
+      const result = await ctx.sql.runById(SQL_UID, {
+        bind: {
+          __var1: startDate.format('YYYY-MM-DD 00:00:00'),
+          __var2: endDate.format('YYYY-MM-DD 23:59:59'),
+          __var3: previousStart.format('YYYY-MM-DD 00:00:00'),
+          __var4: startDate.format('YYYY-MM-DD 00:00:00'),
+        }, type: 'selectRows', dataSourceKey: 'main'
+      });
+      const record = result?.[0] || {};
+      setData({
+        value: parseFloat(record.current_value || 0),
+        growthRate: parseFloat(record.growth_rate || 0),
+        loading: false,
+      });
+    } catch (e) { console.error(e); setData(prev => ({ ...prev, loading: false })); }
+  };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const now = ctx.libs.dayjs();
-        const thisStart = now.startOf('month').format('YYYY-MM-DD');
-        const thisEnd = now.endOf('month').format('YYYY-MM-DD');
-        const lastStart = now.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
-        const lastEnd = now.subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
-
-        const baseFilter = CONFIG.excludeStatus.length
-          ? { status: { $notIn: CONFIG.excludeStatus } } : {};
-
-        const [curr, prev] = await Promise.all([
-          ctx.api.request({
-            url: `${CONFIG.collection}:list`,
-            params: { pageSize: 9999, filter: { ...baseFilter,
-              [CONFIG.dateField]: { $gte: thisStart, $lte: thisEnd } } },
-          }),
-          ctx.api.request({
-            url: `${CONFIG.collection}:list`,
-            params: { pageSize: 9999, filter: { ...baseFilter,
-              [CONFIG.dateField]: { $gte: lastStart, $lte: lastEnd } } },
-          }),
-        ]);
-
-        setState({
-          value: CONFIG.calcValue(curr?.data?.data || []),
-          previous: CONFIG.calcValue(prev?.data?.data || []),
-          loading: false,
-        });
-      } catch (e) {
-        console.error('KPI error:', e);
-        setState(s => ({ ...s, loading: false }));
-      }
-    })();
-  }, []);
-
-  const trend = state.previous > 0
-    ? ((state.value - state.previous) / state.previous * 100).toFixed(1) : null;
-  const up = parseFloat(trend) >= 0;
-
-  return (
-    <div style={cardStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 2 }}>
-        <span style={labelStyle}>{CONFIG.title}</span>
-        {trend !== null && (
-          <span style={trendStyle(up)}>{up ? '+' : ''}{trend}%</span>
-        )}
-      </div>
-      <div style={valueStyle}>
-        {state.loading ? '...' : fmt(state.value)}
-      </div>
-      <div style={bgCircle(100, -20, -20, 0.06)} />
-      <div style={bgCircle(60, 40, 'auto', 0.04)} />
-    </div>
+  const up = data.growthRate >= 0;
+  return h('div', { className: 'kpi-card-hover', style: cardStyle() },
+    h('div', { style: { display:'flex', justifyContent:'space-between', alignItems:'flex-start', zIndex:2 } },
+      h('span', { style: labelStyle }, LABEL),
+      h('span', { style: trendPillStyle(up) }, up ? `+${data.growthRate.toFixed(1)}%` : `${data.growthRate.toFixed(1)}%`)
+    ),
+    h('div', { style: valueStyle }, data.loading ? '...' : FMT(data.value)),
+    h('svg', { style: bgChartStyle, viewBox:'0 0 100 50', preserveAspectRatio:'none' },
+      h('path', { d:'M0,50 L0,30 Q25,10 50,25 T100,15 L100,50 Z', fill: BG, stroke: COLOR, strokeWidth:'1', opacity: 0.3 }))
   );
 };
 
-ctx.render(<KpiCard />);
+ctx.render(h(ctx.React.Fragment, null,
+  h('style', null, ':has(> .kpi-card-hover),:has(> div > .kpi-card-hover){overflow:hidden!important}.kpi-card-hover{transition:transform .2s ease;transform:scale(0.97)}.kpi-card-hover:hover{transform:scale(1)}'),
+  h(KpiCard, null)
+));
