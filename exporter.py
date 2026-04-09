@@ -330,12 +330,32 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
 
     elif btype == "reference":
         # ReferenceBlock — references a template
+        # Export: template reference (for systems that have it)
+        #       + template content fallback (for systems that don't)
         ref_settings = sp.get("referenceSettings", {})
         use_template = ref_settings.get("useTemplate", {})
         if use_template:
-            spec["template_uid"] = use_template.get("templateUid", "")
-            spec["template_name"] = use_template.get("templateName", "")
+            template_uid = use_template.get("templateUid", "")
+            template_name = use_template.get("templateName", "")
+            target_uid = use_template.get("targetUid", ref_settings.get("target", {}).get("targetUid", ""))
+            spec["template_uid"] = template_uid
+            spec["template_name"] = template_name
             spec["reference_mode"] = use_template.get("mode", "reference")
+
+            # Export template content as fallback
+            if target_uid and js_dir:
+                try:
+                    from nb import NocoBase as _NB
+                    _nb = _NB()
+                    target_data = _nb.get(uid=target_uid)
+                    target_tree = target_data.get("tree", {})
+                    # Recursively export the template's block content
+                    tpl_spec, tpl_key, _ = _export_block(
+                        _nb, target_tree, js_dir, f"{prefix}_tpl", 0, used_keys or set())
+                    if tpl_spec:
+                        spec["template_content"] = tpl_spec
+                except Exception:
+                    pass  # template content export best-effort
 
     elif btype == "comments":
         # Comments block — preserve association binding

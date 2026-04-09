@@ -1118,8 +1118,28 @@ def _create_legacy_block(nb: NocoBase, grid_uid: str, bs: dict,
         template_uid = bs.get("template_uid", "")
         template_name = bs.get("template_name", "")
         ref_mode = bs.get("reference_mode", "reference")
+
+        # Check if template exists in target system
+        if template_uid:
+            try:
+                r = nb.s.get(f"{nb.base}/api/flowModelTemplates:get",
+                             params={"filterByTk": template_uid}, timeout=30)
+                if not r.ok or not r.json().get("data"):
+                    template_uid = ""  # template not found → use fallback
+            except Exception:
+                template_uid = ""
+
+        # Fallback: if template doesn't exist, create from template_content
+        if not template_uid and bs.get("template_content"):
+            tpl = bs["template_content"]
+            print(f"    Template not found, creating from exported content...")
+            # Deploy the template content as a regular block (not reference)
+            tpl["key"] = bs.get("key", "tpl_block")
+            block_uid = _create_legacy_block(nb, grid_uid, tpl, default_coll, mod)
+            return block_uid
+
         if not template_uid:
-            print(f"    ! reference: no template_uid")
+            print(f"    ! reference: no template_uid and no fallback content")
             return None
         try:
             nb.save_model({

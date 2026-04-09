@@ -1,24 +1,53 @@
-module: Opportunities Copy
-icon: fundoutlined
+module: Orders Copy
 pages:
 - blocks:
   - key: filterForm_0
     type: filterForm
     fields:
-    - name
+    - order_no
     js_items:
-    - desc: Pipeline Stats Filter Block
-      file: ./js/opp_filterForm_0_pipeline_stats_filter_block.js
+    - desc: Order Stats Filter Block
+      file: ./js/orders_filterForm_0_order_stats_filter_block.js
     field_layout:
-    - - '[JS:Pipeline Stats Filter Block]'
-    - - name
+    - - col:
+        - '[JS:Order Stats Filter Block]'
+        - order_no
+        size: 24
   - key: reference_1
     type: reference
-    template_uid: m39e2ahdwsf
-    template_name: 'Table: Opportunities'
+    template_uid: yjwjoi4erle
+    template_name: 'Table: Orders'
     reference_mode: reference
+    template_content:
+      key: table_0
+      type: table
+      coll: nb_crm_orders
+      fields:
+      - order_no
+      - customer
+      - order_amount
+      - payment_status
+      - owner
+      - createdAt
+      js_columns:
+      - title: Order Progress
+        desc: Order Progress Column
+        file: ./js/orders_tpl_table_0_col_order_progress.js
+      actions:
+      - filter
+      - refresh
+      - addNew
+      - ai
+      _popups:
+      - field: order_no
+        field_uid: 86635af8b0c
+        mode: drawer
+        popup_page_uid: 6b5b2d1335c
+      - field: customer
+        field_uid: 5fbdd6c7723
+        mode: drawer
+        popup_page_uid: 855d1cb9ba4
   layout:
   - - filterForm_0
   - - reference_1
-  page: Opportunities Copy
-  icon: fundoutlined
+  page: Orders Copy
