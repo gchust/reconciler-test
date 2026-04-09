@@ -1,0 +1,7 @@
+{
+  "chartType": "line",
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT\n    TO_CHAR(order_date, 'YYYY-MM') as month,\n    COUNT(*) as order_count,\n    COALESCE(SUM(total_amount), 0) as total_amount\nFROM nb_erp_sales_orders\nWHERE order_date IS NOT NULL\nGROUP BY TO_CHAR(order_date, 'YYYY-MM')\nORDER BY month"
+  }
+}

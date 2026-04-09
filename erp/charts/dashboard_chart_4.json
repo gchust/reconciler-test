@@ -1,0 +1,7 @@
+{
+  "chartType": "bar",
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT\n    TO_CHAR(\"createdAt\", 'YYYY-MM') as month,\n    SUM(completed_qty) as completed,\n    SUM(defect_qty) as defects,\n    ROUND(\n        CASE WHEN SUM(completed_qty) > 0\n        THEN (SUM(completed_qty) - SUM(defect_qty))::numeric / SUM(completed_qty) * 100\n        ELSE 0 END, 1\n    ) as yield_rate\nFROM nb_erp_work_orders\nWHERE completed_qty > 0\nGROUP BY TO_CHAR(\"createdAt\", 'YYYY-MM')\nORDER BY month"
+  }
+}

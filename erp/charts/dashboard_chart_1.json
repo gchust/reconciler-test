@@ -1,0 +1,7 @@
+{
+  "chartType": "bar",
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT\n    COALESCE(status, '未知') as status_name,\n    COUNT(*) as order_count,\n    COALESCE(SUM(total_amount), 0) as total_amount\nFROM nb_erp_purchase_orders\nWHERE 1=1\nGROUP BY status\nORDER BY\n    CASE status\n        WHEN '草稿' THEN 1\n        WHEN '待审批' THEN 2\n        WHEN '已审批' THEN 3\n        WHEN '部分到货' THEN 4\n        WHEN '已到货' THEN 5\n        WHEN '已关闭' THEN 6\n        WHEN '已取消' THEN 7\n        ELSE 8\n    END"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "chartType": "pie",
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT\n    COALESCE(category, '未分类') as category_name,\n    COUNT(*) as product_count,\n    COALESCE(SUM(stock_qty), 0) as total_stock,\n    COALESCE(SUM(stock_qty * cost_price), 0) as stock_value\nFROM nb_erp_products\nWHERE status = '有效'\nGROUP BY category\nORDER BY stock_value DESC"
+  }
+}

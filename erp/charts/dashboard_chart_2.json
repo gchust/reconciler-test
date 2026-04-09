@@ -1,0 +1,7 @@
+{
+  "chartType": "funnel",
+  "query": {
+    "mode": "sql",
+    "sql": "SELECT '1-采购订单' as stage, COUNT(*) as count, COALESCE(SUM(total_amount), 0) as amount\nFROM nb_erp_purchase_orders WHERE status NOT IN ('已取消', '草稿')\n\nUNION ALL\n\nSELECT '2-生产工单' as stage, COUNT(*) as count, 0 as amount\nFROM nb_erp_work_orders WHERE status NOT IN ('已关闭')\n\nUNION ALL\n\nSELECT '3-销售订单' as stage, COUNT(*) as count, COALESCE(SUM(total_amount), 0) as amount\nFROM nb_erp_sales_orders WHERE status NOT IN ('已取消', '草稿')\n\nUNION ALL\n\nSELECT '4-已发货' as stage, COUNT(*) as count, COALESCE(SUM(total_amount), 0) as amount\nFROM nb_erp_sales_orders WHERE status IN ('已发货', '已签收')\n\nORDER BY stage"
+  }
+}
