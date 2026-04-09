@@ -46,7 +46,7 @@ popups:
   mode: embed
   coll: nb_erp_products
   tabs:
-  - title: 详情
+  - title: 概览
     blocks:
     - key: detail_main
       type: details
@@ -58,16 +58,13 @@ popups:
       - category
       - spec
       - unit
-      - standard_price
-      - cost_price
+      - status
       - stock_qty
       - min_stock
       - max_stock
       - lead_time
-      - status
-      - remark
       js_items:
-      - desc: 物料概览KPI卡片 — 标准价/成本/利润率/库存量/安全库存/采购周期, 库存状态红黄绿指示
+      - desc: 物料概览KPI卡片
         file: ./js/detail_product_kpi.js
       field_layout:
       - '--- 基本信息 ---'
@@ -77,46 +74,65 @@ popups:
       - - spec
         - unit
         - status
-      - '--- 价格 ---'
-      - - standard_price
-        - cost_price
       - '--- 库存 ---'
       - - stock_qty
         - min_stock
         - max_stock
       - - lead_time
-      - '--- 备注 ---'
-      - - remark
       recordActions:
       - edit
-    - key: inv_list
-      type: list
-      title: 库存流水
+    - key: detail_price
+      type: details
+      resource:
+        binding: currentRecord
+      fields:
+      - standard_price
+      - cost_price
+      - remark
+      field_layout:
+      - '--- 价格 ---'
+      - - standard_price
+        - cost_price
+      - '--- 备注 ---'
+      - - remark
+    layout:
+    - - col:
+        - detail_main
+        size: 16
+      - col:
+        - detail_price
+        size: 8
+  - title: 库存流水
+    blocks:
+    - key: inv_table
+      type: table
       coll: nb_erp_inventory
       resource_binding:
         associationName: nb_erp_products.inventories
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      item_js:
-      - desc: 库存流水行卡片 — 类型(入/出/调拨)标签+数量+仓库+关联单号+日期
-        file: ./js/detail_product_inv_row.js
-    - key: qc_list
-      type: list
-      title: 质检记录
+      fields:
+      - txn_type
+      - qty
+      - warehouse
+      - ref_no
+      - operator
+      - createdAt
+  - title: 质检记录
+    blocks:
+    - key: qc_table
+      type: table
       coll: nb_erp_quality
       resource_binding:
-        associationName: nb_erp_products.qualities
+        associationName: nb_erp_products.quality_records
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      item_js:
-      - desc: 质检行卡片 — 检验类型+结果标签(绿/红/橙)+合格率+批次号
-        file: ./js/detail_product_qc_row.js
-    layout:
-    - col:
-      - detail_main
-      size: 16
-    - col:
-      - inv_list
-      - qc_list
-      size: 8
+      fields:
+      - qc_type
+      - result
+      - sample_qty
+      - pass_qty
+      - fail_qty
+      - batch_no
+      - inspector
   - title: 历史记录
     blocks:
     - key: history
@@ -167,7 +183,7 @@ popups:
   mode: embed
   coll: nb_erp_customers
   tabs:
-  - title: 详情
+  - title: 概览
     blocks:
     - key: detail_main
       type: details
@@ -176,18 +192,15 @@ popups:
       fields:
       - customer_code
       - name
+      - level
+      - industry
+      - status
       - contact
       - phone
       - email
       - address
-      - level
-      - industry
-      - payment_terms
-      - credit_limit
-      - tax_rate
-      - status
       js_items:
-      - desc: 客户画像卡片 — 等级徽章(VIP金色/A蓝/B绿/C灰) + 信用额度 + 付款条件 + 行业标签 + 税率
+      - desc: 客户画像卡片
         file: ./js/detail_customer_profile.js
       field_layout:
       - '--- 基本信息 ---'
@@ -201,29 +214,44 @@ popups:
         - phone
         - email
       - - address
-      - '--- 财务信息 ---'
-      - - payment_terms
-        - credit_limit
-        - tax_rate
       recordActions:
       - edit
-    - key: so_list
-      type: list
-      title: 销售订单
+    - key: detail_finance
+      type: details
+      resource:
+        binding: currentRecord
+      fields:
+      - payment_terms
+      - credit_limit
+      - tax_rate
+      field_layout:
+      - '--- 财务信息 ---'
+      - - payment_terms
+      - - credit_limit
+      - - tax_rate
+    layout:
+    - - col:
+        - detail_main
+        size: 16
+      - col:
+        - detail_finance
+        size: 8
+  - title: 销售订单
+    blocks:
+    - key: so_table
+      type: table
       coll: nb_erp_sales_orders
       resource_binding:
         associationName: nb_erp_customers.sales_orders
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      item_js:
-      - desc: 销售订单行卡片 — 单号+金额+状态进度+交期倒计时
-        file: ./js/detail_customer_so_row.js
-    layout:
-    - col:
-      - detail_main
-      size: 16
-    - col:
-      - so_list
-      size: 8
+      fields:
+      - so_no
+      - total_amount
+      - status
+      - priority
+      - order_date
+      - delivery_date
+      - sales_rep
   - title: 历史记录
     blocks:
     - key: history
@@ -399,7 +427,7 @@ popups:
   mode: embed
   coll: nb_erp_sales_orders
   tabs:
-  - title: 详情
+  - title: 概览
     blocks:
     - key: detail_main
       type: details
@@ -408,17 +436,17 @@ popups:
       fields:
       - so_no
       - customer_name
-      - total_amount
-      - tax_amount
       - status
       - priority
+      - sales_rep
+      - total_amount
+      - tax_amount
       - order_date
       - delivery_date
       - shipped_date
-      - sales_rep
       - remark
       js_items:
-      - desc: 销售单概览卡片 — 总金额(含税)/客户/状态进度条(草稿→确认→生产→发货→签收)/交货倒计时/优先级
+      - desc: 销售单概览卡片
         file: ./js/detail_so_overview.js
       field_layout:
       - '--- 订单信息 ---'
@@ -438,23 +466,22 @@ popups:
       - - remark
       recordActions:
       - edit
-    - key: wo_list
-      type: list
-      title: 生产工单
+  - title: 生产工单
+    blocks:
+    - key: wo_table
+      type: table
       coll: nb_erp_work_orders
       resource_binding:
         associationName: nb_erp_sales_orders.work_orders
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      item_js:
-      - desc: 生产工单行卡片 — 工单号+产品+完工进度条+良品率+状态
-        file: ./js/detail_so_wo_row.js
-    layout:
-    - col:
-      - detail_main
-      size: 16
-    - col:
-      - wo_list
-      size: 8
+      fields:
+      - wo_no
+      - product_name
+      - planned_qty
+      - completed_qty
+      - defect_qty
+      - status
+      - workshop
   - title: 历史记录
     blocks:
     - key: history
@@ -502,7 +529,7 @@ popups:
   mode: embed
   coll: nb_erp_work_orders
   tabs:
-  - title: 详情
+  - title: 概览
     blocks:
     - key: detail_main
       type: details
@@ -511,20 +538,20 @@ popups:
       fields:
       - wo_no
       - product_name
+      - status
+      - priority
+      - workshop
       - planned_qty
       - completed_qty
       - defect_qty
-      - status
-      - priority
       - planned_start
       - planned_end
       - actual_start
       - actual_end
-      - workshop
       - so_no
       - remark
       js_items:
-      - desc: 生产工单概览卡片 — 完工进度环形图(completed/planned) + 良品率 + 状态进度条(待排产→生产→完工) + 计划vs实际日期对比
+      - desc: 生产工单概览卡片
         file: ./js/detail_wo_overview.js
       field_layout:
       - '--- 工单信息 ---'
@@ -548,23 +575,22 @@ popups:
       - - remark
       recordActions:
       - edit
-    - key: qc_list
-      type: list
-      title: 质检记录
+  - title: 质检记录
+    blocks:
+    - key: qc_table
+      type: table
       coll: nb_erp_quality
       resource_binding:
-        associationName: nb_erp_work_orders.qualities
+        associationName: nb_erp_work_orders.quality_records
         sourceId: '{{ctx.view.inputArgs.filterByTk}}'
-      item_js:
-      - desc: 质检行卡片 — 检验类型+结果标签+合格率+批次号+检验员
-        file: ./js/detail_wo_qc_row.js
-    layout:
-    - col:
-      - detail_main
-      size: 16
-    - col:
-      - qc_list
-      size: 8
+      fields:
+      - qc_type
+      - result
+      - sample_qty
+      - pass_qty
+      - fail_qty
+      - batch_no
+      - inspector
   - title: 历史记录
     blocks:
     - key: history
