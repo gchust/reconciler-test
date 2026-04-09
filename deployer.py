@@ -181,7 +181,7 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
                 if isinstance(g, dict) and g.get("uid"):
                     grid_uid = g["uid"]
                     break
-            except Exception:
+            except Exception as e:
                 continue
 
         layout_spec = spec.get("layout")
@@ -285,7 +285,7 @@ def deploy_surface(nb: NocoBase, tab_uid: str, spec: dict,
                     if isinstance(g, dict) and g.get("uid"):
                         grid_uid = g["uid"]
                         break
-        except Exception:
+        except Exception as e:
             continue
 
     if grid_uid:
@@ -578,8 +578,8 @@ def _apply_complete_layout(nb: NocoBase, grid_uid: str, field_layout: list):
     """
     try:
         live = nb.get(uid=grid_uid)
-    except Exception:
-        return
+    except Exception as e:
+        return  # grid not accessible
 
     live_tree = live.get("tree", {})
     items = live_tree.get("subModels", {}).get("items", [])
@@ -646,7 +646,7 @@ def _apply_complete_layout(nb: NocoBase, grid_uid: str, field_layout: list):
     if rows:
         try:
             nb.set_layout(grid_uid, rows, sizes)
-        except Exception:
+        except Exception as e:
             pass  # Layout best-effort
 
 
@@ -679,8 +679,8 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 fp = col.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
                 if fp:
                     field_states[fp] = {"wrapper": col.get("uid", ""), "field": ""}
-        except Exception:
-            pass
+        except Exception as e:
+            pass  # field read best-effort
 
     if field_states and coll and btype in ("table", "details"):
         _fix_display_models(nb, block_uid, coll, btype)
@@ -850,7 +850,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                     }
                 }
             })
-        except Exception:
+        except Exception as e:
             pass
 
         # Auto field_layout if not specified: JS items on top, fields in one row
@@ -889,8 +889,8 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 if rows:
                     try:
                         nb.set_layout(grid_uid, rows, sizes)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        pass  # filter layout best-effort
 
         _configure_filter(nb, bs, block_uid, field_states, default_coll, all_blocks_state)
     elif btype == "filterForm":
@@ -903,8 +903,8 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
             nb.update_model(block_uid, {
                 "cardSettings": {"titleDescription": {"title": title}}
             })
-        except Exception:
-            pass
+        except Exception as e:
+            pass  # title best-effort
 
 
 def _configure_filter(nb: NocoBase, bs: dict, block_uid: str,
@@ -1232,8 +1232,8 @@ def _deploy_popup(nb: NocoBase, target_uid: str, target_ref: str,
                 else:
                     print(f"  = popup [{target_ref}] (exists, skip)")
                 return
-    except Exception:
-        pass
+    except Exception as e:
+        pass  # popup check best-effort
 
     # Set click-to-open
     nb.update_model(target_uid, {
@@ -1286,7 +1286,7 @@ def _deploy_tabbed_popup(nb: NocoBase, target_uid: str, target_ref: str,
         existing_tabs = popup_page.get("subModels", {}).get("tabs", [])
         if not isinstance(existing_tabs, list):
             existing_tabs = [existing_tabs] if existing_tabs else []
-    except Exception:
+    except Exception as e:
         existing_tabs = []
 
     # Remaining tabs

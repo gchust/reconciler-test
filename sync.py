@@ -90,10 +90,10 @@ def _sync_page(nb: NocoBase, tab_uid: str, page_spec: dict,
     """Sync one page — read live blocks, update spec + state."""
     try:
         data = nb.get(tabSchemaUid=tab_uid)
-    except Exception:
+    except Exception as e:
         try:
             data = nb.get(uid=tab_uid)
-        except Exception:
+        except Exception as e:
             return
 
     tree = data.get("tree", {})
@@ -357,7 +357,7 @@ def _sync_popup(nb: NocoBase, popup_spec: dict, state: dict,
         popup_page = tree.get("subModels", {}).get("page", {})
         if not popup_page:
             return
-    except Exception:
+    except Exception as e:
         return
 
     # For tabbed popups, sync each tab

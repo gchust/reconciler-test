@@ -210,7 +210,7 @@ class NocoBase:
         # Try flowSurfaces:configure first (safest)
         try:
             return self.configure(uid, {"changes": step_params_patch})
-        except Exception:
+        except Exception as e:
             pass
 
         # Fallback: flowModels:save with full structural fields
@@ -335,15 +335,26 @@ class NocoBase:
                            json=body, timeout=self._timeout).json().get("data")
 
     def field_meta(self, coll: str) -> dict[str, dict]:
-        fields = self.s.get(f"{self.base}/api/collections/{coll}/fields:list",
-                            params={"pageSize": "200"},
-                            timeout=self._timeout).json().get("data", [])
-        return {f["name"]: {"interface": f.get("interface", "input")} for f in fields}
+        """Get field metadata for a collection (cached per session)."""
+        if not hasattr(self, "_field_meta_cache"):
+            self._field_meta_cache = {}
+        if coll not in self._field_meta_cache:
+            fields = self.s.get(f"{self.base}/api/collections/{coll}/fields:list",
+                                params={"pageSize": "200"},
+                                timeout=self._timeout).json().get("data", [])
+            self._field_meta_cache[coll] = {
+                f["name"]: {"interface": f.get("interface", "input")} for f in fields
+            }
+        return self._field_meta_cache[coll]
 
     def routes(self) -> list[dict]:
-        return self.s.get(f"{self.base}/api/desktopRoutes:list",
-                          params={"paginate": "false", "tree": "true"},
-                          timeout=self._timeout).json().get("data", [])
+        """Get all desktop routes (cached per session)."""
+        if not hasattr(self, "_routes_cache"):
+            self._routes_cache = self.s.get(
+                f"{self.base}/api/desktopRoutes:list",
+                params={"paginate": "false", "tree": "true"},
+                timeout=self._timeout).json().get("data", [])
+        return self._routes_cache
 
 
 # ── YAML helpers ──────────────────────────────────────────────────
