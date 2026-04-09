@@ -261,6 +261,37 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
         if rec_actions:
             spec["recordActions"] = rec_actions
 
+    # ── Event Flows + Linkage Rules (forms/details) ──
+    if btype in ("createForm", "editForm", "details"):
+        event_settings = sp.get("eventSettings", {})
+        if event_settings:
+            # Extract linkage rules
+            linkage = event_settings.get("linkageRules", {})
+            if linkage:
+                spec["linkage_rules"] = linkage
+
+        # Extract custom event flow JS from flowRegistry
+        flow_registry = item.get("flowRegistry", {})
+        if flow_registry:
+            for flow_key, flow_def in flow_registry.items():
+                if not isinstance(flow_def, dict):
+                    continue
+                steps = flow_def.get("steps", {})
+                for step_key, step_def in steps.items():
+                    if not isinstance(step_def, dict):
+                        continue
+                    code = step_def.get("runJs", {}).get("code", "")
+                    if code and js_dir:
+                        fname = f"{prefix}_{key}_event_{flow_key}_{step_key}.js"
+                        (js_dir / fname).write_text(code)
+                        spec.setdefault("event_flows", []).append({
+                            "event": flow_def.get("on", "formValuesChange"),
+                            "flow_key": flow_key,
+                            "step_key": step_key,
+                            "desc": step_def.get("title", flow_key),
+                            "file": f"./js/{fname}",
+                        })
+
     elif btype == "list":
         # List block — extract ListItem children (fields, JS items, actions)
         list_item = subs.get("item", {})

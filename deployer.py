@@ -912,6 +912,59 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
     elif btype == "filterForm":
         _configure_filter(nb, bs, block_uid, field_states, default_coll, all_blocks_state)
 
+    # ── Event Flows (formValuesChange JS) ──
+    event_flows = bs.get("event_flows", [])
+    if event_flows and btype in ("createForm", "editForm"):
+        flow_registry = {}
+        for ef in event_flows:
+            ef_file = ef.get("file", "")
+            if not ef_file:
+                continue
+            p = mod / ef_file
+            if not p.exists():
+                continue
+            code = p.read_text()
+            flow_key = ef.get("flow_key", f"custom_{len(flow_registry)}")
+            step_key = ef.get("step_key", "runJs")
+            event_name = ef.get("event", "formValuesChange")
+
+            flow_registry[flow_key] = {
+                "on": event_name,
+                "title": ef.get("desc", flow_key),
+                "steps": {
+                    step_key: {
+                        "use": "runJs",
+                        "title": ef.get("desc", ""),
+                        "runJs": {"code": code},
+                    }
+                }
+            }
+            print(f"      + event: {ef.get('desc', flow_key)}")
+
+        if flow_registry:
+            try:
+                nb.save_model({
+                    "uid": block_uid,
+                    "use": bs.get("type", "CreateFormModel").replace("create", "Create").replace("edit", "Edit") + "Model"
+                          if not bs.get("type", "").endswith("Model") else bs["type"],
+                    "flowRegistry": flow_registry,
+                })
+            except Exception as e:
+                # Fallback: update via raw API
+                nb.s.post(f"{nb.base}/api/flowModels:update?filterByTk={block_uid}",
+                          json={"options": {"flowRegistry": flow_registry}}, timeout=30)
+
+    # ── Linkage Rules ──
+    linkage_rules = bs.get("linkage_rules")
+    if linkage_rules and btype in ("createForm", "editForm"):
+        try:
+            nb.update_model(block_uid, {
+                "eventSettings": {"linkageRules": linkage_rules}
+            })
+            print(f"      + linkage: {len(linkage_rules) if isinstance(linkage_rules, list) else 'set'}")
+        except Exception as e:
+            pass
+
     # ── Block title ──
     title = bs.get("title", "")
     if title:

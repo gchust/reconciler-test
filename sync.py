@@ -174,6 +174,37 @@ def _sync_block(nb: NocoBase, live_item: dict, spec: dict,
         _sync_table_fields(live_item, spec, block_state, mod, js_dir, prefix, key)
     elif btype in ("filterForm", "details", "createForm", "editForm"):
         _sync_form_fields(live_item, spec, block_state, mod, js_dir, prefix, key)
+
+        # Sync event flows + linkage rules
+        if btype in ("createForm", "editForm"):
+            event_settings = sp.get("eventSettings", {})
+            if event_settings.get("linkageRules"):
+                spec["linkage_rules"] = event_settings["linkageRules"]
+
+            flow_registry = live_item.get("flowRegistry", {})
+            if flow_registry:
+                event_flows = []
+                for flow_key, flow_def in flow_registry.items():
+                    if not isinstance(flow_def, dict):
+                        continue
+                    steps = flow_def.get("steps", {})
+                    for step_key, step_def in steps.items():
+                        if not isinstance(step_def, dict):
+                            continue
+                        code = step_def.get("runJs", {}).get("code", "")
+                        if code:
+                            fname = f"{prefix}_{key}_event_{flow_key}_{step_key}.js"
+                            (js_dir / fname).write_text(code)
+                            event_flows.append({
+                                "event": flow_def.get("on", "formValuesChange"),
+                                "flow_key": flow_key,
+                                "step_key": step_key,
+                                "desc": step_def.get("title", flow_key),
+                                "file": f"./js/{fname}",
+                            })
+                if event_flows:
+                    spec["event_flows"] = event_flows
+
     elif btype == "jsBlock":
         code = sp.get("jsSettings", {}).get("runJs", {}).get("code", "")
         if code:
