@@ -13,41 +13,38 @@ pages:
     field_layout:
     - - '[JS:Pipeline Stats Filter Block]'
     - - name
-  - key: reference_1
-    type: reference
-    template_uid: m39e2ahdwsf
-    template_name: 'Table: Opportunities'
-    reference_mode: reference
-    template_content:
-      key: table_0
-      type: table
-      coll: nb_crm_opportunities
-      fields:
-      - name
-      - amount
-      - currency
-      - stage
-      - lead_source
-      - contact
-      - customer
-      - expected_close_date
-      - win_probability
-      actions:
-      - filter
-      - refresh
-      - addNew
-      - ai
-      _popups:
-      - field: name
-        field_uid: fc8f91d937e
-        mode: embed
-        popup_page_uid: 89e367784da
-      - field: customer
-        field_uid: f2051df6aa7
-        mode: drawer
-        popup_page_uid: b375847645d
+  - key: table
+    type: table
+    coll: nb_crm_opportunities
+    fields:
+    - name
+    - amount
+    - currency
+    - stage
+    - lead_source
+    - contact
+    - customer
+    - expected_close_date
+    - win_probability
+    actions:
+    - filter
+    - refresh
+    - addNew
+    _popups:
+    - field: name
+      field_uid: fc8f91d937e
+      mode: embed
+      popup_page_uid: 89e367784da
+    - field: customer
+      field_uid: f2051df6aa7
+      mode: drawer
+      popup_page_uid: b375847645d
+    recordActions:
+    - edit
+    - delete
   layout:
   - - filterForm_0
-  - - reference_1
+  - - table
   page: Sales Pipeline
   icon: fundoutlined
+  coll: nb_crm_opportunities

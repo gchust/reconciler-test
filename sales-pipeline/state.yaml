@@ -1,19 +1,63 @@
-group_id: 358015765315584
+group_id: 358016631439360
 pages:
   sales_pipeline:
-    route_id: 358015765315586
-    page_uid: sfi7tpuf13k
-    tab_uid: vrnutf60fb4
-    grid_uid: rtsrpbj0jru
+    route_id: 358016631439361
+    page_uid: vizsfnxrbxj
+    tab_uid: 3hd1cd8vu5d
+    grid_uid: o46fp8tsd0o
     blocks:
       filterForm_0:
-        uid: 83jn5fv5inm
+        uid: jpvqa0iodie
         type: filterForm
-        grid_uid: m4q3agxc8i2
-        fields: {}
+        grid_uid: ojpoek9zphj
+        fields:
+          name:
+            wrapper: j3ccpvw4wx1
+            field: ae53r1sxio9
         js_items:
           Pipeline Stats Filter Block:
-            uid: bae2vn821p7
-      reference_1:
-        uid: r4q00l1rv05
-        type: reference
+            uid: 4gl833nh1hi
+      table:
+        uid: mkejwpnsxbi
+        type: table
+        grid_uid: ''
+        fields:
+          win_probability:
+            wrapper: y88i4ifmv7l
+            field: ni5i2uf7gt2
+          stage:
+            wrapper: j2s0qpuvv33
+            field: o2syemfc159
+          amount:
+            wrapper: 3iewfraa114
+            field: hn60iwocg57
+          customer:
+            wrapper: hhx7i8uj1zu
+            field: bi2m5oq19v7
+          name:
+            wrapper: dd0wsooeuax
+            field: jyu3plynmhu
+          currency:
+            wrapper: hu1zirhvv58
+            field: yot156x3nqc
+          contact:
+            wrapper: 4kpmhu904qg
+            field: e5hd3xwii7g
+          expected_close_date:
+            wrapper: s3zmdjwj7y3
+            field: ljr53j8vtsd
+          lead_source:
+            wrapper: 2jp7pr0r4k9
+            field: li0z1evqg51
+        actions:
+          filter:
+            uid: i1ex79yvy0n
+          refresh:
+            uid: 4egx0a2qdvp
+          addNew:
+            uid: ogs624ix3sd
+        record_actions:
+          edit:
+            uid: m57gh2zeuxl
+          delete:
+            uid: 88mzso06it0
