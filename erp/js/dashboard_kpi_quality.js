@@ -1,123 +1,121 @@
 /**
- * KPI 卡片积木模板
+ * KPI 卡片积木模板（CRM 同款样式）
  *
  * @type JSBlockModel
  * @template kpi-card
  *
  * === AI 修改指南 ===
- * 1. 修改 CONFIG 对象（标题、颜色、SQL）
- * 2. 修改 SQL（查询你的业务数据）
- * 3. 修改 parseResult（从 SQL 结果提取数值）
- * 4. 不要动 KpiCard 组件和样式 — 它们是通用的
+ * 1. 修改 CONFIG（标题、颜色、前缀）
+ * 2. 修改 fetchData 里的 API 调用或 SQL
+ * 3. 修改 parseData 提取数值
+ * 4. 不要动样式系统和 KpiCard 组件
  * ====================
  */
 
 // ─── CONFIG: AI 修改这里 ───────────────────────────
 const CONFIG = {
-  title: '本月合格率',              // 卡片标题
-  gradient: ['#722ed1', '#b37feb'], // 渐变色 [起始, 结束]
-  textColor: '#fff',                // 文字颜色
-  prefix: '',                      // 数值前缀 (¥, 件, %)
-  suffix: '%',                        // 数值后缀
+  title: '本月合格率',
+  color: '#8b5cf6',           // 主色（数值、趋势）
+  bgColor: '#f5f3ff',         // 浅背景色
+  prefix: '',                // 数值前缀
+  suffix: '%',                  // 数值后缀
+  collection: 'nb_erp_quality',
+  dateField: 'createdAt',    // 日期字段（用于按月筛选）
+  // 从 API 结果计算数值
+  calcValue: (records) => { const s = records.reduce((a,r) => ({p:a.p+parseInt(r.pass_qty||0),t:a.t+parseInt(r.sample_qty||0)}), {p:0,t:0}); return s.t > 0 ? Math.round(s.p/s.t*1000)/10 : 0; },
+  // 排除的状态
+  excludeStatus: [],
 };
-
-// SQL: 查询当前周期 + 上一周期（用于计算环比）
-// __var1=当前开始, __var2=当前结束, __var3=上期开始, __var4=上期结束
-const SQL = `
-SELECT
-  CASE WHEN SUM(CASE WHEN "createdAt" >= :__var1 AND "createdAt" <= :__var2
-    THEN sample_qty ELSE 0 END) > 0
-  THEN ROUND(SUM(CASE WHEN "createdAt" >= :__var1 AND "createdAt" <= :__var2
-    THEN pass_qty ELSE 0 END)::numeric
-    / SUM(CASE WHEN "createdAt" >= :__var1 AND "createdAt" <= :__var2
-    THEN sample_qty ELSE 0 END) * 100, 1)
-  ELSE 0 END as current_value,
-  CASE WHEN SUM(CASE WHEN "createdAt" >= :__var3 AND "createdAt" < :__var4
-    THEN sample_qty ELSE 0 END) > 0
-  THEN ROUND(SUM(CASE WHEN "createdAt" >= :__var3 AND "createdAt" < :__var4
-    THEN pass_qty ELSE 0 END)::numeric
-    / SUM(CASE WHEN "createdAt" >= :__var3 AND "createdAt" < :__var4
-    THEN sample_qty ELSE 0 END) * 100, 1)
-  ELSE 0 END as previous_value
-FROM nb_erp_quality
-`;
-
-// 从 SQL 结果提取数值
-const parseResult = (row) => ({
-  value: parseFloat(row?.current_value || 0),
-  previous: parseFloat(row?.previous_value || 0),
-});
 // ─── CONFIG END ────────────────────────────────────
 
-// ─── 以下不需要修改 ───────────────────────────────
+// ─── 样式系统（CRM 同款，不要动） ─────────────────
+const cardStyle = {
+  borderRadius: 0, padding: 24, position: 'relative', overflow: 'hidden',
+  border: 'none', boxShadow: 'none',
+  margin: -24, height: 'calc(100% + 48px)', width: 'calc(100% + 48px)',
+  display: 'flex', flexDirection: 'column', background: CONFIG.bgColor,
+};
+const labelStyle = { fontSize: '0.875rem', fontWeight: 500, zIndex: 2, color: '#666' };
+const valueStyle = { fontSize: '2rem', fontWeight: 700, marginTop: 'auto', zIndex: 2, letterSpacing: '-0.03em', color: CONFIG.color };
+const trendStyle = (up) => ({
+  fontSize: '0.75rem', padding: '2px 8px', borderRadius: 99, fontWeight: 600,
+  background: up ? '#ecfdf5' : '#fef2f2', color: up ? '#10b981' : '#ef4444',
+  display: 'inline-block',
+});
+const bgCircle = (size, right, top, opacity) => ({
+  position: 'absolute', right, top, width: size, height: size,
+  borderRadius: '50%', background: CONFIG.color, opacity, zIndex: 1,
+});
+
+const fmt = (v) => {
+  const abs = Math.abs(v);
+  if (abs >= 1e8) return `${CONFIG.prefix}${(v/1e8).toFixed(1)}亿${CONFIG.suffix}`;
+  if (abs >= 1e4) return `${CONFIG.prefix}${(v/1e4).toFixed(1)}万${CONFIG.suffix}`;
+  if (abs >= 1e3) return `${CONFIG.prefix}${v.toLocaleString('zh-CN', {maximumFractionDigits: 0})}${CONFIG.suffix}`;
+  return `${CONFIG.prefix}${v.toFixed(v % 1 ? 1 : 0)}${CONFIG.suffix}`;
+};
+
+// ─── 组件（不要动） ───────────────────────────────
 const { useState, useEffect } = ctx.React;
 const { Spin } = ctx.antd;
 
-const fmt = (v, prefix = '', suffix = '') => {
-  const abs = Math.abs(v);
-  const str = abs >= 1e8 ? `${(abs/1e8).toFixed(1)}亿`
-    : abs >= 1e4 ? `${(abs/1e4).toFixed(1)}万`
-    : abs.toLocaleString('zh-CN', { maximumFractionDigits: 0 });
-  return `${prefix}${str}${suffix}`;
-};
-
 const KpiCard = () => {
-  const [data, setData] = useState({ value: 0, previous: 0, loading: true });
+  const [state, setState] = useState({ value: 0, previous: 0, loading: true });
 
   useEffect(() => {
     (async () => {
       try {
         const now = ctx.libs.dayjs();
-        const start = now.startOf('month').format('YYYY-MM-DD 00:00:00');
-        const end = now.endOf('month').format('YYYY-MM-DD 23:59:59');
-        const prevStart = now.subtract(1, 'month').startOf('month').format('YYYY-MM-DD 00:00:00');
-        const prevEnd = now.startOf('month').format('YYYY-MM-DD 00:00:00');
+        const thisStart = now.startOf('month').format('YYYY-MM-DD');
+        const thisEnd = now.endOf('month').format('YYYY-MM-DD');
+        const lastStart = now.subtract(1, 'month').startOf('month').format('YYYY-MM-DD');
+        const lastEnd = now.subtract(1, 'month').endOf('month').format('YYYY-MM-DD');
 
-        const result = await ctx.sql.run({
-          sql: SQL,
-          bind: { __var1: start, __var2: end, __var3: prevStart, __var4: prevEnd },
-          type: 'selectRows', dataSourceKey: 'main',
+        const baseFilter = CONFIG.excludeStatus.length
+          ? { status: { $notIn: CONFIG.excludeStatus } } : {};
+
+        const [curr, prev] = await Promise.all([
+          ctx.api.request({
+            url: `${CONFIG.collection}:list`,
+            params: { pageSize: 9999, filter: { ...baseFilter,
+              [CONFIG.dateField]: { $gte: thisStart, $lte: thisEnd } } },
+          }),
+          ctx.api.request({
+            url: `${CONFIG.collection}:list`,
+            params: { pageSize: 9999, filter: { ...baseFilter,
+              [CONFIG.dateField]: { $gte: lastStart, $lte: lastEnd } } },
+          }),
+        ]);
+
+        setState({
+          value: CONFIG.calcValue(curr?.data?.data || []),
+          previous: CONFIG.calcValue(prev?.data?.data || []),
+          loading: false,
         });
-        const parsed = parseResult(result?.[0]);
-        setData({ ...parsed, loading: false });
       } catch (e) {
-        console.error('KPI fetch error:', e);
-        setData(prev => ({ ...prev, loading: false }));
+        console.error('KPI error:', e);
+        setState(s => ({ ...s, loading: false }));
       }
     })();
   }, []);
 
-  const trend = data.previous > 0
-    ? ((data.value - data.previous) / data.previous * 100).toFixed(1)
-    : null;
-  const trendUp = parseFloat(trend) >= 0;
-
-  const style = {
-    background: `linear-gradient(135deg, ${CONFIG.gradient[0]}, ${CONFIG.gradient[1]})`,
-    borderRadius: 12, padding: '24px 28px', minHeight: 120,
-    color: CONFIG.textColor, position: 'relative', overflow: 'hidden',
-    margin: '-24px', height: 'calc(100% + 48px)', width: 'calc(100% + 48px)',
-  };
-
-  if (data.loading) return (<div style={style}><Spin /></div>);
+  const trend = state.previous > 0
+    ? ((state.value - state.previous) / state.previous * 100).toFixed(1) : null;
+  const up = parseFloat(trend) >= 0;
 
   return (
-    <div style={style}>
-      <div style={{ fontSize: 14, opacity: 0.85, marginBottom: 8 }}>{CONFIG.title}</div>
-      <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-0.03em' }}>
-        {fmt(data.value, CONFIG.prefix, CONFIG.suffix)}
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 2 }}>
+        <span style={labelStyle}>{CONFIG.title}</span>
+        {trend !== null && (
+          <span style={trendStyle(up)}>{up ? '+' : ''}{trend}%</span>
+        )}
       </div>
-      {trend !== null && (
-        <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9 }}>
-          <span style={{ marginRight: 4 }}>{trendUp ? '↑' : '↓'}</span>
-          <span>环比 {trendUp ? '+' : ''}{trend}%</span>
-        </div>
-      )}
-      {/* 装饰圆 */}
-      <div style={{ position: 'absolute', right: -20, top: -20, width: 100, height: 100,
-        borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
-      <div style={{ position: 'absolute', right: 30, bottom: -30, width: 80, height: 80,
-        borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
+      <div style={valueStyle}>
+        {state.loading ? '...' : fmt(state.value)}
+      </div>
+      <div style={bgCircle(100, -20, -20, 0.06)} />
+      <div style={bgCircle(60, 40, 'auto', 0.04)} />
     </div>
   );
 };
