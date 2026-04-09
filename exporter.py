@@ -23,6 +23,9 @@ from typing import Any
 from nb import NocoBase, slugify
 
 
+_exported_popup_uids: set[str] = set()  # track exported popups to avoid circular refs
+
+
 def export_page_surface(nb: NocoBase, tab_uid: str,
                         js_dir: Path = None,
                         page_key: str = "page") -> dict:
@@ -36,6 +39,76 @@ def export_page_surface(nb: NocoBase, tab_uid: str,
     grid = tree.get("subModels", {}).get("grid", {})
 
     return _export_grid(nb, grid, js_dir, page_key, reset_keys=True)
+
+
+def export_all_popups(nb: NocoBase, popup_refs: list[dict],
+                      js_dir: Path = None, popups_dir: Path = None,
+                      prefix: str = "popup", depth: int = 0) -> list[dict]:
+    """Recursively export all popups to individual files.
+
+    Traverses popup tree: page → detail popup → nested table → addNew popup → ...
+    Stops when hitting an already-exported UID (prevents circular refs).
+
+    Each popup is saved as popups/<path>.yaml
+    Returns list of all exported popup specs.
+    """
+    global _exported_popup_uids
+    if depth == 0:
+        _exported_popup_uids = set()
+
+    all_exported = []
+    max_depth = 5  # safety limit
+
+    for p in popup_refs:
+        field_uid = p.get("field_uid", "")
+        field_name = p.get("field", "")
+        popup_page_uid = p.get("popup_page_uid", "")
+
+        # Skip already exported (prevents circular refs)
+        if field_uid in _exported_popup_uids:
+            continue
+        _exported_popup_uids.add(field_uid)
+
+        if depth >= max_depth:
+            continue
+
+        # Export this popup
+        popup_data = export_popup_surface(nb, field_uid, js_dir,
+                                          f"{prefix}_{field_name}")
+        if not popup_data:
+            continue
+
+        popup_data.pop("_state", None)
+        for tab in popup_data.get("tabs", []):
+            tab.pop("_state", None)
+
+        popup_spec = {"field": field_name, "field_uid": field_uid, **popup_data}
+        all_exported.append(popup_spec)
+
+        # Save to file
+        if popups_dir:
+            popups_dir.mkdir(parents=True, exist_ok=True)
+            # Generate path: depth0 = name.yaml, depth1 = name.quotation_no.yaml
+            fname = f"{prefix}_{field_name}.yaml" if depth > 0 else f"{field_name}.yaml"
+            from nb import dump_yaml
+            (popups_dir / fname).write_text(dump_yaml(popup_spec))
+
+        # Recursively find popups INSIDE this popup's blocks
+        nested_refs = []
+        for tab in popup_data.get("tabs", []):
+            for block in tab.get("blocks", []):
+                nested_refs.extend(block.pop("_popups", []))
+        if not popup_data.get("tabs"):
+            for block in popup_data.get("blocks", []):
+                nested_refs.extend(block.pop("_popups", []))
+
+        if nested_refs:
+            nested = export_all_popups(
+                nb, nested_refs, js_dir, popups_dir,
+                prefix=f"{prefix}_{field_name}", depth=depth + 1)
+            all_exported.extend(nested)
+
+    return all_exported
 
 
 def export_popup_surface(nb: NocoBase, field_uid: str,
@@ -239,6 +312,12 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
         rec_actions = _export_record_actions(subs)
         if rec_actions:
             spec["recordActions"] = rec_actions
+
+        # Collect popups from actions (addNew, edit, record actions)
+        _collect_action_popups(subs.get("actions", []), popup_refs)
+        for col in subs.get("columns", []):
+            if "TableActionsColumn" in col.get("use", ""):
+                _collect_action_popups(col.get("subModels", {}).get("actions", []), popup_refs)
 
     elif btype in ("filterForm", "createForm", "editForm", "details"):
         grid = subs.get("grid", {})
@@ -621,6 +700,21 @@ ACTION_MAP = {
     "RecordHistoryExpandActionModel": "historyExpand",
     "RecordHistoryCollapseActionModel": "historyCollapse",
 }
+
+
+def _collect_action_popups(actions, popup_refs: list):
+    """Scan actions for ChildPage popups (addNew, edit, view, etc.)."""
+    if not isinstance(actions, list):
+        return
+    for act in actions:
+        popup_page = act.get("subModels", {}).get("page", {})
+        if popup_page and popup_page.get("uid"):
+            act_use = act.get("use", "").replace("Model", "")
+            popup_refs.append({
+                "field": act_use.lower().replace("action", ""),
+                "field_uid": act.get("uid", ""),
+                "popup_page_uid": popup_page.get("uid", ""),
+            })
 
 
 def _export_actions(actions) -> list[str]:
