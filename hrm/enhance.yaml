@@ -66,7 +66,8 @@ popups:
       - desc: Employee Detail KPI — tenure, salary, department, position, status badge
         file: ./js/detail_employee_kpi.js
       field_layout:
-      - - '[JS:Employee Detail KPI — tenure, salary, department, position, status badge]'
+      - - '[JS:Employee Detail KPI — tenure, salary, department, position, status
+          badge]'
       - '--- Personal Info ---'
       - - emp_code
         - name
@@ -224,7 +225,8 @@ popups:
       - desc: Leave Request Overview — leave type badge, duration, status badge, approver
         file: ./js/detail_leave_overview.js
       field_layout:
-      - - '[JS:Leave Request Overview — leave type badge, duration, status badge, approver]'
+      - - '[JS:Leave Request Overview — leave type badge, duration, status badge,
+          approver]'
       - '--- Employee ---'
       - - emp_name
         - leave_type

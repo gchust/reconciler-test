@@ -246,7 +246,7 @@ pages:
       file: ./js/filter_employees.js
     field_layout:
     - - '[JS:Employee Stats Filter]'
-    - - name
+      - name
       - department
       - status
   - key: table
@@ -298,22 +298,22 @@ pages:
     - desc: Department Stats Filter
       file: ./js/filter_departments.js
     field_layout:
-    - - '[JS:Department Stats Filter]'
     - - name
       - status
+      - '[JS:Department Stats Filter]'
   - key: table
     type: table
     fields:
+    - parent_dept
     - code
+    - headcount
     - name
     - manager
-    - parent_dept
-    - headcount
     - budget
     - status
     js_columns:
     - title: Budget Util
-      desc: Budget utilization progress bar
+      desc: Budget Utilization — Progress bar (headcount * avg salary vs budget)
       file: ./js/col_budget_util.js
     actions:
     - filter
@@ -344,7 +344,7 @@ pages:
       file: ./js/filter_attendance.js
     field_layout:
     - - '[JS:Attendance Stats Filter]'
-    - - emp_name
+      - emp_name
       - status
       - date
   - key: table
@@ -394,7 +394,7 @@ pages:
       file: ./js/filter_leave.js
     field_layout:
     - - '[JS:Leave Stats Filter]'
-    - - emp_name
+      - emp_name
       - status
       - leave_type
   - key: table
@@ -442,7 +442,7 @@ pages:
       file: ./js/filter_payroll.js
     field_layout:
     - - '[JS:Payroll Stats Filter]'
-    - - emp_name
+      - emp_name
       - period
       - status
   - key: table
@@ -494,7 +494,7 @@ pages:
       file: ./js/filter_recruitment.js
     field_layout:
     - - '[JS:Recruitment Stats Filter]'
-    - - position
+      - position
       - status
       - priority
   - key: table
