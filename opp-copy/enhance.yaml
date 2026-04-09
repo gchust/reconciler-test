@@ -2,8 +2,6 @@ popups:
 - target: $opportunities_copy.table.actions.addNew
   auto:
   - edit
-  - view
-  view_field: name
   coll: nb_crm_opportunities
   blocks:
   - key: form
