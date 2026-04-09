@@ -112,3 +112,36 @@ For **quickly glancing at recent records**:
   fields: [单号, 金额, 状态]          # [order_no, amount, status] — 3-4 columns
   # pageSize: 5, no action buttons needed
 ```
+
+## Filter Design Rules
+
+```
+filterForm:
+  Row 1: [JS stats button group] (full width)
+  Row 2: [search_input, select_dropdown, select_dropdown] (equal columns)
+```
+
+**Search input** (ONE per filter):
+- `field: name` with `filterPaths: [field1, field2, ...]`
+- Connects multiple text fields for fuzzy search
+- Uses `InputFieldModel` automatically
+
+**Select dropdowns** (only for enum/select fields):
+- `field: status` with `label: Status`
+- compose auto-infers `SelectFieldModel` from collection interface
+- Only add fields that are `interface: select` in collection
+
+**DO NOT** add input-type fields (name, code, phone) as separate filters.
+Merge them into the search input's `filterPaths` instead.
+
+**Example:**
+```yaml
+fields:
+  - field: name                          # search input
+    label: Search
+    filterPaths: [code, name, phone]     # searches all these fields
+  - field: status                        # select dropdown (auto)
+    label: Status
+  - field: priority                      # select dropdown (auto)
+    label: Priority
+```
