@@ -100,3 +100,37 @@ const { Tag, Card, Row, Col, Statistic, Badge, Space, Progress,
 - Card size="small" + marginBottom: 16 用于 KPI 卡片
 - Space wrap size={[8, 8]} 用于按钮组
 - Badge + Button 用于统计筛选按钮
+
+## Chart (ECharts) 规范
+
+### 数据访问
+
+```js
+// Chart option.raw 里的数据访问
+const data = ctx.data?.objects || [];  // ✅ 正确：SQL 结果在 objects 里
+// const data = ctx.data || [];        // ❌ 错误：ctx.data 是对象不是数组
+```
+
+### Chart 配置结构
+
+```json
+{
+  "query": { "mode": "sql", "sql": "SELECT ..." },
+  "chart": {
+    "option": {
+      "mode": "custom",
+      "raw": "const data = ctx.data?.objects || []; return { ... ECharts option ... };"
+    }
+  }
+}
+```
+
+### ctx.data.objects 格式
+
+```js
+// SQL: SELECT status, COUNT(*) as cnt FROM table GROUP BY status
+// ctx.data.objects = [
+//   { status: '有效', cnt: 5 },
+//   { status: '停用', cnt: 2 },
+// ]
+```
