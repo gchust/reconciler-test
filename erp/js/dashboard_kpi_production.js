@@ -23,7 +23,7 @@ const buildSql = (startDate, endDate, prevStart, prevEnd) => `
 SELECT
   COALESCE(SUM(CASE WHEN "createdAt" >= '${startDate}' AND "createdAt" <= '${endDate}' THEN completed_qty ELSE 0 END), 0) as current_value,
   CASE WHEN COALESCE(SUM(CASE WHEN "createdAt" >= '${prevStart}' AND "createdAt" < '${prevEnd}' THEN completed_qty ELSE 0 END), 0) > 0
-  THEN ROUND((COALESCE(SUM(CASE WHEN "createdAt" >= '${startDate}' AND "createdAt" <= '${endDate}' THEN completed_qty ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "createdAt" >= '${prevStart}' AND "createdAt" < '${prevEnd}' THEN completed_qty ELSE 0 END), 0))::numeric / COALESCE(SUM(CASE WHEN "createdAt" >= '${prevStart}' AND "createdAt" < '${prevEnd}' THEN completed_qty ELSE 0 END), 1) * 100, 1)
+  THEN ROUND(((COALESCE(SUM(CASE WHEN "createdAt" >= '${startDate}' AND "createdAt" <= '${endDate}' THEN completed_qty ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN "createdAt" >= '${prevStart}' AND "createdAt" < '${prevEnd}' THEN completed_qty ELSE 0 END), 0))::numeric / COALESCE(SUM(CASE WHEN "createdAt" >= '${prevStart}' AND "createdAt" < '${prevEnd}' THEN completed_qty ELSE 0 END), 1) * 100)::numeric, 1)
   ELSE 0 END as growth_rate
 FROM nb_erp_work_orders WHERE status IN ('生产中', '已完工', '已关闭')
 `;

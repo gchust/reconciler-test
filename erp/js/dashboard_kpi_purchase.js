@@ -23,7 +23,7 @@ const buildSql = (startDate, endDate, prevStart, prevEnd) => `
 SELECT
   COALESCE(SUM(CASE WHEN order_date >= '${startDate}' AND order_date <= '${endDate}' THEN total_amount ELSE 0 END), 0) as current_value,
   CASE WHEN COALESCE(SUM(CASE WHEN order_date >= '${prevStart}' AND order_date < '${prevEnd}' THEN total_amount ELSE 0 END), 0) > 0
-  THEN ROUND((COALESCE(SUM(CASE WHEN order_date >= '${startDate}' AND order_date <= '${endDate}' THEN total_amount ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN order_date >= '${prevStart}' AND order_date < '${prevEnd}' THEN total_amount ELSE 0 END), 0))::numeric / COALESCE(SUM(CASE WHEN order_date >= '${prevStart}' AND order_date < '${prevEnd}' THEN total_amount ELSE 0 END), 1) * 100, 1)
+  THEN ROUND(((COALESCE(SUM(CASE WHEN order_date >= '${startDate}' AND order_date <= '${endDate}' THEN total_amount ELSE 0 END), 0) - COALESCE(SUM(CASE WHEN order_date >= '${prevStart}' AND order_date < '${prevEnd}' THEN total_amount ELSE 0 END), 0))::numeric / COALESCE(SUM(CASE WHEN order_date >= '${prevStart}' AND order_date < '${prevEnd}' THEN total_amount ELSE 0 END), 1) * 100)::numeric, 1)
   ELSE 0 END as growth_rate
 FROM nb_erp_purchase_orders WHERE status NOT IN ('已取消', '草稿')
 `;
