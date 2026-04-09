@@ -1,5 +1,3 @@
-field: name
-field_uid: fc8f91d937e
 mode: embed
 tabs:
 - blocks:
@@ -112,3 +110,4 @@ tabs:
     type: recordHistory
     coll: nb_crm_opportunities
   title: Tab2
+target: $opportunities_copy.table.fields.name
