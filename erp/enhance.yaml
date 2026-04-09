@@ -295,16 +295,20 @@ popups:
       - inspector
     - '--- Description ---'
     - - remark
-- field: name
+
+# ── Materials Detail Popup ──
+- target: $materials.table.fields.name
+  field: name
   mode: embed
+  coll: erp_materials
   tabs:
   - title: Overview
     blocks:
     - key: detail_main
       type: details
       coll: erp_materials
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
       - code
       - name
@@ -320,251 +324,238 @@ popups:
       - desc: Material KPI Metrics
         file: ./js/detail_material_kpi.js
       field_layout:
-      - - '[JS:Material KPI Metrics]'
-      - - '--- Basic Info ---'
+      - '[JS:Material KPI Metrics]'
+      - '--- Basic Info ---'
       - - code
         - name
         - category
       - - spec
         - unit
         - status
-      - - '--- Inventory ---'
+      - '--- Inventory ---'
       - - stock_qty
         - min_stock
         - max_stock
       - - lead_time
-      actions:
+      recordActions:
       - edit
-    - key: detail_price
+    - key: detail_aux
       type: details
-      title: Pricing
       coll: erp_materials
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
       - list_price
       - cost_price
       - remark
       field_layout:
-      - - '--- Pricing ---'
+      - '--- Pricing ---'
       - - list_price
         - cost_price
-      - - '--- Remark ---'
+      - '--- Remark ---'
       - - remark
     layout:
-    - - col:
-        - detail_main
-        size: 16
-      - col:
-        - detail_price
-        size: 8
+    - - {col: [detail_main], size: 16}
+      - {col: [detail_aux], size: 8}
   - title: History
     blocks:
     - key: recordHistory_0
       type: recordHistory
       coll: erp_materials
-  target: $materials.table.fields.name
-- field: name
+
+# ── Customers Detail Popup ──
+- target: $customers.table.fields.name
+  field: name
   mode: embed
+  coll: erp_customers
   tabs:
   - title: Overview
     blocks:
     - key: detail_main
       type: details
       coll: erp_customers
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
       - code
       - name
+      - level
+      - industry
+      - status
       - contact
       - phone
       - email
       - address
-      - level
-      - industry
-      - payment_terms
-      - status
       js_items:
       - desc: Customer Profile KPI
         file: ./js/detail_customer_profile.js
       field_layout:
-      - - '[JS:Customer Profile KPI]'
-      - - '--- Basic Info ---'
+      - '[JS:Customer Profile KPI]'
+      - '--- Basic Info ---'
       - - code
         - name
         - level
+      - - industry
+        - status
+      - '--- Contact ---'
       - - contact
         - phone
         - email
-      - - industry
-        - payment_terms
-        - status
-      - - '--- Address ---'
       - - address
-      actions:
+      recordActions:
       - edit
-    - key: detail_finance
+    - key: detail_aux
       type: details
-      title: Finance
       coll: erp_customers
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
+      - payment_terms
       - credit_limit
       - tax_rate
       field_layout:
-      - - '--- Credit ---'
+      - '--- Financial ---'
+      - - payment_terms
       - - credit_limit
-        - tax_rate
+      - - tax_rate
     layout:
-    - - col:
-        - detail_main
-        size: 16
-      - col:
-        - detail_finance
-        size: 8
+    - - {col: [detail_main], size: 16}
+      - {col: [detail_aux], size: 8}
   - title: History
     blocks:
     - key: recordHistory_0
       type: recordHistory
       coll: erp_customers
-  target: $customers.table.fields.name
-- field: so_no
+
+# ── Sales Detail Popup ──
+- target: $sales.table.fields.so_no
+  field: so_no
   mode: embed
+  coll: erp_sales_orders
   tabs:
   - title: Overview
     blocks:
     - key: detail_main
       type: details
       coll: erp_sales_orders
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
       - so_no
       - customer_name
-      - total_amount
-      - tax_amount
       - status
       - priority
+      - sales_rep
+      - total_amount
+      - tax_amount
       - order_date
       - delivery_date
       - shipped_date
-      - sales_rep
+      - remark
       js_items:
       - desc: Sales Order Overview KPI
         file: ./js/detail_so_overview.js
       field_layout:
-      - - '[JS:Sales Order Overview KPI]'
-      - - '--- Order Info ---'
+      - '[JS:Sales Order Overview KPI]'
+      - '--- Order Info ---'
       - - so_no
         - customer_name
         - status
       - - priority
         - sales_rep
-      - - '--- Dates ---'
+      - '--- Amount ---'
+      - - total_amount
+        - tax_amount
+      - '--- Dates ---'
       - - order_date
         - delivery_date
         - shipped_date
-      actions:
+      - '--- Remark ---'
+      - - remark
+      recordActions:
       - edit
-    - key: detail_amount
+    - key: detail_aux
       type: details
-      title: Amount
       coll: erp_sales_orders
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
       - total_amount
       - tax_amount
       - remark
       field_layout:
-      - - '--- Amount ---'
+      - '--- Amount ---'
       - - total_amount
         - tax_amount
-      - - '--- Remark ---'
+      - '--- Remark ---'
       - - remark
     layout:
-    - - col:
-        - detail_main
-        size: 16
-      - col:
-        - detail_amount
-        size: 8
+    - - {col: [detail_main], size: 16}
+      - {col: [detail_aux], size: 8}
   - title: History
     blocks:
     - key: recordHistory_0
       type: recordHistory
       coll: erp_sales_orders
-  target: $sales.table.fields.so_no
-- field: wo_no
+
+# ── Production Detail Popup ──
+- target: $production.table.fields.wo_no
+  field: wo_no
   mode: embed
+  coll: erp_work_orders
   tabs:
   - title: Overview
     blocks:
     - key: detail_main
       type: details
       coll: erp_work_orders
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+      resource:
+        binding: currentRecord
       fields:
       - wo_no
       - product_name
+      - status
+      - priority
+      - workshop
       - planned_qty
       - completed_qty
       - defect_qty
-      - status
-      - priority
       - planned_start
       - planned_end
       - actual_start
       - actual_end
-      - workshop
       - so_no
+      - remark
       js_items:
       - desc: Work Order Overview KPI
         file: ./js/detail_wo_overview.js
       field_layout:
-      - - '[JS:Work Order Overview KPI]'
-      - - '--- Basic Info ---'
+      - '[JS:Work Order Overview KPI]'
+      - '--- Work Order ---'
       - - wo_no
         - product_name
         - status
       - - priority
         - workshop
-        - so_no
-      - - '--- Quantities ---'
+      - '--- Quantity ---'
       - - planned_qty
         - completed_qty
         - defect_qty
-      - - '--- Schedule ---'
+      - '--- Schedule ---'
       - - planned_start
         - planned_end
       - - actual_start
         - actual_end
-      actions:
-      - edit
-    - key: detail_remark
-      type: details
-      title: Notes
-      coll: erp_work_orders
-      resource_binding:
-        filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
-      fields:
-      - remark
-      field_layout:
-      - - '--- Remark ---'
+      - '--- Related ---'
+      - - so_no
+      - '--- Remark ---'
       - - remark
+      recordActions:
+      - edit
     layout:
-    - - col:
-        - detail_main
-        size: 16
-      - col:
-        - detail_remark
-        size: 8
+    - - {col: [detail_main], size: 16}
   - title: History
     blocks:
     - key: recordHistory_0
       type: recordHistory
       coll: erp_work_orders
-  target: $production.table.fields.wo_no
