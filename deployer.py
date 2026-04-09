@@ -595,30 +595,10 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
     # ── JS Items (inside detail/form grid) ──
     js_items = bs.get("js_items", [])
     js_item_uids: dict[str, str] = {}  # desc → uid (for layout)
-    if js_items and grid_uid:
-        # Check existing JS items to avoid duplicates
-        existing_js_count = 0
-        try:
-            grid_data = nb.get(uid=grid_uid)
-            grid_tree = grid_data.get("tree", {})
-            grid_items = grid_tree.get("subModels", {}).get("items", [])
-            existing_js_count = sum(1 for i in (grid_items if isinstance(grid_items, list) else [])
-                                    if "JSItem" in i.get("use", ""))
-            # Map existing JS items for layout
-            for i in (grid_items if isinstance(grid_items, list) else []):
-                if "JSItem" in i.get("use", ""):
-                    i_code = i.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
-                    i_desc = ""
-                    for line in i_code.split("\n"):
-                        if line.strip().startswith("*") and len(line.strip()) > 3:
-                            i_desc = line.strip().lstrip("* ").strip()
-                            break
-                    if i_desc:
-                        js_item_uids[f"[JS:{i_desc}]"] = i.get("uid", "")
-        except Exception:
-            pass
+    saved_js_items = block_state.get("js_items", {})  # from state.yaml
 
-        for js_spec in js_items:
+    if js_items and grid_uid:
+        for idx, js_spec in enumerate(js_items):
             js_file = js_spec.get("file", "")
             if not js_file:
                 continue
@@ -626,32 +606,22 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
             if not p.exists():
                 continue
             code = p.read_text()
-            desc = js_spec.get("desc", "")
+            desc = js_spec.get("desc", f"js_{idx}")
 
             # Auto-replace TARGET_BLOCK_UID references
             if all_blocks_state:
                 code = _replace_js_uids(code, all_blocks_state)
 
-            # Check if JS item with matching desc already exists → update code
-            existing_item = None
-            if existing_js_count > 0:
-                try:
-                    for i in (grid_items if isinstance(grid_items, list) else []):
-                        if "JSItem" in i.get("use", ""):
-                            i_code = i.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
-                            if desc and desc in i_code:
-                                existing_item = i
-                                break
-                except Exception:
-                    pass
+            # Check state for existing UID
+            js_key = desc or f"js_{idx}"
+            existing_uid = saved_js_items.get(js_key, {}).get("uid", "")
 
-            if existing_item:
-                # Update existing JS item code
-                nb.update_model(existing_item["uid"], {
+            if existing_uid:
+                # Update existing by UID
+                nb.update_model(existing_uid, {
                     "jsSettings": {"runJs": {"code": code, "version": "v1"}}
                 })
-                if desc:
-                    js_item_uids[f"[JS:{desc}]"] = existing_item["uid"]
+                js_item_uids[f"[JS:{desc}]"] = existing_uid
             else:
                 # Create new
                 js_uid_val = uid()
@@ -661,30 +631,21 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                     "sortIndex": 0, "flowRegistry": {},
                     "stepParams": {"jsSettings": {"runJs": {"code": code, "version": "v1"}}},
                 })
-                if desc:
-                    js_item_uids[f"[JS:{desc}]"] = js_uid_val
+                js_item_uids[f"[JS:{desc}]"] = js_uid_val
+                saved_js_items[js_key] = {"uid": js_uid_val}
                 print(f"      + JS: {desc[:40]}")
+
+        block_state["js_items"] = saved_js_items
 
     # ── JS Columns (table) ──
     js_cols = bs.get("js_columns", [])
-    if js_cols and btype == "table":
-        # Check existing JS columns by title
-        existing_jscols = {}
-        try:
-            data = nb.get(uid=block_uid)
-            cols = data.get("tree", {}).get("subModels", {}).get("columns", [])
-            for col in (cols if isinstance(cols, list) else []):
-                if col.get("use") == "JSColumnModel":
-                    t = col.get("stepParams", {}).get("tableColumnSettings", {}).get("title", {}).get("title", "")
-                    if t:
-                        existing_jscols[t] = col.get("uid", "")
-        except Exception:
-            pass
+    saved_js_cols = block_state.get("js_columns", {})  # from state.yaml
 
+    if js_cols and btype == "table":
         for jc in js_cols:
             jc_file = jc.get("file", "")
             jc_title = jc.get("title", "")
-            if not jc_file:
+            if not jc_file or not jc_title:
                 continue
             p = mod / jc_file
             if not p.exists():
@@ -693,12 +654,14 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
             if all_blocks_state:
                 code = _replace_js_uids(code, all_blocks_state)
 
-            if jc_title in existing_jscols:
-                # Update existing JS column code
+            existing_uid = saved_js_cols.get(jc_title, {}).get("uid", "")
+
+            if existing_uid:
+                # Update by UID
                 try:
-                    nb.configure(existing_jscols[jc_title], {"changes": {"code": code}})
+                    nb.configure(existing_uid, {"changes": {"code": code}})
                 except Exception:
-                    nb.update_model(existing_jscols[jc_title], {
+                    nb.update_model(existing_uid, {
                         "jsSettings": {"runJs": {"code": code, "version": "v1"}}
                     })
             else:
@@ -707,9 +670,12 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                     result = nb.add_field(block_uid, "jsColumn", type="jsColumn")
                     jc_uid = result.get("uid", "")
                     nb.configure(jc_uid, {"changes": {"code": code, "title": jc_title}})
+                    saved_js_cols[jc_title] = {"uid": jc_uid}
                     print(f"      + JSCol: {jc_title}")
                 except Exception as e:
                     print(f"      ! JSCol {jc_title}: {e}")
+
+        block_state["js_columns"] = saved_js_cols
 
     # ── Dividers ──
     # Check field_layout for "--- label ---" entries

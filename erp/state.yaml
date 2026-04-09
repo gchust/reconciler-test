@@ -20,6 +20,9 @@ pages:
           status:
             wrapper: 7ya0cky3947
             field: nef0nu4au8t
+        js_items:
+          物料统计按钮组 — 按状态分组(有效/开发中/停用), 显示总物料数+低库存预警数:
+            uid: va7argb1wmi
       table:
         uid: uzzmxckhlla
         type: table
@@ -66,6 +69,11 @@ pages:
             uid: 2bha39z4paj
           delete:
             uid: fu98xiy8dvi
+        js_columns:
+          库存状态:
+            uid: g4sjg2fgwtb
+          利润率:
+            uid: v2top64e1ej
   客户管理:
     route_id: 357928943222784
     page_uid: zyx0itvnlry
@@ -86,6 +94,9 @@ pages:
           status:
             wrapper: c12duvcu5lz
             field: n0jnysw426n
+        js_items:
+          客户统计按钮组 — 按等级分组(VIP/A/B/C), 显示活跃/暂停/黑名单数量:
+            uid: huw4mwx7p73
       table:
         uid: e9rm4gidu46
         type: table
@@ -132,6 +143,9 @@ pages:
             uid: uhqzjizu06b
           delete:
             uid: 7ekjuoo2jes
+        js_columns:
+          信用状况:
+            uid: sxame2jjxhs
   供应商管理:
     route_id: 357928945319936
     page_uid: wfs2ab3u5ys
@@ -149,6 +163,9 @@ pages:
           rating:
             wrapper: jcs741mxyp7
             field: uz74dk06fqb
+        js_items:
+          供应商统计按钮组 — 按评级分组(A/B/C/D), 显示合格/试用/暂停/淘汰数量:
+            uid: jzyiskmiz5j
       table:
         uid: xek3spu6p7a
         type: table
@@ -195,6 +212,9 @@ pages:
             uid: wi99pgqbkpq
           delete:
             uid: w3dic8e2pqd
+        js_columns:
+          综合评分:
+            uid: d8m0jyomu5v
   采购管理:
     route_id: 357928947417088
     page_uid: hlbdmzsn25y
@@ -215,6 +235,9 @@ pages:
           priority:
             wrapper: mi8k1gw20pb
             field: 0iwx0njm16l
+        js_items:
+          采购统计按钮组 — 按状态分组(草稿/待审/已审/到货/关闭), 显示本月采购总额:
+            uid: bhew80l7jrn
       table:
         uid: ptmrrvi8g59
         type: table
@@ -258,6 +281,11 @@ pages:
             uid: 12xj6msyayp
           delete:
             uid: gbwo1fnrcvm
+        js_columns:
+          到货倒计时:
+            uid: 87rp8knebg4
+          金额(含税):
+            uid: wimokpum21i
   销售管理:
     route_id: 357928947417090
     page_uid: sdkv2b3c8f6
@@ -278,6 +306,9 @@ pages:
           priority:
             wrapper: frr5rezuyqw
             field: 5h681qqy41g
+        js_items:
+          销售统计按钮组 — 按状态分组(草稿/确认/生产中/发货/签收), 显示本月销售总额:
+            uid: z336m6iw3ig
       table:
         uid: qwz3wob8vyb
         type: table
@@ -321,6 +352,11 @@ pages:
             uid: f862oo6vm4y
           delete:
             uid: 1jzc8rtm6h3
+        js_columns:
+          交货倒计时:
+            uid: w6w6ri0jpdo
+          订单进度:
+            uid: 5ppppd8a4fg
   生产管理:
     route_id: 357928949514240
     page_uid: je93vwp6b7a
@@ -341,6 +377,9 @@ pages:
           priority:
             wrapper: rdg1s5emccx
             field: zvkxs4z9hl9
+        js_items:
+          生产统计按钮组 — 按状态分组(待排产/生产中/暂停/已完工), 显示今日产出数量:
+            uid: yh9vu38zo6h
       table:
         uid: tzc8ctbo4ug
         type: table
@@ -387,6 +426,11 @@ pages:
             uid: 022vvt5noxo
           delete:
             uid: 3cgotv6ufaz
+        js_columns:
+          完工进度:
+            uid: 34ficyghe2y
+          良品率:
+            uid: 644qrgu5lqm
   库存流水:
     route_id: 357928951611392
     page_uid: 7mf4klmiml1
@@ -407,6 +451,9 @@ pages:
           warehouse:
             wrapper: huo88wza6v4
             field: a0buf0u8d5x
+        js_items:
+          库存统计按钮组 — 按类型分组(入库/出库/调拨), 显示今日出入库合计:
+            uid: gm9w6e6b8wq
       table:
         uid: pr52g7108ir
         type: table
@@ -450,6 +497,9 @@ pages:
             uid: en7yeysedoh
           delete:
             uid: oq48ha0mu2u
+        js_columns:
+          出入标记:
+            uid: 1sb786j7ys8
   质检管理:
     route_id: 357928953708544
     page_uid: 062vnabtevy
@@ -470,6 +520,9 @@ pages:
           result:
             wrapper: fznp5wbdeyl
             field: uciiol52n0y
+        js_items:
+          质检统计按钮组 — 按结果分组(合格/不合格/让步/待判定), 显示本月合格率:
+            uid: r5do4fau1dm
       table:
         uid: mjz4km03jpr
         type: table
@@ -516,3 +569,6 @@ pages:
             uid: v5898ql3eba
           delete:
             uid: xzhob3zvj6d
+        js_columns:
+          合格率:
+            uid: a2eucp7sew2
