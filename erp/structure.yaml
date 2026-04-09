@@ -1,403 +1,837 @@
-# ═══════════════════════════════════════════════════
-#  制造业 ERP — 8 表 8 页面
-# ═══════════════════════════════════════════════════
-
 module: 制造业ERP
 icon: tooloutlined
-
 collections:
   nb_erp_products:
     title: 产品/物料
     fields:
-      - { name: product_code, interface: input, title: 物料编码 }
-      - { name: name, interface: input, title: 物料名称 }
-      - { name: category, interface: select, title: 分类, options: [原材料, 半成品, 成品, 辅料, 包装材料] }
-      - { name: unit, interface: select, title: 单位, options: [个, 件, 吨, 米, 套, 卷, 箱] }
-      - { name: spec, interface: input, title: 规格型号 }
-      - { name: standard_price, interface: number, title: 标准价格 }
-      - { name: cost_price, interface: number, title: 成本价 }
-      - { name: stock_qty, interface: integer, title: 库存数量 }
-      - { name: min_stock, interface: integer, title: 安全库存 }
-      - { name: max_stock, interface: integer, title: 最大库存 }
-      - { name: lead_time, interface: integer, title: 采购周期(天) }
-      - { name: status, interface: select, title: 状态, options: [有效, 开发中, 停用, 待审核] }
-      - { name: remark, interface: textarea, title: 备注 }
-
+    - name: product_code
+      interface: input
+      title: 物料编码
+    - name: name
+      interface: input
+      title: 物料名称
+    - name: category
+      interface: select
+      title: 分类
+      options:
+      - 原材料
+      - 半成品
+      - 成品
+      - 辅料
+      - 包装材料
+    - name: unit
+      interface: select
+      title: 单位
+      options:
+      - 个
+      - 件
+      - 吨
+      - 米
+      - 套
+      - 卷
+      - 箱
+    - name: spec
+      interface: input
+      title: 规格型号
+    - name: standard_price
+      interface: number
+      title: 标准价格
+    - name: cost_price
+      interface: number
+      title: 成本价
+    - name: stock_qty
+      interface: integer
+      title: 库存数量
+    - name: min_stock
+      interface: integer
+      title: 安全库存
+    - name: max_stock
+      interface: integer
+      title: 最大库存
+    - name: lead_time
+      interface: integer
+      title: 采购周期(天)
+    - name: status
+      interface: select
+      title: 状态
+      options:
+      - 有效
+      - 开发中
+      - 停用
+      - 待审核
+    - name: remark
+      interface: textarea
+      title: 备注
   nb_erp_customers:
     title: 客户
     fields:
-      - { name: name, interface: input, title: 客户名称 }
-      - { name: customer_code, interface: input, title: 客户编号 }
-      - { name: contact, interface: input, title: 联系人 }
-      - { name: phone, interface: input, title: 电话 }
-      - { name: email, interface: input, title: 邮箱 }
-      - { name: address, interface: textarea, title: 地址 }
-      - { name: level, interface: select, title: 等级, options: [VIP, A, B, C] }
-      - { name: industry, interface: select, title: 行业, options: [制造业, 能源, 汽车, 电子, 建筑, 其他] }
-      - { name: payment_terms, interface: select, title: 付款条件, options: [预付, 货到付款, 月结30天, 月结60天, 月结90天] }
-      - { name: credit_limit, interface: number, title: 信用额度 }
-      - { name: tax_rate, interface: number, title: 税率(%) }
-      - { name: status, interface: select, title: 状态, options: [活跃, 暂停, 黑名单] }
-
+    - name: name
+      interface: input
+      title: 客户名称
+    - name: customer_code
+      interface: input
+      title: 客户编号
+    - name: contact
+      interface: input
+      title: 联系人
+    - name: phone
+      interface: input
+      title: 电话
+    - name: email
+      interface: input
+      title: 邮箱
+    - name: address
+      interface: textarea
+      title: 地址
+    - name: level
+      interface: select
+      title: 等级
+      options:
+      - VIP
+      - A
+      - B
+      - C
+    - name: industry
+      interface: select
+      title: 行业
+      options:
+      - 制造业
+      - 能源
+      - 汽车
+      - 电子
+      - 建筑
+      - 其他
+    - name: payment_terms
+      interface: select
+      title: 付款条件
+      options:
+      - 预付
+      - 货到付款
+      - 月结30天
+      - 月结60天
+      - 月结90天
+    - name: credit_limit
+      interface: number
+      title: 信用额度
+    - name: tax_rate
+      interface: number
+      title: 税率(%)
+    - name: status
+      interface: select
+      title: 状态
+      options:
+      - 活跃
+      - 暂停
+      - 黑名单
   nb_erp_suppliers:
     title: 供应商
     fields:
-      - { name: name, interface: input, title: 供应商名称 }
-      - { name: supplier_code, interface: input, title: 供应商编号 }
-      - { name: contact, interface: input, title: 联系人 }
-      - { name: phone, interface: input, title: 电话 }
-      - { name: email, interface: input, title: 邮箱 }
-      - { name: address, interface: textarea, title: 地址 }
-      - { name: category, interface: select, title: 类别, options: [原材料, 零部件, 设备, 服务, 包装] }
-      - { name: rating, interface: select, title: 评级, options: [A-优秀, B-良好, C-合格, D-待改善] }
-      - { name: payment_terms, interface: select, title: 付款条件, options: [预付, 月结30天, 月结60天] }
-      - { name: delivery_score, interface: integer, title: 交付评分 }
-      - { name: quality_score, interface: integer, title: 质量评分 }
-      - { name: status, interface: select, title: 状态, options: [合格, 试用, 暂停, 淘汰] }
-
+    - name: name
+      interface: input
+      title: 供应商名称
+    - name: supplier_code
+      interface: input
+      title: 供应商编号
+    - name: contact
+      interface: input
+      title: 联系人
+    - name: phone
+      interface: input
+      title: 电话
+    - name: email
+      interface: input
+      title: 邮箱
+    - name: address
+      interface: textarea
+      title: 地址
+    - name: category
+      interface: select
+      title: 类别
+      options:
+      - 原材料
+      - 零部件
+      - 设备
+      - 服务
+      - 包装
+    - name: rating
+      interface: select
+      title: 评级
+      options:
+      - A-优秀
+      - B-良好
+      - C-合格
+      - D-待改善
+    - name: payment_terms
+      interface: select
+      title: 付款条件
+      options:
+      - 预付
+      - 月结30天
+      - 月结60天
+    - name: delivery_score
+      interface: integer
+      title: 交付评分
+    - name: quality_score
+      interface: integer
+      title: 质量评分
+    - name: status
+      interface: select
+      title: 状态
+      options:
+      - 合格
+      - 试用
+      - 暂停
+      - 淘汰
   nb_erp_purchase_orders:
     title: 采购订单
     fields:
-      - { name: po_no, interface: input, title: 采购单号 }
-      - { name: supplier_name, interface: input, title: 供应商 }
-      - { name: total_amount, interface: number, title: 总金额 }
-      - { name: tax_amount, interface: number, title: 税额 }
-      - { name: status, interface: select, title: 状态, options: [草稿, 待审批, 已审批, 部分到货, 已到货, 已关闭, 已取消] }
-      - { name: priority, interface: select, title: 优先级, options: [紧急, 高, 普通, 低] }
-      - { name: order_date, interface: datetime, title: 下单日期 }
-      - { name: expected_date, interface: datetime, title: 预计到货 }
-      - { name: actual_date, interface: datetime, title: 实际到货 }
-      - { name: buyer, interface: input, title: 采购员 }
-      - { name: remark, interface: textarea, title: 备注 }
-
+    - name: po_no
+      interface: input
+      title: 采购单号
+    - name: supplier_name
+      interface: input
+      title: 供应商
+    - name: total_amount
+      interface: number
+      title: 总金额
+    - name: tax_amount
+      interface: number
+      title: 税额
+    - name: status
+      interface: select
+      title: 状态
+      options:
+      - 草稿
+      - 待审批
+      - 已审批
+      - 部分到货
+      - 已到货
+      - 已关闭
+      - 已取消
+    - name: priority
+      interface: select
+      title: 优先级
+      options:
+      - 紧急
+      - 高
+      - 普通
+      - 低
+    - name: order_date
+      interface: datetime
+      title: 下单日期
+    - name: expected_date
+      interface: datetime
+      title: 预计到货
+    - name: actual_date
+      interface: datetime
+      title: 实际到货
+    - name: buyer
+      interface: input
+      title: 采购员
+    - name: remark
+      interface: textarea
+      title: 备注
   nb_erp_sales_orders:
     title: 销售订单
     fields:
-      - { name: so_no, interface: input, title: 销售单号 }
-      - { name: customer_name, interface: input, title: 客户名称 }
-      - { name: total_amount, interface: number, title: 总金额 }
-      - { name: tax_amount, interface: number, title: 税额 }
-      - { name: status, interface: select, title: 状态, options: [草稿, 已确认, 生产中, 待发货, 部分发货, 已发货, 已签收, 已取消] }
-      - { name: priority, interface: select, title: 优先级, options: [紧急, 高, 普通, 低] }
-      - { name: order_date, interface: datetime, title: 下单日期 }
-      - { name: delivery_date, interface: datetime, title: 交货日期 }
-      - { name: shipped_date, interface: datetime, title: 发货日期 }
-      - { name: sales_rep, interface: input, title: 销售员 }
-      - { name: remark, interface: textarea, title: 备注 }
-
+    - name: so_no
+      interface: input
+      title: 销售单号
+    - name: customer_name
+      interface: input
+      title: 客户名称
+    - name: total_amount
+      interface: number
+      title: 总金额
+    - name: tax_amount
+      interface: number
+      title: 税额
+    - name: status
+      interface: select
+      title: 状态
+      options:
+      - 草稿
+      - 已确认
+      - 生产中
+      - 待发货
+      - 部分发货
+      - 已发货
+      - 已签收
+      - 已取消
+    - name: priority
+      interface: select
+      title: 优先级
+      options:
+      - 紧急
+      - 高
+      - 普通
+      - 低
+    - name: order_date
+      interface: datetime
+      title: 下单日期
+    - name: delivery_date
+      interface: datetime
+      title: 交货日期
+    - name: shipped_date
+      interface: datetime
+      title: 发货日期
+    - name: sales_rep
+      interface: input
+      title: 销售员
+    - name: remark
+      interface: textarea
+      title: 备注
   nb_erp_work_orders:
     title: 生产工单
     fields:
-      - { name: wo_no, interface: input, title: 工单编号 }
-      - { name: product_name, interface: input, title: 产品名称 }
-      - { name: planned_qty, interface: integer, title: 计划数量 }
-      - { name: completed_qty, interface: integer, title: 完成数量 }
-      - { name: defect_qty, interface: integer, title: 不良数量 }
-      - { name: status, interface: select, title: 状态, options: [待排产, 生产中, 暂停, 已完工, 已关闭] }
-      - { name: priority, interface: select, title: 优先级, options: [紧急, 高, 普通, 低] }
-      - { name: planned_start, interface: datetime, title: 计划开始 }
-      - { name: planned_end, interface: datetime, title: 计划结束 }
-      - { name: actual_start, interface: datetime, title: 实际开始 }
-      - { name: actual_end, interface: datetime, title: 实际结束 }
-      - { name: workshop, interface: input, title: 车间 }
-      - { name: so_no, interface: input, title: 关联销售单 }
-      - { name: remark, interface: textarea, title: 备注 }
-
+    - name: wo_no
+      interface: input
+      title: 工单编号
+    - name: product_name
+      interface: input
+      title: 产品名称
+    - name: planned_qty
+      interface: integer
+      title: 计划数量
+    - name: completed_qty
+      interface: integer
+      title: 完成数量
+    - name: defect_qty
+      interface: integer
+      title: 不良数量
+    - name: status
+      interface: select
+      title: 状态
+      options:
+      - 待排产
+      - 生产中
+      - 暂停
+      - 已完工
+      - 已关闭
+    - name: priority
+      interface: select
+      title: 优先级
+      options:
+      - 紧急
+      - 高
+      - 普通
+      - 低
+    - name: planned_start
+      interface: datetime
+      title: 计划开始
+    - name: planned_end
+      interface: datetime
+      title: 计划结束
+    - name: actual_start
+      interface: datetime
+      title: 实际开始
+    - name: actual_end
+      interface: datetime
+      title: 实际结束
+    - name: workshop
+      interface: input
+      title: 车间
+    - name: so_no
+      interface: input
+      title: 关联销售单
+    - name: remark
+      interface: textarea
+      title: 备注
   nb_erp_inventory:
     title: 库存流水
     fields:
-      - { name: txn_no, interface: input, title: 流水号 }
-      - { name: product_name, interface: input, title: 物料名称 }
-      - { name: product_code, interface: input, title: 物料编码 }
-      - { name: txn_type, interface: select, title: 类型, options: [采购入库, 生产入库, 销售出库, 生产领料, 退货入库, 盘盈, 盘亏, 调拨] }
-      - { name: qty, interface: integer, title: 数量 }
-      - { name: warehouse, interface: select, title: 仓库, options: [原材料仓, 半成品仓, 成品仓, 退货仓] }
-      - { name: ref_no, interface: input, title: 关联单号 }
-      - { name: operator, interface: input, title: 操作人 }
-      - { name: remark, interface: textarea, title: 备注 }
-
+    - name: txn_no
+      interface: input
+      title: 流水号
+    - name: product_name
+      interface: input
+      title: 物料名称
+    - name: product_code
+      interface: input
+      title: 物料编码
+    - name: txn_type
+      interface: select
+      title: 类型
+      options:
+      - 采购入库
+      - 生产入库
+      - 销售出库
+      - 生产领料
+      - 退货入库
+      - 盘盈
+      - 盘亏
+      - 调拨
+    - name: qty
+      interface: integer
+      title: 数量
+    - name: warehouse
+      interface: select
+      title: 仓库
+      options:
+      - 原材料仓
+      - 半成品仓
+      - 成品仓
+      - 退货仓
+    - name: ref_no
+      interface: input
+      title: 关联单号
+    - name: operator
+      interface: input
+      title: 操作人
+    - name: remark
+      interface: textarea
+      title: 备注
   nb_erp_quality:
     title: 质检记录
     fields:
-      - { name: qc_no, interface: input, title: 质检单号 }
-      - { name: product_name, interface: input, title: 物料名称 }
-      - { name: qc_type, interface: select, title: 检验类型, options: [来料检验, 过程检验, 成品检验, 出货检验] }
-      - { name: batch_no, interface: input, title: 批次号 }
-      - { name: sample_qty, interface: integer, title: 抽检数量 }
-      - { name: pass_qty, interface: integer, title: 合格数量 }
-      - { name: fail_qty, interface: integer, title: 不合格数量 }
-      - { name: result, interface: select, title: 检验结果, options: [合格, 不合格, 让步接收, 待判定] }
-      - { name: ref_no, interface: input, title: 关联单号 }
-      - { name: inspector, interface: input, title: 检验员 }
-      - { name: remark, interface: textarea, title: 不合格描述 }
-
-# ═══════════════════════════════════════════════════
-#  页面
-# ═══════════════════════════════════════════════════
-
+    - name: qc_no
+      interface: input
+      title: 质检单号
+    - name: product_name
+      interface: input
+      title: 物料名称
+    - name: qc_type
+      interface: select
+      title: 检验类型
+      options:
+      - 来料检验
+      - 过程检验
+      - 成品检验
+      - 出货检验
+    - name: batch_no
+      interface: input
+      title: 批次号
+    - name: sample_qty
+      interface: integer
+      title: 抽检数量
+    - name: pass_qty
+      interface: integer
+      title: 合格数量
+    - name: fail_qty
+      interface: integer
+      title: 不合格数量
+    - name: result
+      interface: select
+      title: 检验结果
+      options:
+      - 合格
+      - 不合格
+      - 让步接收
+      - 待判定
+    - name: ref_no
+      interface: input
+      title: 关联单号
+    - name: inspector
+      interface: input
+      title: 检验员
+    - name: remark
+      interface: textarea
+      title: 不合格描述
 pages:
-  # ── 1. 产品/物料 ──
-  - page: 物料管理
-    icon: appstoreoutlined
-    coll: nb_erp_products
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: name
-            label: 搜索
-            filterPaths: [product_code, name, spec]
-          - field: category
-            label: 分类
-          - field: status
-            label: 状态
-        js_items:
-          - desc: 物料统计按钮组 — 按状态分组(有效/开发中/停用), 显示总物料数+低库存预警数
-            file: ./js/filter_product_stats.js
-
-      - key: table
-        type: table
-        fields: [product_code, name, category, spec, unit, standard_price, cost_price, stock_qty, status]
-        js_columns:
-          - title: 库存状态
-            desc: 库存预警标签 — stock_qty vs min_stock, 缺货(红)/低于安全(橙)/偏低(黄)/充足(绿), 显示数量
-            file: ./js/col_stock_status.js
-          - title: 利润率
-            desc: (standard_price - cost_price) / standard_price 百分比, <10%红 <20%橙 >=20%绿
-            file: ./js/col_profit_rate.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 2. 客户管理 ──
-  - page: 客户管理
-    icon: teamoutlined
-    coll: nb_erp_customers
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: name
-            label: 搜索
-            filterPaths: [customer_code, name, contact, phone]
-          - field: level
-            label: 等级
-          - field: status
-            label: 状态
-        js_items:
-          - desc: 客户统计按钮组 — 按等级分组(VIP/A/B/C), 显示活跃/暂停/黑名单数量
-            file: ./js/filter_customer_stats.js
-
-      - key: table
-        type: table
-        fields: [customer_code, name, contact, phone, level, industry, payment_terms, credit_limit, status]
-        js_columns:
-          - title: 信用状况
-            desc: 信用额度使用情况指示器 — 等级徽章(VIP金/A蓝/B绿/C灰) + 额度数值
-            file: ./js/col_credit_indicator.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 3. 供应商管理 ──
-  - page: 供应商管理
-    icon: solutionoutlined
-    coll: nb_erp_suppliers
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: name
-            label: 搜索
-            filterPaths: [supplier_code, name, contact, phone]
-          - field: rating
-            label: 评级
-        js_items:
-          - desc: 供应商统计按钮组 — 按评级分组(A/B/C/D), 显示合格/试用/暂停/淘汰数量
-            file: ./js/filter_supplier_stats.js
-
-      - key: table
-        type: table
-        fields: [supplier_code, name, contact, phone, category, rating, delivery_score, quality_score, status]
-        js_columns:
-          - title: 综合评分
-            desc: (delivery_score + quality_score) / 2 的星级显示, 5星=优秀 4星=良好 3星=合格 <3=待改善
-            file: ./js/col_supplier_score.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 4. 采购订单 ──
-  - page: 采购管理
-    icon: shoppingcartoutlined
-    coll: nb_erp_purchase_orders
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: po_no
-            label: 搜索
-            filterPaths: [po_no, supplier_name, buyer]
-          - field: status
-            label: 状态
-          - field: priority
-            label: 优先级
-        js_items:
-          - desc: 采购统计按钮组 — 按状态分组(草稿/待审/已审/到货/关闭), 显示本月采购总额
-            file: ./js/filter_po_stats.js
-
-      - key: table
-        type: table
-        fields: [po_no, supplier_name, total_amount, status, priority, order_date, expected_date, buyer]
-        js_columns:
-          - title: 到货倒计时
-            desc: 距expected_date天数 — 已过期红色, <3天橙色, 其他蓝色, 已到货✓, 已取消灰
-            file: ./js/col_po_countdown.js
-          - title: 金额(含税)
-            desc: total_amount + tax_amount 合计, 格式化为 ¥xxx,xxx.xx
-            file: ./js/col_po_total.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 5. 销售订单 ──
-  - page: 销售管理
-    icon: fundoutlined
-    coll: nb_erp_sales_orders
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: so_no
-            label: 搜索
-            filterPaths: [so_no, customer_name, sales_rep]
-          - field: status
-            label: 状态
-          - field: priority
-            label: 优先级
-        js_items:
-          - desc: 销售统计按钮组 — 按状态分组(草稿/确认/生产中/发货/签收), 显示本月销售总额
-            file: ./js/filter_so_stats.js
-
-      - key: table
-        type: table
-        fields: [so_no, customer_name, total_amount, status, priority, order_date, delivery_date, sales_rep]
-        js_columns:
-          - title: 交货倒计时
-            desc: 距delivery_date天数 — 逾期红色, <3天橙色, 其他蓝色, 已签收✓, 已取消灰
-            file: ./js/col_so_countdown.js
-          - title: 订单进度
-            desc: 状态流转进度条 — 草稿→确认→生产→发货→签收, 当前阶段高亮, 已取消灰色删除线
-            file: ./js/col_so_progress.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 6. 生产工单 ──
-  - page: 生产管理
-    icon: experimentoutlined
-    coll: nb_erp_work_orders
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: wo_no
-            label: 搜索
-            filterPaths: [wo_no, product_name, workshop, so_no]
-          - field: status
-            label: 状态
-          - field: priority
-            label: 优先级
-        js_items:
-          - desc: 生产统计按钮组 — 按状态分组(待排产/生产中/暂停/已完工), 显示今日产出数量
-            file: ./js/filter_wo_stats.js
-
-      - key: table
-        type: table
-        fields: [wo_no, product_name, planned_qty, completed_qty, status, priority, planned_start, planned_end, workshop]
-        js_columns:
-          - title: 完工进度
-            desc: completed_qty / planned_qty 进度条, <50%红 <80%橙 >=80%绿, 显示百分比
-            file: ./js/col_wo_progress.js
-          - title: 良品率
-            desc: (completed_qty - defect_qty) / completed_qty 百分比, <90%红 <95%橙 >=95%绿
-            file: ./js/col_wo_yield.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 7. 库存管理 ──
-  - page: 库存流水
-    icon: dabordsoutlined
-    coll: nb_erp_inventory
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: product_name
-            label: 搜索
-            filterPaths: [txn_no, product_name, product_code, ref_no]
-          - field: txn_type
-            label: 类型
-          - field: warehouse
-            label: 仓库
-        js_items:
-          - desc: 库存统计按钮组 — 按类型分组(入库/出库/调拨), 显示今日出入库合计
-            file: ./js/filter_inv_stats.js
-
-      - key: table
-        type: table
-        fields: [txn_no, product_name, product_code, txn_type, qty, warehouse, ref_no, operator]
-        js_columns:
-          - title: 出入标记
-            desc: 入库类型显示绿色↑, 出库类型显示红色↓, 调拨显示蓝色↔, 盘点显示灰色
-            file: ./js/col_inv_direction.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
-
-  # ── 8. 质检管理 ──
-  - page: 质检管理
-    icon: safetycertificateoutlined
-    coll: nb_erp_quality
-    blocks:
-      - key: filter
-        type: filterForm
-        fields:
-          - field: qc_no
-            label: 搜索
-            filterPaths: [qc_no, product_name, batch_no, ref_no]
-          - field: qc_type
-            label: 检验类型
-          - field: result
-            label: 结果
-        js_items:
-          - desc: 质检统计按钮组 — 按结果分组(合格/不合格/让步/待判定), 显示本月合格率
-            file: ./js/filter_qc_stats.js
-
-      - key: table
-        type: table
-        fields: [qc_no, product_name, qc_type, batch_no, sample_qty, pass_qty, fail_qty, result, inspector]
-        js_columns:
-          - title: 合格率
-            desc: pass_qty / sample_qty 百分比, <90%红 <95%橙 >=95%绿
-            file: ./js/col_qc_pass_rate.js
-        actions: [filter, refresh, addNew, export]
-        recordActions: [edit, delete]
-    layout:
-      - [filter]
-      - [table]
+- page: 物料管理
+  icon: appstoreoutlined
+  coll: nb_erp_products
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: name
+      label: 搜索
+      filterPaths:
+      - product_code
+      - name
+      - spec
+    - field: category
+      label: 分类
+    - field: status
+      label: 状态
+    js_items:
+    - file: ./js/物料管理_filter_js_0.js
+    field_layout:
+    - - smijoe4j
+    - - name
+      - category
+      - status
+  - key: table
+    type: table
+    fields:
+    - product_code
+    - name
+    - category
+    - spec
+    - unit
+    - standard_price
+    - cost_price
+    - stock_qty
+    - status
+    js_columns:
+    - title: 库存状态
+      file: ./js/物料管理_table_col_库存状态.js
+    - title: 利润率
+      file: ./js/物料管理_table_col_利润率.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 客户管理
+  icon: teamoutlined
+  coll: nb_erp_customers
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: name
+      label: 搜索
+      filterPaths:
+      - customer_code
+      - name
+      - contact
+      - phone
+    - field: level
+      label: 等级
+    - field: status
+      label: 状态
+    js_items:
+    - file: ./js/客户管理_filter_js_0.js
+    field_layout:
+    - - 6e626upy
+    - - name
+      - level
+      - status
+  - key: table
+    type: table
+    fields:
+    - customer_code
+    - name
+    - contact
+    - phone
+    - level
+    - industry
+    - payment_terms
+    - credit_limit
+    - status
+    js_columns:
+    - title: 信用状况
+      file: ./js/客户管理_table_col_信用状况.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 供应商管理
+  icon: solutionoutlined
+  coll: nb_erp_suppliers
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: name
+      label: 搜索
+      filterPaths:
+      - supplier_code
+      - name
+      - contact
+      - phone
+    - field: rating
+      label: 评级
+    js_items:
+    - file: ./js/供应商管理_filter_js_0.js
+    field_layout:
+    - - y958jcfw
+    - - name
+      - rating
+  - key: table
+    type: table
+    fields:
+    - supplier_code
+    - name
+    - contact
+    - phone
+    - category
+    - rating
+    - delivery_score
+    - quality_score
+    - status
+    js_columns:
+    - title: 综合评分
+      file: ./js/供应商管理_table_col_综合评分.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 采购管理
+  icon: shoppingcartoutlined
+  coll: nb_erp_purchase_orders
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: po_no
+      label: 搜索
+      filterPaths:
+      - po_no
+      - supplier_name
+      - buyer
+    - field: status
+      label: 状态
+    - field: priority
+      label: 优先级
+    js_items:
+    - file: ./js/采购管理_filter_js_0.js
+    field_layout:
+    - - 3vc698n1
+    - - po_no
+      - status
+      - priority
+  - key: table
+    type: table
+    fields:
+    - po_no
+    - supplier_name
+    - total_amount
+    - status
+    - priority
+    - order_date
+    - expected_date
+    - buyer
+    js_columns:
+    - title: 到货倒计时
+      file: ./js/采购管理_table_col_到货倒计时.js
+    - title: 金额(含税)
+      file: ./js/采购管理_table_col_金额_含税.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 销售管理
+  icon: fundoutlined
+  coll: nb_erp_sales_orders
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: so_no
+      label: 搜索
+      filterPaths:
+      - so_no
+      - customer_name
+      - sales_rep
+    - field: status
+      label: 状态
+    - field: priority
+      label: 优先级
+    js_items:
+    - file: ./js/销售管理_filter_js_0.js
+    field_layout:
+    - - an6pggv9
+    - - so_no
+      - status
+      - priority
+  - key: table
+    type: table
+    fields:
+    - so_no
+    - customer_name
+    - total_amount
+    - status
+    - priority
+    - order_date
+    - delivery_date
+    - sales_rep
+    js_columns:
+    - title: 交货倒计时
+      file: ./js/销售管理_table_col_交货倒计时.js
+    - title: 订单进度
+      file: ./js/销售管理_table_col_订单进度.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 生产管理
+  icon: experimentoutlined
+  coll: nb_erp_work_orders
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: wo_no
+      label: 搜索
+      filterPaths:
+      - wo_no
+      - product_name
+      - workshop
+      - so_no
+    - field: status
+      label: 状态
+    - field: priority
+      label: 优先级
+    js_items:
+    - file: ./js/生产管理_filter_js_0.js
+    field_layout:
+    - - n999kcr0
+    - - wo_no
+      - status
+      - priority
+  - key: table
+    type: table
+    fields:
+    - wo_no
+    - product_name
+    - planned_qty
+    - completed_qty
+    - status
+    - priority
+    - planned_start
+    - planned_end
+    - workshop
+    js_columns:
+    - title: 完工进度
+      file: ./js/生产管理_table_col_完工进度.js
+    - title: 良品率
+      file: ./js/生产管理_table_col_良品率.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 库存流水
+  icon: dabordsoutlined
+  coll: nb_erp_inventory
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: product_name
+      label: 搜索
+      filterPaths:
+      - txn_no
+      - product_name
+      - product_code
+      - ref_no
+    - field: txn_type
+      label: 类型
+    - field: warehouse
+      label: 仓库
+    js_items:
+    - file: ./js/库存流水_filter_js_0.js
+    field_layout:
+    - - gje9vdtw
+    - - product_name
+      - txn_type
+      - warehouse
+  - key: table
+    type: table
+    fields:
+    - txn_no
+    - product_name
+    - product_code
+    - txn_type
+    - qty
+    - warehouse
+    - ref_no
+    - operator
+    js_columns:
+    - title: 出入标记
+      file: ./js/库存流水_table_col_出入标记.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table
+- page: 质检管理
+  icon: safetycertificateoutlined
+  coll: nb_erp_quality
+  blocks:
+  - key: filter
+    type: filterForm
+    fields:
+    - field: qc_no
+      label: 搜索
+      filterPaths:
+      - qc_no
+      - product_name
+      - batch_no
+      - ref_no
+    - field: qc_type
+      label: 检验类型
+    - field: result
+      label: 结果
+    js_items:
+    - file: ./js/质检管理_filter_js_0.js
+    field_layout:
+    - - 03o75o0t
+    - - qc_no
+      - qc_type
+      - result
+  - key: table
+    type: table
+    fields:
+    - qc_no
+    - product_name
+    - qc_type
+    - batch_no
+    - sample_qty
+    - pass_qty
+    - fail_qty
+    - result
+    - inspector
+    js_columns:
+    - title: 合格率
+      file: ./js/质检管理_table_col_合格率.js
+    actions:
+    - filter
+    - refresh
+    - addNew
+    - export
+    recordActions:
+    - edit
+    - delete
+  layout:
+  - - filter
+  - - table

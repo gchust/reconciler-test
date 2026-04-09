@@ -1,312 +1,567 @@
-# ═══════════════════════════════════════════════════
-#  制造业 ERP — 弹窗（新建/编辑/详情）
-# ═══════════════════════════════════════════════════
-
 popups:
-  # ── 物料管理 ──
-  - target: $物料管理.table.actions.addNew
-    auto: [edit]
-    coll: nb_erp_products
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [product_code, name, category, spec, unit, standard_price, cost_price, stock_qty, min_stock, max_stock, lead_time, status, remark]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [product_code, name, category]
-          - [spec, unit, status]
-          - "--- 价格 ---"
-          - [standard_price, cost_price]
-          - "--- 库存 ---"
-          - [stock_qty, min_stock, max_stock]
-          - [lead_time]
-          - "--- 备注 ---"
-          - [remark]
-        actions: [submit]
-
-  - target: $物料管理.table.fields.name
-    mode: drawer
-    coll: nb_erp_products
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [product_code, name, category, spec, unit, standard_price, cost_price, stock_qty, min_stock, max_stock, lead_time, status, remark]
-        js_items:
-          - desc: 物料概览KPI卡片 — 标准价/成本/利润率/库存量/安全库存/采购周期, 库存状态红黄绿指示
-            file: ./js/detail_product_kpi.js
-        field_layout:
-          - "--- 基本信息 ---"
-          - [product_code, name, category]
-          - [spec, unit, status]
-          - "--- 价格 ---"
-          - [standard_price, cost_price]
-          - "--- 库存 ---"
-          - [stock_qty, min_stock, max_stock]
-          - [lead_time]
-          - "--- 备注 ---"
-          - [remark]
-        recordActions: [edit]
-
-  # ── 客户管理 ──
-  - target: $客户管理.table.actions.addNew
-    auto: [edit]
-    coll: nb_erp_customers
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [customer_code, name, contact, phone, email, address, level, industry, payment_terms, credit_limit, tax_rate, status]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [customer_code, name, level]
-          - [industry, status]
-          - "--- 联系方式 ---"
-          - [contact, phone, email]
-          - [address]
-          - "--- 财务信息 ---"
-          - [payment_terms, credit_limit, tax_rate]
-        actions: [submit]
-
-  - target: $客户管理.table.fields.name
-    mode: drawer
-    coll: nb_erp_customers
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [customer_code, name, contact, phone, email, address, level, industry, payment_terms, credit_limit, tax_rate, status]
-        js_items:
-          - desc: 客户画像卡片 — 等级徽章(VIP金色/A蓝/B绿/C灰) + 信用额度 + 付款条件 + 行业标签 + 税率
-            file: ./js/detail_customer_profile.js
-        field_layout:
-          - "--- 基本信息 ---"
-          - [customer_code, name, level]
-          - [industry, status]
-          - "--- 联系方式 ---"
-          - [contact, phone, email]
-          - [address]
-          - "--- 财务信息 ---"
-          - [payment_terms, credit_limit, tax_rate]
-        recordActions: [edit]
-
-  # ── 供应商管理 ──
-  - target: $供应商管理.table.actions.addNew
-    auto: [edit, view]
-    view_field: name
-    coll: nb_erp_suppliers
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [supplier_code, name, contact, phone, email, address, category, rating, payment_terms, delivery_score, quality_score, status]
-        field_layout:
-          - "--- 基本信息 ---"
-          - [supplier_code, name, category]
-          - [rating, status]
-          - "--- 联系方式 ---"
-          - [contact, phone, email]
-          - [address]
-          - "--- 评估 ---"
-          - [delivery_score, quality_score]
-          - [payment_terms]
-        actions: [submit]
-
-  # ── 采购订单 ──
-  - target: $采购管理.table.actions.addNew
-    auto: [edit]
-    coll: nb_erp_purchase_orders
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [po_no, supplier_name, total_amount, tax_amount, status, priority, order_date, expected_date, buyer, remark]
-        field_layout:
-          - "--- 订单信息 ---"
-          - [po_no, supplier_name, status]
-          - [priority, buyer]
-          - "--- 金额 ---"
-          - [total_amount, tax_amount]
-          - "--- 日期 ---"
-          - [order_date, expected_date]
-          - "--- 备注 ---"
-          - [remark]
-        actions: [submit]
-
-  - target: $采购管理.table.fields.po_no
-    mode: drawer
-    coll: nb_erp_purchase_orders
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [po_no, supplier_name, total_amount, tax_amount, status, priority, order_date, expected_date, actual_date, buyer, remark]
-        js_items:
-          - desc: 采购单概览卡片 — 总金额(含税)/供应商/状态流转(草稿→审批→到货→关闭)进度条/到货倒计时/优先级徽章
-            file: ./js/detail_po_overview.js
-        field_layout:
-          - "--- 订单信息 ---"
-          - [po_no, supplier_name, status]
-          - [priority, buyer]
-          - "--- 金额 ---"
-          - [total_amount, tax_amount]
-          - "--- 日期 ---"
-          - [order_date, expected_date, actual_date]
-          - "--- 备注 ---"
-          - [remark]
-        recordActions: [edit]
-
-  # ── 销售订单 ──
-  - target: $销售管理.table.actions.addNew
-    auto: [edit]
-    coll: nb_erp_sales_orders
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [so_no, customer_name, total_amount, tax_amount, status, priority, order_date, delivery_date, sales_rep, remark]
-        field_layout:
-          - "--- 订单信息 ---"
-          - [so_no, customer_name, status]
-          - [priority, sales_rep]
-          - "--- 金额 ---"
-          - [total_amount, tax_amount]
-          - "--- 日期 ---"
-          - [order_date, delivery_date]
-          - "--- 备注 ---"
-          - [remark]
-        actions: [submit]
-
-  - target: $销售管理.table.fields.so_no
-    mode: drawer
-    coll: nb_erp_sales_orders
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [so_no, customer_name, total_amount, tax_amount, status, priority, order_date, delivery_date, shipped_date, sales_rep, remark]
-        js_items:
-          - desc: 销售单概览卡片 — 总金额(含税)/客户/状态进度条(草稿→确认→生产→发货→签收)/交货倒计时/优先级
-            file: ./js/detail_so_overview.js
-        field_layout:
-          - "--- 订单信息 ---"
-          - [so_no, customer_name, status]
-          - [priority, sales_rep]
-          - "--- 金额 ---"
-          - [total_amount, tax_amount]
-          - "--- 日期 ---"
-          - [order_date, delivery_date, shipped_date]
-          - "--- 备注 ---"
-          - [remark]
-        recordActions: [edit]
-
-  # ── 生产工单 ──
-  - target: $生产管理.table.actions.addNew
-    auto: [edit]
-    coll: nb_erp_work_orders
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [wo_no, product_name, planned_qty, status, priority, planned_start, planned_end, workshop, so_no, remark]
-        field_layout:
-          - "--- 工单信息 ---"
-          - [wo_no, product_name, status]
-          - [priority, workshop]
-          - "--- 数量与计划 ---"
-          - [planned_qty]
-          - [planned_start, planned_end]
-          - "--- 关联 ---"
-          - [so_no]
-          - "--- 备注 ---"
-          - [remark]
-        actions: [submit]
-
-  - target: $生产管理.table.fields.wo_no
-    mode: drawer
-    coll: nb_erp_work_orders
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [wo_no, product_name, planned_qty, completed_qty, defect_qty, status, priority, planned_start, planned_end, actual_start, actual_end, workshop, so_no, remark]
-        js_items:
-          - desc: 生产工单概览卡片 — 完工进度环形图(completed/planned) + 良品率 + 状态进度条(待排产→生产→完工) + 计划vs实际日期对比
-            file: ./js/detail_wo_overview.js
-        field_layout:
-          - "--- 工单信息 ---"
-          - [wo_no, product_name, status]
-          - [priority, workshop]
-          - "--- 数量 ---"
-          - [planned_qty, completed_qty, defect_qty]
-          - "--- 计划 ---"
-          - [planned_start, planned_end]
-          - [actual_start, actual_end]
-          - "--- 关联 ---"
-          - [so_no]
-          - "--- 备注 ---"
-          - [remark]
-        recordActions: [edit]
-
-  # ── 库存流水 ──
-  - target: $库存流水.table.actions.addNew
-    auto: [edit, view]
-    view_field: txn_no
-    coll: nb_erp_inventory
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [txn_no, product_name, product_code, txn_type, qty, warehouse, ref_no, operator, remark]
-        field_layout:
-          - "--- 物料信息 ---"
-          - [product_name, product_code]
-          - "--- 出入库 ---"
-          - [txn_type, qty, warehouse]
-          - [ref_no, operator]
-          - "--- 备注 ---"
-          - [remark]
-        actions: [submit]
-
-  # ── 质检管理 ──
-  - target: $质检管理.table.actions.addNew
-    auto: [edit]
-    coll: nb_erp_quality
-    blocks:
-      - key: form
-        type: createForm
-        resource: { binding: currentCollection }
-        fields: [qc_no, product_name, qc_type, batch_no, sample_qty, pass_qty, fail_qty, result, ref_no, inspector, remark]
-        field_layout:
-          - "--- 检验信息 ---"
-          - [qc_no, product_name, qc_type]
-          - [batch_no, ref_no]
-          - "--- 检验数据 ---"
-          - [sample_qty, pass_qty, fail_qty]
-          - [result, inspector]
-          - "--- 不合格描述 ---"
-          - [remark]
-        actions: [submit]
-
-  - target: $质检管理.table.fields.qc_no
-    mode: drawer
-    coll: nb_erp_quality
-    blocks:
-      - key: detail
-        type: details
-        resource: { binding: currentRecord }
-        fields: [qc_no, product_name, qc_type, batch_no, sample_qty, pass_qty, fail_qty, result, ref_no, inspector, remark]
-        js_items:
-          - desc: 质检概览卡片 — 合格率环形图(pass/sample) + 检验结果大徽章(合格绿/不合格红/让步橙/待判灰) + 抽检/合格/不合格数值对比
-            file: ./js/detail_qc_overview.js
-        field_layout:
-          - "--- 检验信息 ---"
-          - [qc_no, product_name, qc_type]
-          - [batch_no, ref_no]
-          - "--- 检验数据 ---"
-          - [sample_qty, pass_qty, fail_qty]
-          - [result, inspector]
-          - "--- 不合格描述 ---"
-          - [remark]
-        recordActions: [edit]
+- target: $物料管理.table.actions.addNew
+  auto:
+  - edit
+  coll: nb_erp_products
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - product_code
+    - name
+    - category
+    - spec
+    - unit
+    - standard_price
+    - cost_price
+    - stock_qty
+    - min_stock
+    - max_stock
+    - lead_time
+    - status
+    - remark
+    field_layout:
+    - '--- 基本信息 ---'
+    - - product_code
+      - name
+      - category
+    - - spec
+      - unit
+      - status
+    - '--- 价格 ---'
+    - - standard_price
+      - cost_price
+    - '--- 库存 ---'
+    - - stock_qty
+      - min_stock
+      - max_stock
+    - - lead_time
+    - '--- 备注 ---'
+    - - remark
+    actions:
+    - submit
+- target: $物料管理.table.fields.name
+  mode: drawer
+  coll: nb_erp_products
+  blocks:
+  - key: detail
+    type: details
+    resource:
+      binding: currentRecord
+    fields:
+    - product_code
+    - name
+    - category
+    - spec
+    - unit
+    - standard_price
+    - cost_price
+    - stock_qty
+    - min_stock
+    - max_stock
+    - lead_time
+    - status
+    - remark
+    js_items:
+    - desc: 物料概览KPI卡片 — 标准价/成本/利润率/库存量/安全库存/采购周期, 库存状态红黄绿指示
+      file: ./js/detail_product_kpi.js
+    field_layout:
+    - '--- 基本信息 ---'
+    - - product_code
+      - name
+      - category
+    - - spec
+      - unit
+      - status
+    - '--- 价格 ---'
+    - - standard_price
+      - cost_price
+    - '--- 库存 ---'
+    - - stock_qty
+      - min_stock
+      - max_stock
+    - - lead_time
+    - '--- 备注 ---'
+    - - remark
+    recordActions:
+    - edit
+- target: $客户管理.table.actions.addNew
+  auto:
+  - edit
+  coll: nb_erp_customers
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - customer_code
+    - name
+    - contact
+    - phone
+    - email
+    - address
+    - level
+    - industry
+    - payment_terms
+    - credit_limit
+    - tax_rate
+    - status
+    field_layout:
+    - '--- 基本信息 ---'
+    - - customer_code
+      - name
+      - level
+    - - industry
+      - status
+    - '--- 联系方式 ---'
+    - - contact
+      - phone
+      - email
+    - - address
+    - '--- 财务信息 ---'
+    - - payment_terms
+      - credit_limit
+      - tax_rate
+    actions:
+    - submit
+- target: $客户管理.table.fields.name
+  mode: drawer
+  coll: nb_erp_customers
+  blocks:
+  - key: detail
+    type: details
+    resource:
+      binding: currentRecord
+    fields:
+    - customer_code
+    - name
+    - contact
+    - phone
+    - email
+    - address
+    - level
+    - industry
+    - payment_terms
+    - credit_limit
+    - tax_rate
+    - status
+    js_items:
+    - desc: 客户画像卡片 — 等级徽章(VIP金色/A蓝/B绿/C灰) + 信用额度 + 付款条件 + 行业标签 + 税率
+      file: ./js/detail_customer_profile.js
+    field_layout:
+    - '--- 基本信息 ---'
+    - - customer_code
+      - name
+      - level
+    - - industry
+      - status
+    - '--- 联系方式 ---'
+    - - contact
+      - phone
+      - email
+    - - address
+    - '--- 财务信息 ---'
+    - - payment_terms
+      - credit_limit
+      - tax_rate
+    recordActions:
+    - edit
+- target: $供应商管理.table.actions.addNew
+  auto:
+  - edit
+  - view
+  view_field: name
+  coll: nb_erp_suppliers
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - supplier_code
+    - name
+    - contact
+    - phone
+    - email
+    - address
+    - category
+    - rating
+    - payment_terms
+    - delivery_score
+    - quality_score
+    - status
+    field_layout:
+    - '--- 基本信息 ---'
+    - - supplier_code
+      - name
+      - category
+    - - rating
+      - status
+    - '--- 联系方式 ---'
+    - - contact
+      - phone
+      - email
+    - - address
+    - '--- 评估 ---'
+    - - delivery_score
+      - quality_score
+    - - payment_terms
+    actions:
+    - submit
+- target: $采购管理.table.actions.addNew
+  auto:
+  - edit
+  coll: nb_erp_purchase_orders
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - po_no
+    - supplier_name
+    - total_amount
+    - tax_amount
+    - status
+    - priority
+    - order_date
+    - expected_date
+    - buyer
+    - remark
+    field_layout:
+    - '--- 订单信息 ---'
+    - - po_no
+      - supplier_name
+      - status
+    - - priority
+      - buyer
+    - '--- 金额 ---'
+    - - total_amount
+      - tax_amount
+    - '--- 日期 ---'
+    - - order_date
+      - expected_date
+    - '--- 备注 ---'
+    - - remark
+    actions:
+    - submit
+- target: $采购管理.table.fields.po_no
+  mode: drawer
+  coll: nb_erp_purchase_orders
+  blocks:
+  - key: detail
+    type: details
+    resource:
+      binding: currentRecord
+    fields:
+    - po_no
+    - supplier_name
+    - total_amount
+    - tax_amount
+    - status
+    - priority
+    - order_date
+    - expected_date
+    - actual_date
+    - buyer
+    - remark
+    js_items:
+    - desc: 采购单概览卡片 — 总金额(含税)/供应商/状态流转(草稿→审批→到货→关闭)进度条/到货倒计时/优先级徽章
+      file: ./js/detail_po_overview.js
+    field_layout:
+    - '--- 订单信息 ---'
+    - - po_no
+      - supplier_name
+      - status
+    - - priority
+      - buyer
+    - '--- 金额 ---'
+    - - total_amount
+      - tax_amount
+    - '--- 日期 ---'
+    - - order_date
+      - expected_date
+      - actual_date
+    - '--- 备注 ---'
+    - - remark
+    recordActions:
+    - edit
+- target: $销售管理.table.actions.addNew
+  auto:
+  - edit
+  coll: nb_erp_sales_orders
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - so_no
+    - customer_name
+    - total_amount
+    - tax_amount
+    - status
+    - priority
+    - order_date
+    - delivery_date
+    - sales_rep
+    - remark
+    field_layout:
+    - '--- 订单信息 ---'
+    - - so_no
+      - customer_name
+      - status
+    - - priority
+      - sales_rep
+    - '--- 金额 ---'
+    - - total_amount
+      - tax_amount
+    - '--- 日期 ---'
+    - - order_date
+      - delivery_date
+    - '--- 备注 ---'
+    - - remark
+    actions:
+    - submit
+- target: $销售管理.table.fields.so_no
+  mode: drawer
+  coll: nb_erp_sales_orders
+  blocks:
+  - key: detail
+    type: details
+    resource:
+      binding: currentRecord
+    fields:
+    - so_no
+    - customer_name
+    - total_amount
+    - tax_amount
+    - status
+    - priority
+    - order_date
+    - delivery_date
+    - shipped_date
+    - sales_rep
+    - remark
+    js_items:
+    - desc: 销售单概览卡片 — 总金额(含税)/客户/状态进度条(草稿→确认→生产→发货→签收)/交货倒计时/优先级
+      file: ./js/detail_so_overview.js
+    field_layout:
+    - '--- 订单信息 ---'
+    - - so_no
+      - customer_name
+      - status
+    - - priority
+      - sales_rep
+    - '--- 金额 ---'
+    - - total_amount
+      - tax_amount
+    - '--- 日期 ---'
+    - - order_date
+      - delivery_date
+      - shipped_date
+    - '--- 备注 ---'
+    - - remark
+    recordActions:
+    - edit
+- target: $生产管理.table.actions.addNew
+  auto:
+  - edit
+  coll: nb_erp_work_orders
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - wo_no
+    - product_name
+    - planned_qty
+    - status
+    - priority
+    - planned_start
+    - planned_end
+    - workshop
+    - so_no
+    - remark
+    field_layout:
+    - '--- 工单信息 ---'
+    - - wo_no
+      - product_name
+      - status
+    - - priority
+      - workshop
+    - '--- 数量与计划 ---'
+    - - planned_qty
+    - - planned_start
+      - planned_end
+    - '--- 关联 ---'
+    - - so_no
+    - '--- 备注 ---'
+    - - remark
+    actions:
+    - submit
+- target: $生产管理.table.fields.wo_no
+  mode: drawer
+  coll: nb_erp_work_orders
+  blocks:
+  - key: detail
+    type: details
+    resource:
+      binding: currentRecord
+    fields:
+    - wo_no
+    - product_name
+    - planned_qty
+    - completed_qty
+    - defect_qty
+    - status
+    - priority
+    - planned_start
+    - planned_end
+    - actual_start
+    - actual_end
+    - workshop
+    - so_no
+    - remark
+    js_items:
+    - desc: 生产工单概览卡片 — 完工进度环形图(completed/planned) + 良品率 + 状态进度条(待排产→生产→完工) + 计划vs实际日期对比
+      file: ./js/detail_wo_overview.js
+    field_layout:
+    - '--- 工单信息 ---'
+    - - wo_no
+      - product_name
+      - status
+    - - priority
+      - workshop
+    - '--- 数量 ---'
+    - - planned_qty
+      - completed_qty
+      - defect_qty
+    - '--- 计划 ---'
+    - - planned_start
+      - planned_end
+    - - actual_start
+      - actual_end
+    - '--- 关联 ---'
+    - - so_no
+    - '--- 备注 ---'
+    - - remark
+    recordActions:
+    - edit
+- target: $库存流水.table.actions.addNew
+  auto:
+  - edit
+  - view
+  view_field: txn_no
+  coll: nb_erp_inventory
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - txn_no
+    - product_name
+    - product_code
+    - txn_type
+    - qty
+    - warehouse
+    - ref_no
+    - operator
+    - remark
+    field_layout:
+    - '--- 物料信息 ---'
+    - - product_name
+      - product_code
+    - '--- 出入库 ---'
+    - - txn_type
+      - qty
+      - warehouse
+    - - ref_no
+      - operator
+    - '--- 备注 ---'
+    - - remark
+    actions:
+    - submit
+- target: $质检管理.table.actions.addNew
+  auto:
+  - edit
+  coll: nb_erp_quality
+  blocks:
+  - key: form
+    type: createForm
+    resource:
+      binding: currentCollection
+    fields:
+    - qc_no
+    - product_name
+    - qc_type
+    - batch_no
+    - sample_qty
+    - pass_qty
+    - fail_qty
+    - result
+    - ref_no
+    - inspector
+    - remark
+    field_layout:
+    - '--- 检验信息 ---'
+    - - qc_no
+      - product_name
+      - qc_type
+    - - batch_no
+      - ref_no
+    - '--- 检验数据 ---'
+    - - sample_qty
+      - pass_qty
+      - fail_qty
+    - - result
+      - inspector
+    - '--- 不合格描述 ---'
+    - - remark
+    actions:
+    - submit
+- target: $质检管理.table.fields.qc_no
+  mode: drawer
+  coll: nb_erp_quality
+  blocks:
+  - key: detail
+    type: details
+    resource:
+      binding: currentRecord
+    fields:
+    - qc_no
+    - product_name
+    - qc_type
+    - batch_no
+    - sample_qty
+    - pass_qty
+    - fail_qty
+    - result
+    - ref_no
+    - inspector
+    - remark
+    js_items:
+    - desc: 质检概览卡片 — 合格率环形图(pass/sample) + 检验结果大徽章(合格绿/不合格红/让步橙/待判灰) + 抽检/合格/不合格数值对比
+      file: ./js/detail_qc_overview.js
+    field_layout:
+    - '--- 检验信息 ---'
+    - - qc_no
+      - product_name
+      - qc_type
+    - - batch_no
+      - ref_no
+    - '--- 检验数据 ---'
+    - - sample_qty
+      - pass_qty
+      - fail_qty
+    - - result
+      - inspector
+    - '--- 不合格描述 ---'
+    - - remark
+    recordActions:
+    - edit
