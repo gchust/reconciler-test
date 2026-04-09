@@ -145,3 +145,22 @@ fields:
   - field: priority                      # select dropdown (auto)
     label: Priority
 ```
+
+## Popup Rules (Mandatory)
+
+Every page with a table MUST have:
+
+1. **addNew popup** with `auto: [edit, view]` (or `auto: [edit]` if custom detail exists)
+   - `view_field`: first meaningful field (name, code, title, etc.)
+   - `field_layout`: divider groups (--- Section ---)
+
+2. **Detail popup** on `view_field` — at minimum auto-derived from addNew
+   - Complex pages: custom embed popup with tabs (Overview + related data + History)
+   - Simple pages: auto `view` from addNew is sufficient for first pass
+
+3. **Default recordActions**: `[edit, delete]` on every table
+
+**Phased approach:**
+- Phase 1: addNew + auto [edit, view] for all pages (minimum viable)
+- Phase 2: upgrade key pages to custom detail with JS KPI + tabs
+- Phase 3: add related data tabs, association tables
