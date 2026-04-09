@@ -910,25 +910,29 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 def _configure_filter(nb: NocoBase, bs: dict, block_uid: str,
                       field_states: dict, coll: str,
                       all_blocks_state: dict = None):
-    """Configure filter field connections.
+    """Configure filter field connections via filterManager on GridModel.
 
-    Supports connecting one filter field to multiple target blocks/fields:
+    NocoBase stores filter connections as `filterManager` array on the
+    FilterFormGridModel (top-level field, NOT in stepParams).
+
+    Format: flowModels:save {
+      uid: grid_uid,
+      filterManager: [
+        {filterId: "field_item_uid", targetId: "table_uid", filterPaths: ["name", "email", ...]},
+        ...
+      ]
+    }
+
+    Spec format:
       fields:
         - field: name
           label: Search
-          filterPaths: [name, company, email, phone]  # search these columns
-          # Auto-connects to all table blocks in same page
-
-    Or explicit multi-target:
-      fields:
-        - field: name
-          targets:
-            - block: table_0
-              paths: [name, company]
-            - block: table_1
-              paths: [name, phone]
+          filterPaths: [name, company, email, phone]
+        - field: status
+          label: Status
+          # no filterPaths → just label + defaultTargetUid
     """
-    # Find target table UIDs from same-page state
+    # Find target table UIDs
     target_uids = []
     if all_blocks_state:
         for bkey, binfo in all_blocks_state.items():
@@ -936,57 +940,83 @@ def _configure_filter(nb: NocoBase, bs: dict, block_uid: str,
                 target_uids.append(binfo.get("uid", ""))
     default_target = target_uids[0] if target_uids else ""
 
+    # 1. Set label + defaultTargetUid on each FilterFormItem
     for f in bs.get("fields", []):
         if not isinstance(f, dict):
             continue
         fp = f.get("field", f.get("name", ""))
         label = f.get("label", "")
-        filter_paths = f.get("filterPaths")
-        explicit_targets = f.get("targets")
-        if not fp or (not label and not filter_paths and not explicit_targets):
+        if not fp:
             continue
 
         wrapper_uid = field_states.get(fp, {}).get("wrapper", "")
         if not wrapper_uid:
             continue
 
-        settings: dict = {
-            "init": {
-                "filterField": {"name": fp, "title": label or fp, "interface": "input", "type": "string"},
-            },
-        }
-
+        settings: dict = {}
         if default_target:
-            settings["init"]["defaultTargetUid"] = default_target
-
-        if explicit_targets:
-            # Multi-target: [{block: "table_0", paths: [...]}, ...]
-            targets = []
-            for t in explicit_targets:
-                t_block = t.get("block", "")
-                t_paths = t.get("paths", [fp])
-                t_uid = all_blocks_state.get(t_block, {}).get("uid", "") if all_blocks_state else ""
-                if t_uid:
-                    targets.append({"targetId": t_uid, "filterPaths": t_paths})
-            if targets:
-                settings["connectFields"] = {"value": {"targets": targets}}
-        elif filter_paths and default_target:
-            # Single target with multiple paths
-            settings["connectFields"] = {"value": {"targets": [{
-                "targetId": default_target,
-                "filterPaths": filter_paths,
-            }]}}
-
+            settings["init"] = {
+                "filterField": {"name": fp, "title": label or fp, "interface": "input", "type": "string"},
+                "defaultTargetUid": default_target,
+            }
         if label:
             settings["label"] = {"label": label}
             settings["showLabel"] = {"showLabel": True}
 
-        try:
-            nb.update_model(wrapper_uid, {"filterFormItemSettings": settings})
-            paths_str = f" → {filter_paths}" if filter_paths else ""
-            print(f"      filter {fp}: {label or fp}{paths_str}")
-        except Exception as e:
-            print(f"      ! filter {fp}: {e}")
+        if settings:
+            try:
+                nb.update_model(wrapper_uid, {"filterFormItemSettings": settings})
+                print(f"      filter {fp}: {label or fp}")
+            except Exception as e:
+                print(f"      ! filter {fp}: {e}")
+
+    # 2. Set filterManager on GridModel (multi-field connections)
+    # Read live grid to get FilterFormItem UIDs
+    grid_uid = ""
+    try:
+        data = nb.get(uid=block_uid)
+        grid = data.get("tree", {}).get("subModels", {}).get("grid", {})
+        grid_uid = grid.get("uid", "")
+        grid_items = grid.get("subModels", {}).get("items", [])
+    except Exception as e:
+        return
+
+    if not grid_uid:
+        return
+
+    fm_entries = []
+    for f in bs.get("fields", []):
+        if not isinstance(f, dict):
+            continue
+        fp = f.get("field", "")
+        filter_paths = f.get("filterPaths", [])
+        if not fp or not filter_paths:
+            continue
+
+        # Find FilterFormItem UID
+        for item in (grid_items if isinstance(grid_items, list) else []):
+            item_fp = item.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
+            if item_fp == fp:
+                fm_entries.append({
+                    "filterId": item["uid"],
+                    "targetId": default_target,
+                    "filterPaths": filter_paths,
+                })
+                print(f"      filter {fp} → {filter_paths}")
+                break
+
+    if fm_entries:
+        nb.s.post(f"{nb.base}/api/flowModels:save", json={
+            "uid": grid_uid,
+            "use": grid.get("use", "FilterFormGridModel"),
+            "parentId": block_uid,
+            "subKey": "grid",
+            "subType": "object",
+            "sortIndex": 0,
+            "stepParams": grid.get("stepParams", {}),
+            "flowRegistry": grid.get("flowRegistry", {}),
+            "filterManager": fm_entries,
+        }, timeout=30)
 
 
 # ══════════════════════════════════════════════════════════════════

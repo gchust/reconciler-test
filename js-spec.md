@@ -134,3 +134,32 @@ const data = ctx.data?.objects || [];  // ✅ Correct: SQL results are in .objec
 //   { status: '停用', cnt: 2 },      // "Disabled"
 // ]
 ```
+
+## FilterManager — Multi-field Search Connection
+
+Filter connections are stored on **GridModel** (not FilterFormItem) as a top-level `filterManager` field:
+
+```python
+# flowModels:save on the FilterFormGridModel
+nb.s.post(f'{nb.base}/api/flowModels:save', json={
+    "uid": grid_uid,
+    "use": "FilterFormGridModel",
+    "parentId": filter_block_uid,
+    "filterManager": [
+        {
+            "filterId": "filter_item_uid",    # FilterFormItem UID
+            "targetId": "table_block_uid",    # target table block UID
+            "filterPaths": ["name", "email", "phone"]  # fields to search
+        }
+    ],
+    # ... other fields (stepParams, subKey, etc.)
+})
+```
+
+**Key points:**
+- `filterManager` is a **top-level field** on the grid model, NOT in stepParams
+- Each entry connects one filter field to one target block's multiple columns
+- `filterId` = the FilterFormItem's UID (not the field name)
+- `targetId` = the target TableBlockModel's UID
+- `filterPaths` = array of collection field names to search
+- Multiple entries can connect different filter fields to different targets
