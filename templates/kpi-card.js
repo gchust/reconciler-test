@@ -1,24 +1,24 @@
 /**
- * KPI 卡片积木模板（CRM 同款样式 + SQL 数据）
+ * KPI Card Block Template (CRM-style + SQL data)
  *
  * @type JSBlockModel
  * @template kpi-card
  *
- * === AI 修改指南 ===
- * 只改 CONFIG 区域的 5 个参数 + SQL
- * 其他不要动！
+ * === AI Modification Guide ===
+ * Only modify the 5 parameters + SQL in the CONFIG section
+ * Do not touch anything else!
  * ====================
  */
 
-// ─── CONFIG: AI 修改这里 ───────────────────────────
+// ─── CONFIG: AI modifies here ────────────────────────────────
 const LABEL = '本月销售额';
 const COLOR = '#3b82f6';
 const BG = '#eff6ff';
 const SQL_UID = 'erp_kpi_sales';
 const FMT = (v) => v >= 1e6 ? `¥${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `¥${(v/1e3).toFixed(1)}K` : `¥${v.toFixed(0)}`;
 
-// SQL 要求返回: current_value, growth_rate
-// 日期变量由 JS 自动替换: ${startDate}, ${endDate}, ${prevStart}, ${prevEnd}
+// SQL must return: current_value, growth_rate
+// Date variables are auto-replaced by JS: ${startDate}, ${endDate}, ${prevStart}, ${prevEnd}
 const buildSql = (startDate, endDate, prevStart, prevEnd) => `
 SELECT
   COALESCE(SUM(CASE WHEN order_date >= '${startDate}' AND order_date <= '${endDate}'
@@ -35,7 +35,7 @@ WHERE status NOT IN ('已取消', '草稿')
 `;
 // ─── CONFIG END ────────────────────────────────────
 
-// ─── 以下不要动 ───────────────────────────────────
+// ─── Do not modify below ─────────────────────────────────────
 const { useState, useEffect } = ctx.React;
 const h = ctx.React.createElement;
 

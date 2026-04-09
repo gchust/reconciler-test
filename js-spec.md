@@ -1,60 +1,60 @@
-# NocoBase JS Block 开发规范
+# NocoBase JS Block Development Guide
 
-## 运行环境
+## Runtime Environment
 
-所有组件通过 `ctx` 注入，**不需要 import**：
+All components are injected via `ctx` — **no imports needed**:
 
 ```js
 ctx.React       // React (useState, useEffect, useRef, useCallback, useMemo)
-ctx.antd        // Ant Design 5.x 全量组件
-ctx.render()    // 输出渲染（只在最外层调一次）
-ctx.record      // 当前行/记录数据（JSColumn/JSItem）
-ctx.api         // API 调用 ctx.api.request({url, params})
-ctx.engine      // 跨区块联动 ctx.engine.getModel(uid)
-ctx.model       // 当前区块 model
-ctx.libs.dayjs  // 日期库
+ctx.antd        // Ant Design 5.x full component library
+ctx.render()    // Render output (call only once at the outermost level)
+ctx.record      // Current row/record data (JSColumn/JSItem)
+ctx.api         // API calls: ctx.api.request({url, params})
+ctx.engine      // Cross-block linking: ctx.engine.getModel(uid)
+ctx.model       // Current block model
+ctx.libs.dayjs  // Date library
 ```
 
-## 三种 JS 类型
+## Three JS Types
 
-| 类型 | 位置 | 数据来源 | 用途 |
-|------|------|---------|------|
-| JSColumnModel | 表格自定义列 | `ctx.record` = 当前行 | 状态标签、进度条、计算值 |
-| JSItemModel | 详情/表单/筛选内 | `ctx.record` = 当前记录 | KPI卡片、统计按钮、自定义展示 |
-| JSBlockModel | 独立区块 | `ctx.api.request()` 查 | 仪表盘、看板、图表 |
+| Type | Location | Data Source | Use Case |
+|------|----------|------------|----------|
+| JSColumnModel | Custom table column | `ctx.record` = current row | Status tags, progress bars, computed values |
+| JSItemModel | Inside detail/form/filter | `ctx.record` = current record | KPI cards, stats buttons, custom display |
+| JSBlockModel | Standalone block | `ctx.api.request()` to fetch | Dashboards, kanban boards, charts |
 
-## 关键规则
+## Key Rules
 
-### 1. ctx.render 只在最外层调一次
+### 1. Call ctx.render only once at the outermost level
 
 ```js
-// ✅ 正确
+// ✅ Correct
 const MyComponent = () => {
-  return (<Tag color="green">OK</Tag>);  // 组件内直接 return JSX
+  return (<Tag color="green">OK</Tag>);  // Return JSX directly inside component
 };
-ctx.render(<MyComponent />);              // 最外层调一次
+ctx.render(<MyComponent />);              // Call once at outermost level
 
-// ❌ 错误
+// ❌ Wrong
 const MyComponent = () => {
-  return ctx.render(<Tag>OK</Tag>);       // 组件内不要调 ctx.render
+  return ctx.render(<Tag>OK</Tag>);       // Do not call ctx.render inside component
 };
 ctx.render(<MyComponent />);
 ```
 
-### 2. 不要直接调用函数组件
+### 2. Do not call function components directly
 
 ```js
-// ✅ 正确
+// ✅ Correct
 ctx.render(<StatsFilter />);
 
-// ❌ 错误
-StatsFilter();    // 违反 React hooks 规则
+// ❌ Wrong
+StatsFilter();    // Violates React hooks rules
 ```
 
-### 3. 跨区块联动（筛选按钮）
+### 3. Cross-block linking (filter buttons)
 
 ```js
-const TARGET_BLOCK_UID = '__TABLE_UID__';  // deployer 自动替换
+const TARGET_BLOCK_UID = '__TABLE_UID__';  // Automatically replaced by deployer
 
 const target = ctx.engine?.getModel(TARGET_BLOCK_UID);
 if (target) {
@@ -63,7 +63,7 @@ if (target) {
 }
 ```
 
-### 4. API 调用
+### 4. API Calls
 
 ```js
 const res = await ctx.api.request({
@@ -73,14 +73,14 @@ const res = await ctx.api.request({
 const count = res?.data?.meta?.count || 0;
 ```
 
-### 5. Ant Design 组件使用
+### 5. Using Ant Design Components
 
 ```js
 const { Tag, Card, Row, Col, Statistic, Badge, Space, Progress,
         Steps, Rate, Divider, Typography, Spin, Button } = ctx.antd;
 ```
 
-## 文件头注释模板
+## File Header Comment Template
 
 ```js
 /**
@@ -92,26 +92,26 @@ const { Tag, Card, Row, Col, Statistic, Badge, Space, Progress,
  */
 ```
 
-## 样式规范
+## Styling Guidelines
 
-- 使用 antd 内置组件和 token，不写自定义 CSS
-- Tag 颜色：red=危险, orange=警告, green=正常, blue=信息, gray=无效
-- Statistic 用于数值展示，带 prefix/suffix
-- Card size="small" + marginBottom: 16 用于 KPI 卡片
-- Space wrap size={[8, 8]} 用于按钮组
-- Badge + Button 用于统计筛选按钮
+- Use antd built-in components and tokens — no custom CSS
+- Tag colors: red = danger, orange = warning, green = normal, blue = info, gray = disabled
+- Statistic for numeric display, with prefix/suffix
+- Card size="small" + marginBottom: 16 for KPI cards
+- Space wrap size={[8, 8]} for button groups
+- Badge + Button for stats filter buttons
 
-## Chart (ECharts) 规范
+## Chart (ECharts) Guide
 
-### 数据访问
+### Data Access
 
 ```js
-// Chart option.raw 里的数据访问
-const data = ctx.data?.objects || [];  // ✅ 正确：SQL 结果在 objects 里
-// const data = ctx.data || [];        // ❌ 错误：ctx.data 是对象不是数组
+// Data access inside chart option.raw
+const data = ctx.data?.objects || [];  // ✅ Correct: SQL results are in .objects
+// const data = ctx.data || [];        // ❌ Wrong: ctx.data is an object, not an array
 ```
 
-### Chart 配置结构
+### Chart Configuration Structure
 
 ```json
 {
@@ -125,12 +125,12 @@ const data = ctx.data?.objects || [];  // ✅ 正确：SQL 结果在 objects 里
 }
 ```
 
-### ctx.data.objects 格式
+### ctx.data.objects Format
 
 ```js
 // SQL: SELECT status, COUNT(*) as cnt FROM table GROUP BY status
 // ctx.data.objects = [
-//   { status: '有效', cnt: 5 },
-//   { status: '停用', cnt: 2 },
+//   { status: '有效', cnt: 5 },      // "Active"
+//   { status: '停用', cnt: 2 },      // "Disabled"
 // ]
 ```

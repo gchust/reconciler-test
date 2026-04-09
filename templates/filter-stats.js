@@ -1,28 +1,28 @@
 /**
- * 筛选统计按钮组积木模板
+ * Filter Stats Button Group Block Template
  *
  * @type JSItemModel
  * @template filter-stats
  *
- * === AI 修改指南 ===
- * 1. 修改 COLLECTION（数据表名）
- * 2. 修改 GROUPS（按钮分组定义）
- *    - key: 唯一标识
- *    - label: 按钮文字
- *    - filter: NocoBase 过滤条件 (null = 全部)
- *    - danger: true 显示红色
- * 3. 可以有多个 group（用 Divider 分隔）
- * 4. 不要动 useStats/StatsFilter 组件 — 它们是通用的
+ * === AI Modification Guide ===
+ * 1. Modify COLLECTION (collection name)
+ * 2. Modify GROUPS (button group definitions)
+ *    - key: unique identifier
+ *    - label: button text
+ *    - filter: NocoBase filter condition (null = all)
+ *    - danger: true shows red
+ * 3. You can have multiple groups (separated by Divider)
+ * 4. Do not modify useStats/StatsFilter components — they are generic
  * ====================
  */
 
 const TARGET_BLOCK_UID = '__TABLE_UID__';
 
-// ─── CONFIG: AI 修改这里 ───────────────────────────
+// ─── CONFIG: AI modifies here ────────────────────────────────
 const COLLECTION = 'nb_erp_products';
 
 const GROUPS = [
-  // 第一组：按状态
+  // Group 1: by status
   {
     name: '状态',
     items: [
@@ -32,7 +32,7 @@ const GROUPS = [
       { key: 'disabled', label: '停用', filter: { status: { $eq: '停用' } } },
     ],
   },
-  // 第二组（可选）：特殊筛选
+  // Group 2 (optional): special filters
   // {
   //   name: '预警',
   //   items: [
@@ -42,7 +42,7 @@ const GROUPS = [
 ];
 // ─── CONFIG END ────────────────────────────────────
 
-// ─── 以下不需要修改 ───────────────────────────────
+// ─── Do not modify below ─────────────────────────────────────
 const { useState, useEffect, useCallback } = ctx.React;
 const { Button, Badge, Space, Spin, Divider } = ctx.antd;
 

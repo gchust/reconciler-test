@@ -1,17 +1,17 @@
 /**
- * ECharts 自定义图表积木模板
+ * ECharts Custom Chart Block Template
  *
  * @type chart.option.raw
  * @template chart-custom
  *
- * === AI 修改指南 ===
- * 1. 修改 buildOption(data) 函数里的 ECharts 配置
- * 2. data 已经是数组（自动从 ctx.data.objects 提取并校验）
- * 3. 不需要处理 ctx.data 格式问题 — 模板已处理
+ * === AI Modification Guide ===
+ * 1. Modify the ECharts config inside buildOption(data)
+ * 2. data is already an array (auto-extracted from ctx.data.objects with validation)
+ * 3. No need to handle ctx.data format — the template handles it
  * ====================
  */
 
-// ─── 安全数据提取（不要动） ───────────────────────
+// ─── Safe Data Extraction (Do not modify) ────────────────────
 const data = (() => {
   const raw = ctx.data;
   if (Array.isArray(raw)) return raw;
@@ -24,9 +24,9 @@ if (data.length === 0) {
   return { title: { text: '暂无数据', left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14 } } };
 }
 
-// ─── CONFIG: AI 修改这里 ───────────────────────────
+// ─── CONFIG: AI modifies here ────────────────────────────────
 function buildOption(data) {
-  // 示例：柱状图
+  // Example: bar chart
   const categories = data.map(d => d.name || '');
   const values = data.map(d => parseFloat(d.value || 0));
 

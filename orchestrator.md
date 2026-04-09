@@ -1,55 +1,55 @@
-# Reconciler 工作流程 — AI 协作指南
+# Reconciler Workflow — AI Collaboration Guide
 
-## 概述
+## Overview
 
-用户和 AI 交互式对话推进系统搭建。AI 根据需要自行决定是否启动子 agent 并行处理。
+User and AI collaborate through interactive conversation to build the system. AI decides on its own whether to launch sub-agents for parallel processing.
 
-## 核心流程
+## Core Workflow
 
-### 1. 需求理解
-用户描述业务场景 → AI 设计数据模型 + 页面结构
+### 1. Requirements Understanding
+User describes business scenario → AI designs data model + page structure
 
-### 2. 编写 spec
-AI 编写 `structure.yaml`（表+页面）+ `enhance.yaml`（弹窗+JS占位）
+### 2. Write Spec
+AI writes `structure.yaml` (tables + pages) + `enhance.yaml` (popups + JS placeholders)
 
-### 3. 部署骨架
+### 3. Deploy Skeleton
 ```bash
 python deployer.py <module>/
 ```
 
-### 4. JS 实现（可并行）
-JS 文件互相独立 → AI 可启动多个子 agent 并行写 JS：
-- 每个子 agent 只负责一个 JS 文件
-- 只需要知道：需求描述 + collection 字段 + ctx API
-- 不需要知道 UID、布局、deployer
+### 4. JS Implementation (parallelizable)
+JS files are independent of each other → AI can launch multiple sub-agents to write JS in parallel:
+- Each sub-agent handles only one JS file
+- Only needs: requirement description + collection fields + ctx API
+- Does not need to know about UIDs, layout, or deployer
 
-### 5. 注入 JS
+### 5. Inject JS
 ```bash
 python deployer.py <module>/ --force
 ```
 
-### 6. 验证 + 迭代
-用户看效果 → 反馈 → AI 修改 spec 或 JS → 增量部署
+### 6. Verify + Iterate
+User reviews the result → feedback → AI modifies spec or JS → incremental deploy
 
-## JS 子 agent 上下文
+## JS Sub-Agent Context
 
-子 agent 实现 JS 时只需要以下信息：
+Sub-agents only need the following information when implementing JS:
 
 ```
-技术环境:
-- ctx.record: 当前行/记录数据
-- ctx.React: React hooks (useState, useEffect 等)
-- ctx.antd: Ant Design 组件 (Tag, Card, Row, Col, Statistic, Badge, Progress 等)
-- ctx.api.request({url, params}): API 调用
-- ctx.render(<JSX />): 输出渲染
-- ctx.engine.getModel(uid): 跨区块联动
+Technical environment:
+- ctx.record: current row/record data
+- ctx.React: React hooks (useState, useEffect, etc.)
+- ctx.antd: Ant Design components (Tag, Card, Row, Col, Statistic, Badge, Progress, etc.)
+- ctx.api.request({url, params}): API calls
+- ctx.render(<JSX />): render output
+- ctx.engine.getModel(uid): cross-block interaction
 
-JS 类型:
-- JSColumnModel: 表格自定义列 — ctx.record 有当前行
-- JSItemModel: 详情/表单内 JS — ctx.record 有当前记录
-- JSBlockModel: 独立 JS 区块 — 需要自己查数据
+JS types:
+- JSColumnModel: custom table column — ctx.record has current row
+- JSItemModel: JS inside detail/form — ctx.record has current record
+- JSBlockModel: standalone JS block — must fetch its own data
 ```
 
-## 参考模板
-- `exports/crm-v2/` — CRM 完整导出（7页面+弹窗+30 JS）
-- `python view.py exports/crm-v2/ --popups` — 可视化结构
+## Reference Templates
+- `exports/crm-v2/` — full CRM export (7 pages + popups + 30 JS)
+- `python view.py exports/crm-v2/ --popups` — visualize structure

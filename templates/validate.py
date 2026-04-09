@@ -1,9 +1,9 @@
-"""验证 JS 模板生成的代码是否符合规范。
+"""Validate JS code generated from templates against coding standards.
 
 Usage:
     python templates/validate.py erp/js/dashboard_kpi_*.js
     python templates/validate.py erp/js/filter_*.js
-    python templates/validate.py erp/js/*.js          # 全部
+    python templates/validate.py erp/js/*.js          # all files
 """
 
 import re
@@ -21,15 +21,15 @@ def check(name):
 
 
 # ═══════════════════════════════════════════════════
-#  通用检查
+#  General checks
 # ═══════════════════════════════════════════════════
 
-@check("ctx.render 规范")
+@check("ctx.render convention")
 def check_render(code, path):
     renders = re.findall(r"ctx\.render\(", code)
     if len(renders) == 0:
-        return "缺少 ctx.render()"
-    # JSColumnModel: 允许多次 ctx.render（if/else 分支各调一次）
+        return "Missing ctx.render()"
+    # JSColumnModel: multiple ctx.render allowed (one per if/else branch)
     fname = str(path).lower()
     is_column = "col_" in fname or "column" in fname
     if not is_column and len(renders) > 1:
@@ -38,107 +38,107 @@ def check_render(code, path):
         for i, line in enumerate(code.split("\n")):
             stripped = line.strip()
             if "return ctx.render(" in stripped:
-                return f"行{i+1}: 组件内不要 return ctx.render()，直接 return JSX"
+                return f"Line {i+1}: Do not use return ctx.render() inside a component — return JSX directly"
     return None
 
 
-@check("不要直接调用函数组件")
+@check("Do not call function components directly")
 def check_direct_call(code, path):
     # Pattern: FunctionName(); at end of file (not ctx.render(<FunctionName />))
     lines = code.strip().split("\n")
     last_line = lines[-1].strip() if lines else ""
     if re.match(r"^[A-Z]\w+\(\);?$", last_line):
-        return f"最后一行 '{last_line}' 直接调用了组件，应该用 ctx.render(<{last_line.rstrip('();')} />)"
+        return f"Last line '{last_line}' calls the component directly — use ctx.render(<{last_line.rstrip('();')} />) instead"
     return None
 
 
-@check("不要 import（ctx 已注入）")
+@check("Do not import (ctx is already injected)")
 def check_imports(code, path):
     for i, line in enumerate(code.split("\n")):
         if line.strip().startswith("import "):
-            return f"行{i+1}: 不需要 import，使用 ctx.React / ctx.antd"
+            return f"Line {i+1}: No imports needed — use ctx.React / ctx.antd"
     return None
 
 
 # ═══════════════════════════════════════════════════
-#  SQL 检查
+#  SQL checks
 # ═══════════════════════════════════════════════════
 
-@check("SQL ROUND 必须转 numeric")
+@check("SQL ROUND must cast to numeric")
 def check_round(code, path):
     # ROUND(x, n) where x is not ::numeric
     matches = re.findall(r"ROUND\(([^)]+),\s*\d+\)", code)
     for m in matches:
         if "::numeric" not in m and "::NUMERIC" not in m:
-            return f"ROUND({m}, n) 缺少 ::numeric 转换 — PostgreSQL 要求 ROUND(x::numeric, n)"
+            return f"ROUND({m}, n) missing ::numeric cast — PostgreSQL requires ROUND(x::numeric, n)"
     return None
 
 
-@check("SQL 不要用 :bind 参数")
+@check("SQL must not use :bind parameters")
 def check_bind(code, path):
     if re.search(r":\w+::", code) and "timestamp" in code:
         # :__var1::timestamp pattern
-        return "SQL 不要用 :bind 参数 + ::cast，用 JS 模板字符串 ${var}"
+        return "SQL must not use :bind parameters with ::cast — use JS template literals ${var} instead"
     return None
 
 
-@check("模板字符串 ${} 不要被转义")
+@check("Template literal ${} must not be escaped")
 def check_escaped_template(code, path):
     if "\\${" in code:
-        return "\\${...} 被转义了，JS 模板字符串需要 ${...}（无反斜杠）"
+        return "\\${...} is escaped — JS template literals require ${...} (no backslash)"
     return None
 
 
 # ═══════════════════════════════════════════════════
-#  Chart 检查
+#  Chart checks
 # ═══════════════════════════════════════════════════
 
-@check("Chart 数据用 ctx.data.objects")
+@check("Chart data must use ctx.data.objects")
 def check_chart_data(code, path):
     if "chart" not in str(path).lower():
         return None
     if "ctx.data ||" in code and "ctx.data?.objects" not in code and "ctx.data.objects" not in code:
-        return "Chart 里 ctx.data 是对象，数组在 .objects 里：const data = ctx.data?.objects || []"
+        return "In charts, ctx.data is an object — the array is in .objects: const data = ctx.data?.objects || []"
     return None
 
 
 # ═══════════════════════════════════════════════════
-#  KPI 卡片检查
+#  KPI card checks
 # ═══════════════════════════════════════════════════
 
-@check("KPI 用 ctx.sql.save + runById 模式")
+@check("KPI must use ctx.sql.save + runById pattern")
 def check_kpi_sql(code, path):
     if "kpi" not in str(path).lower():
         return None
     if "ctx.sql.run(" in code and "ctx.sql.runById" not in code and "ctx.sql.save" not in code:
-        return "KPI 应该用 ctx.sql.save({uid, sql}) + ctx.sql.runById(uid) 模式"
+        return "KPI should use the ctx.sql.save({uid, sql}) + ctx.sql.runById(uid) pattern"
     return None
 
 
-@check("KPI 不要用 antd Progress")
+@check("KPI must not use antd Progress")
 def check_kpi_progress(code, path):
     if "kpi" not in str(path).lower():
         return None
     if "Progress" in code:
-        return "KPI 卡片不要用 antd Progress（会显示进度条 bug），用 createElement 样式"
+        return "KPI cards must not use antd Progress (causes a progress bar rendering bug) — use createElement styling instead"
     return None
 
 
 # ═══════════════════════════════════════════════════
-#  Filter 检查
+#  Filter checks
 # ═══════════════════════════════════════════════════
 
-@check("Filter 有 TARGET_BLOCK_UID")
+@check("Filter must have TARGET_BLOCK_UID")
 def check_filter_target(code, path):
     if "filter" not in str(path).lower():
         return None
     if "TARGET_BLOCK_UID" not in code and "target" not in code.lower():
-        return "Filter JS 缺少 TARGET_BLOCK_UID（用于联动表格）"
+        return "Filter JS is missing TARGET_BLOCK_UID (needed for linked table filtering)"
     return None
 
 
 # ═══════════════════════════════════════════════════
-#  执行
+#  Execution
 # ═══════════════════════════════════════════════════
 
 def validate_file(path: Path) -> list[str]:

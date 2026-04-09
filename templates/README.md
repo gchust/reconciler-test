@@ -1,54 +1,54 @@
-# JS 积木模板
+# JS Block Templates
 
-可复用的 JS 代码模板。AI 复制文件后只需修改 `CONFIG` 区域，通用逻辑不动。
+Reusable JS code templates. After copying a file, AI only needs to modify the `CONFIG` section — shared logic stays untouched.
 
-## 使用方式
+## Usage
 
-1. 复制模板文件到模块的 `js/` 目录
-2. AI 修改 `=== AI 修改指南 ===` 标注的 CONFIG 区域
-3. deployer 注入时自动替换 `__TABLE_UID__`
+1. Copy the template file to the module's `js/` directory
+2. AI modifies the CONFIG section marked with `=== AI Modification Guide ===`
+3. The deployer automatically replaces `__TABLE_UID__` during injection
 
-## 模板列表
+## Template List
 
-### kpi-card.js — KPI 卡片（SQL 版）
+### kpi-card.js — KPI Card (SQL Version)
 
-全屏渐变卡片，显示大数值 + 环比趋势。
+Full-width gradient card displaying a large number + period-over-period trend.
 
-**AI 只需改**：
+**AI only needs to change**:
 ```js
 const CONFIG = {
-  title: '本月销售额',              // 标题
-  gradient: ['#1677ff', '#4096ff'], // 渐变色
-  textColor: '#fff',                // 文字色
-  prefix: '¥',                      // 前缀
+  title: '本月销售额',              // Title (e.g. "Monthly Sales")
+  gradient: ['#1677ff', '#4096ff'], // Gradient colors
+  textColor: '#fff',                // Text color
+  prefix: '¥',                      // Prefix
 };
 const SQL = `SELECT ... as current_value, ... as previous_value FROM ...`;
 const parseResult = (row) => ({ value: ..., previous: ... });
 ```
 
-**颜色参考**：
-- 销售/营收：蓝色 `['#1677ff', '#4096ff']`
-- 采购/支出：橙色 `['#fa8c16', '#ffc53d']`, textColor: `'#333'`
-- 生产/产出：绿色 `['#52c41a', '#95de64']`
-- 质检/质量：紫色 `['#722ed1', '#b37feb']`
-- 库存/物料：青色 `['#13c2c2', '#5cdbd3']`
+**Color reference**:
+- Sales / Revenue: blue `['#1677ff', '#4096ff']`
+- Procurement / Expenses: orange `['#fa8c16', '#ffc53d']`, textColor: `'#333'`
+- Production / Output: green `['#52c41a', '#95de64']`
+- Quality Control: purple `['#722ed1', '#b37feb']`
+- Inventory / Materials: cyan `['#13c2c2', '#5cdbd3']`
 
-### filter-stats.js — 筛选统计按钮组
+### filter-stats.js — Filter Statistics Button Group
 
-按钮组 + 计数徽章，点击筛选表格。支持多组（Divider 分隔）。
+Button group + count badges, click to filter the table. Supports multiple groups (separated by Divider).
 
-**AI 只需改**：
+**AI only needs to change**:
 ```js
 const COLLECTION = 'your_collection';
 const GROUPS = [
-  { name: '状态', items: [
-    { key: 'all', label: '全部', filter: null },
-    { key: 'active', label: '有效', filter: { status: { $eq: '有效' } } },
+  { name: '状态', items: [                                          // "Status"
+    { key: 'all', label: '全部', filter: null },                    // "All"
+    { key: 'active', label: '有效', filter: { status: { $eq: '有效' } } },  // "Active"
   ]},
 ];
 ```
 
-**自动处理**：
-- `__TABLE_UID__` 替换为同页表格 UID
-- 计数通过 API 并行获取
-- 点击联动表格筛选
+**Handled automatically**:
+- `__TABLE_UID__` is replaced with the same-page table UID
+- Counts are fetched in parallel via API
+- Click triggers linked table filtering
