@@ -1,0 +1,19 @@
+group_id: 358005092909056
+pages:
+  opportunities_copy:
+    route_id: 358005092909058
+    page_uid: x0ph3vqsn70
+    tab_uid: fshxj6dmqqh
+    grid_uid: wzupysfdof0
+    blocks:
+      filterForm_0:
+        uid: crrvvgmrrhz
+        type: filterForm
+        grid_uid: 7k8eyc01da3
+        fields: {}
+        js_items:
+          Pipeline Stats Filter Block:
+            uid: 9qyxmkttmtm
+      reference_1:
+        uid: ol75s5h5r7d
+        type: reference
