@@ -14,7 +14,47 @@ pages:
         js_items:
           Pipeline Stats Filter Block:
             uid: 9qyxmkttmtm
-      reference_1:
-        uid: ol75s5h5r7d
-        type: reference
-        fields: {}
+      table:
+        uid: m157t7ngzap
+        type: table
+        grid_uid: ''
+        fields:
+          currency:
+            wrapper: lyifw1w6f50
+            field: cgdgfq10ztu
+          amount:
+            wrapper: i4vuye0y1bi
+            field: xz9bbu0iaey
+          stage:
+            wrapper: qcw7u8x4g43
+            field: pn8dwrjiqga
+          lead_source:
+            wrapper: 2mjf5675pr2
+            field: gg96ymbzr4u
+          win_probability:
+            wrapper: hc2jzzt79ih
+            field: 1myap6emsjv
+          customer:
+            wrapper: 6f8hzuxa322
+            field: biwjs6q7mk9
+          expected_close_date:
+            wrapper: x05hwyou5g6
+            field: li2syeacm3g
+          name:
+            wrapper: 6bw6wmqayr9
+            field: xc5gf5l2gtj
+          contact:
+            wrapper: 3gbkbdsqzcl
+            field: l9wfn68muzr
+        actions:
+          filter:
+            uid: baqa8ngrq3t
+          refresh:
+            uid: l84wst72n0w
+          addNew:
+            uid: sbjbhznwfwb
+        record_actions:
+          edit:
+            uid: xfhc0mdfocb
+          delete:
+            uid: rcwuxdiaf8q

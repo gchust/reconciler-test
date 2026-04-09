@@ -13,32 +13,29 @@ pages:
     - - '[JS:Pipeline Stats Filter Block]'
     - - name
     coll: nb_crm_opportunities
-  - key: reference_1
-    type: reference
-    template_uid: m39e2ahdwsf
-    template_name: 'Table: Opportunities'
-    reference_mode: reference
-    template_content:
-      key: table_0
-      type: table
-      coll: nb_crm_opportunities
-      fields:
-      - name
-      - amount
-      - currency
-      - stage
-      - lead_source
-      - contact
-      - customer
-      - expected_close_date
-      - win_probability
-      actions:
-      - filter
-      - refresh
-      - addNew
-      - ai
+  - key: table
+    type: table
+    coll: nb_crm_opportunities
+    fields:
+    - name
+    - amount
+    - currency
+    - stage
+    - lead_source
+    - contact
+    - customer
+    - expected_close_date
+    - win_probability
+    actions:
+    - filter
+    - refresh
+    - addNew
+    recordActions:
+    - edit
+    - delete
   layout:
   - - filterForm_0
-  - - reference_1
+  - - table
   page: Opportunities Copy
   icon: fundoutlined
+  coll: nb_crm_opportunities
