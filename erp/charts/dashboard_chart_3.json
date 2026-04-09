@@ -6,7 +6,7 @@
   "chart": {
     "option": {
       "mode": "custom",
-      "raw": "const data = ctx.data || [];\nconst months = data.map(d => d.month);\nconst amounts = data.map(d => parseFloat(d.total_amount || 0));\nconst counts = data.map(d => parseInt(d.order_count || 0));\nreturn {\n  title: { text: '月度销售趋势', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'axis' },\n  legend: { bottom: 0 },\n  xAxis: { type: 'category', data: months },\n  yAxis: [{ type: 'value', name: '金额' }, { type: 'value', name: '订单数' }],\n  series: [\n    { name: '销售额', type: 'bar', data: amounts, itemStyle: { color: '#1677ff', borderRadius: [4,4,0,0] } },\n    { name: '订单数', type: 'line', yAxisIndex: 1, data: counts, smooth: true, lineStyle: { color: '#fa8c16' }, itemStyle: { color: '#fa8c16' } }\n  ]\n};"
+      "raw": "const data = ctx.data?.objects || [];\nconst months = data.map(d => d.month);\nconst amounts = data.map(d => parseFloat(d.total_amount || 0));\nconst counts = data.map(d => parseInt(d.order_count || 0));\nreturn {\n  title: { text: '月度销售趋势', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'axis' },\n  legend: { bottom: 0 },\n  xAxis: { type: 'category', data: months },\n  yAxis: [{ type: 'value', name: '金额' }, { type: 'value', name: '订单数' }],\n  series: [\n    { name: '销售额', type: 'bar', data: amounts, itemStyle: { color: '#1677ff', borderRadius: [4,4,0,0] } },\n    { name: '订单数', type: 'line', yAxisIndex: 1, data: counts, smooth: true, lineStyle: { color: '#fa8c16' }, itemStyle: { color: '#fa8c16' } }\n  ]\n};"
     }
   }
 }

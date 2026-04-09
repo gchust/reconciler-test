@@ -6,7 +6,7 @@
   "chart": {
     "option": {
       "mode": "custom",
-      "raw": "const data = ctx.data || [];\nreturn {\n  title: { text: '订单漏斗', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'item', formatter: '{b}: {c}' },\n  series: [{\n    type: 'funnel', left: '10%', width: '80%', sort: 'none',\n    label: { formatter: p => `${p.name.substring(2)}\\n${p.value}`, fontSize: 12 },\n    data: data.map(d => ({ name: d.stage, value: parseInt(d.count || 0) })),\n    itemStyle: { borderWidth: 0 },\n    color: ['#1677ff', '#52c41a', '#fa8c16', '#722ed1']\n  }]\n};"
+      "raw": "const data = ctx.data?.objects || [];\nreturn {\n  title: { text: '订单漏斗', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'item', formatter: '{b}: {c}' },\n  series: [{\n    type: 'funnel', left: '10%', width: '80%', sort: 'none',\n    label: { formatter: p => `${p.name.substring(2)}\\n${p.value}`, fontSize: 12 },\n    data: data.map(d => ({ name: d.stage, value: parseInt(d.count || 0) })),\n    itemStyle: { borderWidth: 0 },\n    color: ['#1677ff', '#52c41a', '#fa8c16', '#722ed1']\n  }]\n};"
     }
   }
 }

@@ -6,7 +6,7 @@
   "chart": {
     "option": {
       "mode": "custom",
-      "raw": "const data = ctx.data || [];\nreturn {\n  title: { text: '物料库存价值分布', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'item', formatter: p => `${p.name}<br/>库存价值: ¥${(p.value/10000).toFixed(1)}万<br/>占比: ${p.percent}%` },\n  legend: { bottom: 0, type: 'scroll' },\n  series: [{\n    type: 'pie', radius: ['40%', '70%'], center: ['50%', '45%'],\n    label: { formatter: '{b}\\n{d}%', fontSize: 11 },\n    data: data.map(d => ({ name: d.category_name, value: parseFloat(d.stock_value || 0) })),\n    emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },\n    color: ['#1677ff', '#52c41a', '#fa8c16', '#722ed1', '#13c2c2', '#eb2f96']\n  }]\n};"
+      "raw": "const data = ctx.data?.objects || [];\nreturn {\n  title: { text: '物料库存价值分布', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'item', formatter: p => `${p.name}<br/>库存价值: ¥${(p.value/10000).toFixed(1)}万<br/>占比: ${p.percent}%` },\n  legend: { bottom: 0, type: 'scroll' },\n  series: [{\n    type: 'pie', radius: ['40%', '70%'], center: ['50%', '45%'],\n    label: { formatter: '{b}\\n{d}%', fontSize: 11 },\n    data: data.map(d => ({ name: d.category_name, value: parseFloat(d.stock_value || 0) })),\n    emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },\n    color: ['#1677ff', '#52c41a', '#fa8c16', '#722ed1', '#13c2c2', '#eb2f96']\n  }]\n};"
     }
   }
 }
