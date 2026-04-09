@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from nb import NocoBase, dump_yaml
+from nb import NocoBase, dump_yaml, slugify
 from layout import build_grid, apply_layout, parse_layout_spec, describe_layout
 
 
@@ -66,7 +66,7 @@ def deploy(mod_dir: str, force: bool = False):
     # Pages
     for ps in structure.get("pages", []):
         page_title = ps["page"]
-        page_key = _slugify(page_title)
+        page_key = slugify(page_title)
         page_state = state["pages"].get(page_key, {})
 
         if not page_state.get("tab_uid"):
@@ -701,10 +701,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                                          js_type="JSBlockModel", coll=coll)
                 if all_blocks_state:
                     code = _replace_js_uids(code, all_blocks_state)
-                try:
-                    nb.configure(block_uid, {"changes": {"code": code}})
-                except Exception:
-                    nb.update_model(block_uid, {
+                nb.update_model(block_uid, {
                         "jsSettings": {"runJs": {"code": code, "version": "v1"}}
                     })
 
@@ -715,10 +712,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
             p = mod / config_file
             if p.exists():
                 config = json.loads(p.read_text())
-                try:
-                    nb.configure(block_uid, {"changes": config})
-                except Exception:
-                    nb.update_model(block_uid, {"chartSettings": {"configure": config}})
+                nb.update_model(block_uid, {"chartSettings": {"configure": config}})
                 # flowSql:save + run
                 sql = config.get("query", {}).get("sql", "")
                 if sql:
@@ -810,10 +804,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 
             if existing_uid:
                 # Update by UID
-                try:
-                    nb.configure(existing_uid, {"changes": {"code": code}})
-                except Exception:
-                    nb.update_model(existing_uid, {
+                nb.update_model(existing_uid, {
                         "jsSettings": {"runJs": {"code": code, "version": "v1"}}
                     })
             else:
@@ -1401,12 +1392,6 @@ def _find_group(nb: NocoBase, title: str) -> int | None:
             return r["id"]
     return None
 
-
-def _slugify(s: str) -> str:
-    import re
-    s = s.strip().lower()
-    s = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "-", s)
-    return s.strip("-") or "item"
 
 
 # ══════════════════════════════════════════════════════════════════

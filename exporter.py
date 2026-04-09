@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from nb import NocoBase
+from nb import NocoBase, slugify
 
 
 def export_page_surface(nb: NocoBase, tab_uid: str,
@@ -161,11 +161,11 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
 
     # Generate semantic key: title > JS desc > type+index
     if title:
-        key = _slugify(title)
+        key = slugify(title)
     elif btype == "jsBlock":
         code = sp.get("jsSettings", {}).get("runJs", {}).get("code", "")
         desc = _extract_js_desc(code)
-        key = _slugify(desc) if desc else f"{btype}_{index}"
+        key = slugify(desc) if desc else f"{btype}_{index}"
     else:
         key = f"{btype}_{index}"
 
@@ -338,7 +338,7 @@ def _export_table_contents(item: dict, js_dir: Path = None,
             if desc:
                 entry["desc"] = desc
             if code and js_dir:
-                safe = _slugify(col_title or desc or f"col_{len(js_cols)}")
+                safe = slugify(col_title or desc or f"col_{len(js_cols)}")
                 fname = f"{prefix}_{block_key}_col_{safe}.js"
                 (js_dir / fname).write_text(code)
                 entry["file"] = f"./js/{fname}"
@@ -396,7 +396,7 @@ def _export_form_contents(grid: dict, js_dir: Path = None,
             entry: dict[str, Any] = {}
             if desc:
                 entry["desc"] = desc
-            js_name = _slugify(desc) if desc else f"js_{len(js_items)}"
+            js_name = slugify(desc) if desc else f"js_{len(js_items)}"
             if code and js_dir:
                 fname = f"{prefix}_{block_key}_{js_name}.js"
                 (js_dir / fname).write_text(code)
@@ -545,8 +545,3 @@ def _extract_js_desc(code: str) -> str:
     return ""
 
 
-def _slugify(s: str) -> str:
-    import re
-    s = s.strip().lower()
-    s = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "_", s)
-    return s.strip("_") or "item"

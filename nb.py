@@ -355,3 +355,11 @@ class _NoAlias(yaml.SafeDumper):
 def dump_yaml(data: dict) -> str:
     return yaml.dump(data, Dumper=_NoAlias, allow_unicode=True,
                      default_flow_style=False, sort_keys=False)
+
+
+def slugify(s: str) -> str:
+    """Convert string to safe slug (lowercase, underscores)."""
+    import re
+    s = s.strip().lower()
+    s = re.sub(r"[^a-z0-9\u4e00-\u9fff]+", "_", s)
+    return s.strip("_") or "item"
