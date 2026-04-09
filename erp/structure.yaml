@@ -836,52 +836,52 @@ pages:
   - - filter
   - - table
 
-  # ── 9. 经营仪表盘 ──
-  - page: 经营仪表盘
-    icon: dashboardoutlined
-    blocks:
-      - key: kpi_sales
-        type: jsBlock
-        desc: 本月销售额KPI卡片
-        file: ./js/dashboard_kpi_sales.js
+# ── 9. 经营仪表盘 ──
+- page: 经营仪表盘
+  icon: dashboardoutlined
+  blocks:
+    - key: kpi_sales
+      type: jsBlock
+      desc: 本月销售额KPI卡片
+      file: ./js/dashboard_kpi_sales.js
 
-      - key: kpi_purchase
-        type: jsBlock
-        desc: 本月采购额KPI卡片
-        file: ./js/dashboard_kpi_purchase.js
+    - key: kpi_purchase
+      type: jsBlock
+      desc: 本月采购额KPI卡片
+      file: ./js/dashboard_kpi_purchase.js
 
-      - key: kpi_production
-        type: jsBlock
-        desc: 本月生产完工KPI卡片
-        file: ./js/dashboard_kpi_production.js
+    - key: kpi_production
+      type: jsBlock
+      desc: 本月生产完工KPI卡片
+      file: ./js/dashboard_kpi_production.js
 
-      - key: kpi_quality
-        type: jsBlock
-        desc: 本月质检合格率KPI卡片
-        file: ./js/dashboard_kpi_quality.js
+    - key: kpi_quality
+      type: jsBlock
+      desc: 本月质检合格率KPI卡片
+      file: ./js/dashboard_kpi_quality.js
 
-      - key: chart_po_status
-        type: chart
-        chart_config: ./charts/dashboard_chart_1.json
+    - key: chart_po_status
+      type: chart
+      chart_config: ./charts/dashboard_chart_1.json
 
-      - key: chart_funnel
-        type: chart
-        chart_config: ./charts/dashboard_chart_2.json
+    - key: chart_funnel
+      type: chart
+      chart_config: ./charts/dashboard_chart_2.json
 
-      - key: chart_sales_trend
-        type: chart
-        chart_config: ./charts/dashboard_chart_3.json
+    - key: chart_sales_trend
+      type: chart
+      chart_config: ./charts/dashboard_chart_3.json
 
-      - key: chart_production
-        type: chart
-        chart_config: ./charts/dashboard_chart_4.json
+    - key: chart_production
+      type: chart
+      chart_config: ./charts/dashboard_chart_4.json
 
-      - key: chart_stock_dist
-        type: chart
-        chart_config: ./charts/dashboard_chart_5.json
+    - key: chart_stock_dist
+      type: chart
+      chart_config: ./charts/dashboard_chart_5.json
 
-    layout:
-      - [kpi_sales, kpi_purchase, kpi_production, kpi_quality]
-      - [{chart_po_status: 15}, {chart_funnel: 9}]
-      - [chart_sales_trend]
-      - [{chart_production: 14}, {chart_stock_dist: 10}]
+  layout:
+    - [kpi_sales, kpi_purchase, kpi_production, kpi_quality]
+    - [{chart_po_status: 15}, {chart_funnel: 9}]
+    - [chart_sales_trend]
+    - [{chart_production: 14}, {chart_stock_dist: 10}]

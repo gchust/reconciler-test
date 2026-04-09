@@ -572,3 +572,54 @@ pages:
         js_columns:
           合格率:
             uid: a2eucp7sew2
+  经营仪表盘:
+    route_id: 357934553104384
+    page_uid: yh1a3c880ei
+    tab_uid: 6imlqeuqzzq
+    grid_uid: q3tedmzyjng
+    blocks:
+      kpi_sales:
+        uid: or7nt1gsznu
+        type: jsBlock
+        grid_uid: ''
+        fields: {}
+      kpi_purchase:
+        uid: 6uf8jyn4le1
+        type: jsBlock
+        grid_uid: ''
+        fields: {}
+      kpi_production:
+        uid: qyuumy91hk4
+        type: jsBlock
+        grid_uid: ''
+        fields: {}
+      kpi_quality:
+        uid: ue43xd2f8vf
+        type: jsBlock
+        grid_uid: ''
+        fields: {}
+      chart_po_status:
+        uid: 6187d0k1cvz
+        type: chart
+        grid_uid: ''
+        fields: {}
+      chart_funnel:
+        uid: ud62rm1x1un
+        type: chart
+        grid_uid: ''
+        fields: {}
+      chart_sales_trend:
+        uid: 143n1fjvqrb
+        type: chart
+        grid_uid: ''
+        fields: {}
+      chart_production:
+        uid: f1m9zvi93fp
+        type: chart
+        grid_uid: ''
+        fields: {}
+      chart_stock_dist:
+        uid: 2fe4mptad3d
+        type: chart
+        grid_uid: ''
+        fields: {}
