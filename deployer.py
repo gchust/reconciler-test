@@ -569,6 +569,87 @@ def _replace_js_uids(code: str, block_state_all: dict) -> str:
     return code
 
 
+def _apply_complete_layout(nb: NocoBase, grid_uid: str, field_layout: list):
+    """Apply field_layout covering ALL grid children.
+
+    Reads live children, maps them by fieldPath/label/JS,
+    builds rows from field_layout, then appends any uncovered items.
+    setLayout requires ALL children covered — this ensures no missing UIDs.
+    """
+    try:
+        live = nb.get(uid=grid_uid)
+    except Exception:
+        return
+
+    live_tree = live.get("tree", {})
+    items = live_tree.get("subModels", {}).get("items", [])
+    if not isinstance(items, list) or not items:
+        return
+
+    # Build uid map from live items
+    uid_map: dict[str, str] = {}
+    all_uids: set[str] = set()
+    for d in items:
+        d_uid = d["uid"]
+        all_uids.add(d_uid)
+        fp = d.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
+        label = d.get("stepParams", {}).get("markdownItemSetting", {}).get("title", {}).get("label", "")
+        if fp:
+            uid_map[fp] = d_uid
+        elif label:
+            uid_map[label] = d_uid
+        elif "JSItem" in d.get("use", ""):
+            uid_map["_js_"] = d_uid
+
+    # Build rows from field_layout
+    rows: dict[str, list] = {}
+    sizes: dict[str, list] = {}
+    ri = 0
+    covered: set[str] = set()
+
+    for row in field_layout:
+        rk = f"r{ri}"
+
+        if isinstance(row, str):
+            if row.startswith("[JS:") or row == "_js_":
+                u = uid_map.get("_js_")
+                if u and u not in covered:
+                    rows[rk] = [[u]]; sizes[rk] = [24]
+                    covered.add(u); ri += 1
+            elif "---" in row:
+                label = row.strip().strip("-").strip()
+                u = uid_map.get(label)
+                if u and u not in covered:
+                    rows[rk] = [[u]]; sizes[rk] = [24]
+                    covered.add(u); ri += 1
+
+        elif isinstance(row, list):
+            cols = []
+            for item in row:
+                name = item if isinstance(item, str) else (
+                    list(item.keys())[0] if isinstance(item, dict) else None)
+                if name:
+                    u = uid_map.get(name)
+                    if u and u not in covered:
+                        cols.append([u]); covered.add(u)
+            if cols:
+                n = len(cols)
+                rows[rk] = cols; sizes[rk] = [24 // n] * n
+                ri += 1
+
+    # Append uncovered items (safety net — setLayout needs ALL children)
+    for u in all_uids - covered:
+        rk = f"r{ri}"
+        rows[rk] = [[u]]; sizes[rk] = [24]
+        ri += 1
+
+    if rows:
+        try:
+            nb.set_layout(grid_uid, rows, sizes)
+        except Exception:
+            pass  # Layout best-effort
+
+
 def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 bs: dict, default_coll: str, mod: Path,
                 block_state: dict, all_blocks_state: dict = None):
@@ -761,39 +842,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
 
     # ── Field layout ──
     if field_layout and grid_uid:
-        # Read ALL live children to build complete uid map
-        layout_uid_map = {}
-        try:
-            live_grid = nb.get(uid=grid_uid)
-            live_items = live_grid.get("tree", {}).get("subModels", {}).get("items", [])
-            for di in (live_items if isinstance(live_items, list) else []):
-                di_uid = di.get("uid", "")
-                fp = di.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
-                label = di.get("stepParams", {}).get("markdownItemSetting", {}).get("title", {}).get("label", "")
-                if fp:
-                    layout_uid_map[fp] = di_uid
-                elif label:
-                    layout_uid_map[label] = di_uid
-                    layout_uid_map[f"divider.{label}"] = di_uid
-                elif "JSItem" in di.get("use", ""):
-                    # Match by desc from code
-                    code = di.get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
-                    for line in code.split("\n"):
-                        if line.strip().startswith("*") and len(line.strip()) > 3:
-                            desc = line.strip().lstrip("* ").strip()
-                            layout_uid_map[f"[JS:{desc}]"] = di_uid
-                            break
-                    layout_uid_map["_js_"] = di_uid
-        except Exception:
-            # Fallback to tracked states
-            for fp, finfo in field_states.items():
-                layout_uid_map[fp] = finfo.get("wrapper", finfo.get("uid", ""))
-            for label, div_uid in divider_uids.items():
-                layout_uid_map[label] = div_uid
-            layout_uid_map.update(js_item_uids)
-
-        if layout_uid_map:
-            apply_layout(nb, grid_uid, field_layout, layout_uid_map)
+        _apply_complete_layout(nb, grid_uid, field_layout)
 
     # ── FilterForm: default horizontal layout + label settings ──
     if btype == "filterForm" and grid_uid:
