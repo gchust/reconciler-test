@@ -245,6 +245,54 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
         if isinstance(grid, dict):
             fields, js_items, layout, field_popups = _export_form_contents(
                 grid, js_dir, prefix, key)
+
+            # For filterForm: enrich fields with filterManager data (filterPaths, label)
+            if btype == "filterForm" and fields:
+                # Read filterManager from grid (top-level field, not stepParams)
+                grid_uid_val = grid.get("uid", "")
+                if grid_uid_val:
+                    try:
+                        from nb import NocoBase as _NB2
+                        _nb2 = _NB2()
+                        r = _nb2.s.get(f"{_nb2.base}/api/flowModels:get",
+                                       params={"filterByTk": grid_uid_val}, timeout=30)
+                        fm = r.json().get("data", {}).get("filterManager", [])
+
+                        # Build filterId → paths map
+                        filter_paths_map = {}
+                        for entry in fm:
+                            fid = entry.get("filterId", "")
+                            paths = entry.get("filterPaths", [])
+                            if fid and paths:
+                                filter_paths_map[fid] = paths
+
+                        # Match fields to filterManager entries
+                        grid_items = grid.get("subModels", {}).get("items", [])
+                        enriched = []
+                        for fp in fields:
+                            fp_name = fp if isinstance(fp, str) else fp
+                            # Find FilterFormItem UID for this field
+                            for gi in (grid_items if isinstance(grid_items, list) else []):
+                                gi_fp = gi.get("stepParams", {}).get("fieldSettings", {}).get("init", {}).get("fieldPath", "")
+                                if gi_fp == fp_name:
+                                    paths = filter_paths_map.get(gi.get("uid", ""), [])
+                                    label = gi.get("stepParams", {}).get("filterFormItemSettings", {}).get("label", {}).get("label", "")
+                                    if paths or label:
+                                        entry = {"field": fp_name}
+                                        if label:
+                                            entry["label"] = label
+                                        if paths:
+                                            entry["filterPaths"] = paths
+                                        enriched.append(entry)
+                                    else:
+                                        enriched.append(fp_name)
+                                    break
+                            else:
+                                enriched.append(fp_name)
+                        fields = enriched
+                    except Exception:
+                        pass
+
             if fields:
                 spec["fields"] = fields
             if js_items:
