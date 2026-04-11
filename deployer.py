@@ -1,15 +1,18 @@
 """Deployer v3 — compose skeleton + fill content one by one.
 
 No mixed API modes. Clean separation:
-  1. compose → create empty block shells
-  2. addField/addAction → fill content (compose-supported types)
-  3. save_model → fill content (legacy types: JSItem, Divider, Comments, etc.)
-  4. setLayout → arrange everything
-  5. state.yaml → track all UIDs
+  1. validate → check all specs before any API calls
+  2. compose → create empty block shells
+  3. addField/addAction → fill content (compose-supported types)
+  4. save_model → fill content (legacy types: JSItem, Divider, Comments, etc.)
+  5. setLayout → arrange everything
+  6. state.yaml → track all UIDs
 
 Usage:
     python deployer.py orders/               # deploy module
-    python deployer.py orders/ --force       # force recreate (delete + redeploy)
+    python deployer.py orders/ --force       # force update
+    python deployer.py orders/ --plan        # validate + preview only, no deploy
+    python deployer.py --verify-sql orders/  # test all SQL against live PostgreSQL
 """
 
 from __future__ import annotations
@@ -31,11 +34,432 @@ def uid():
 
 
 # ══════════════════════════════════════════════════════════════════
+#  Validate + Plan (runs before any API calls)
+# ══════════════════════════════════════════════════════════════════
+
+def validate(mod_dir: str, nb: NocoBase = None) -> dict:
+    """Validate all specs and return an execution plan.
+
+    Checks:
+      - structure.yaml parseable
+      - Collections exist or have definitions
+      - Fields exist in collections
+      - titleField set on all referenced collections
+      - filterForm: max 3 fields, text fields need filterPaths
+      - All $refs resolvable (after simulating state)
+      - Popup files parseable, targets valid
+      - JS files referenced in specs exist
+
+    Returns plan dict with summary, or raises ValueError with all errors.
+    """
+    mod = Path(mod_dir)
+    errors: list[str] = []
+    warnings: list[str] = []
+    plan: dict[str, Any] = {"pages": [], "popups": [], "collections": []}
+
+    # ── Parse specs ──
+    try:
+        structure = yaml.safe_load((mod / "structure.yaml").read_text())
+    except Exception as e:
+        raise ValueError(f"structure.yaml parse error: {e}")
+
+    enhance = {}
+    if (mod / "enhance.yaml").exists():
+        try:
+            enhance = yaml.safe_load((mod / "enhance.yaml").read_text()) or {}
+        except Exception as e:
+            errors.append(f"enhance.yaml parse error: {e}")
+
+    popups_dir = mod / "popups"
+    popup_files = []
+    if popups_dir.is_dir():
+        for pf in sorted(popups_dir.glob("*.yaml")):
+            try:
+                ps = yaml.safe_load(pf.read_text())
+                if ps and ps.get("target"):
+                    popup_files.append((pf.name, ps))
+            except Exception as e:
+                errors.append(f"popups/{pf.name} parse error: {e}")
+
+    if not nb:
+        nb = NocoBase()
+
+    # ── Collections ──
+    coll_defs = structure.get("collections", {})
+    all_colls: set[str] = set()
+    for ps in structure.get("pages", []):
+        c = ps.get("coll", "")
+        if c:
+            all_colls.add(c)
+        for bs in ps.get("blocks", []):
+            c = bs.get("coll", "")
+            if c:
+                all_colls.add(c)
+
+    for coll_name in all_colls:
+        exists = nb.collection_exists(coll_name)
+        has_def = coll_name in coll_defs
+        if exists:
+            plan["collections"].append(f"= {coll_name}")
+        elif has_def:
+            plan["collections"].append(f"+ {coll_name}")
+        else:
+            errors.append(f"Collection '{coll_name}' does not exist and no definition in collections:")
+
+        # titleField check
+        if exists:
+            try:
+                r = nb.s.get(f"{nb.base}/api/collections:list",
+                             params={"filter": json.dumps({"name": coll_name})}, timeout=30)
+                data = r.json().get("data", [])
+                if data and not data[0].get("titleField"):
+                    if has_def:
+                        pass  # deployer will set it
+                    else:
+                        errors.append(
+                            f"Collection '{coll_name}' has no titleField. "
+                            f"Relation fields will fail to render."
+                        )
+            except Exception:
+                pass
+
+    # ── Validate fields exist ──
+    for ps in structure.get("pages", []):
+        page_coll = ps.get("coll", "")
+        for bs in ps.get("blocks", []):
+            btype = bs.get("type", "")
+            bcoll = bs.get("coll", page_coll)
+            if not bcoll or btype in ("jsBlock", "chart", "markdown", "iframe", "reference"):
+                continue
+
+            try:
+                meta = nb.field_meta(bcoll)
+            except Exception:
+                continue
+
+            for f in bs.get("fields", []):
+                fp = f if isinstance(f, str) else f.get("field", f.get("fieldPath", ""))
+                if not fp or fp.startswith("[") or fp in ("createdAt", "updatedAt", "id"):
+                    continue
+                if fp not in meta and bcoll not in coll_defs:
+                    errors.append(f"Field '{bcoll}.{fp}' not found (page: {ps.get('page', '?')})")
+
+    # ── filterForm validation ──
+    for ps in structure.get("pages", []):
+        for bs in ps.get("blocks", []):
+            if bs.get("type") != "filterForm":
+                continue
+            fields = bs.get("fields", [])
+            if len(fields) > 3:
+                errors.append(
+                    f"filterForm on page '{ps.get('page', '?')}' has {len(fields)} fields (max 3)"
+                )
+            bcoll = bs.get("coll", ps.get("coll", ""))
+            if not bcoll:
+                warnings.append(f"filterForm on page '{ps.get('page', '?')}' has no 'coll' (cross-collection filter?)")
+
+            # text fields need filterPaths
+            if bcoll:
+                try:
+                    meta = nb.field_meta(bcoll)
+                except Exception:
+                    meta = {}
+                # Also check collections definitions for new collections
+                coll_fields_def = {fd["name"]: fd.get("interface", "input")
+                                   for fd in coll_defs.get(bcoll, {}).get("fields", [])
+                                   if isinstance(fd, dict)}
+                text_fields = []
+                for f in fields:
+                    fp = f if isinstance(f, str) else f.get("field", "")
+                    iface = meta.get(fp, {}).get("interface") or coll_fields_def.get(fp, "input")
+                    if iface in ("input", "textarea", "email", "phone", "url"):
+                        has_paths = isinstance(f, dict) and f.get("filterPaths")
+                        if not has_paths:
+                            text_fields.append(fp)
+                if len(text_fields) > 1:
+                    errors.append(
+                        f"filterForm on '{ps.get('page', '?')}' has {len(text_fields)} text inputs "
+                        f"{text_fields}. Use ONE with filterPaths."
+                    )
+
+    # ── JS file references ──
+    def _check_js_refs(blocks, page_name):
+        for bs in blocks:
+            for ji in bs.get("js_items", []):
+                jf = ji.get("file", "")
+                if jf and not (mod / jf).exists():
+                    errors.append(f"JS file not found: {jf} (page: {page_name})")
+            for ef in bs.get("event_flows", []):
+                ef_file = ef.get("file", "")
+                if ef_file and not (mod / ef_file).exists():
+                    warnings.append(f"Event flow JS not found: {ef_file} (page: {page_name})")
+
+    for ps in structure.get("pages", []):
+        _check_js_refs(ps.get("blocks", []), ps.get("page", "?"))
+
+    # ── Dashboard validation ──
+    for ps in structure.get("pages", []):
+        if "dashboard" not in ps.get("page", "").lower():
+            continue
+        blocks = ps.get("blocks", [])
+        types = [b.get("type", "") for b in blocks]
+        has_kpi = "jsBlock" in types
+        has_chart = "chart" in types
+        if not has_kpi:
+            errors.append(
+                f"Dashboard page has no KPI cards (jsBlock). "
+                f"FIX: run 'python deployer.py --new' to scaffold, or add jsBlock with file: ./js/kpi_*.js "
+                f"(copy from templates/kpi_card.js)"
+            )
+        if not has_chart:
+            errors.append(
+                f"Dashboard page has no chart blocks. "
+                f"FIX: add chart blocks with chart_config: ./charts/*.yaml "
+                f"(scaffold with --new auto-generates 5 charts)"
+            )
+
+    # ── Layout validation (>2 items must have explicit layout) ──
+    for ps in structure.get("pages", []):
+        page_name = ps.get("page", "?")
+        # Page-level: >2 blocks need layout
+        blocks = ps.get("blocks", [])
+        if len(blocks) > 2 and not ps.get("layout"):
+            errors.append(
+                f"Page '{page_name}' has {len(blocks)} blocks but no layout. "
+                f"FIX: add layout: section (e.g., layout:\\n- - block1: 12\\n  - block2: 12)"
+            )
+        # Form/detail blocks: >2 fields need field_layout
+        for bs in blocks:
+            btype = bs.get("type", "")
+            bkey = bs.get("key", btype)
+            fields = bs.get("fields", [])
+            if btype in ("createForm", "editForm", "details") and len(fields) > 2 and not bs.get("field_layout"):
+                errors.append(
+                    f"Block '{bkey}' on page '{page_name}' has {len(fields)} fields but no field_layout. "
+                    f"FIX: add field_layout: section to arrange fields in rows/cols"
+                )
+
+    # Popup forms: >2 fields need field_layout
+    all_popups = enhance.get("popups", [])
+    for ps in all_popups:
+        target = ps.get("target", "?")
+        for bs in ps.get("blocks", []):
+            btype = bs.get("type", "")
+            fields = bs.get("fields", [])
+            if btype in ("createForm", "editForm", "details") and len(fields) > 2 and not bs.get("field_layout"):
+                errors.append(
+                    f"Popup '{target}' form has {len(fields)} fields but no field_layout. "
+                    f"FIX: add field_layout: section (e.g., field_layout:\\n- - field1\\n  - field2)"
+                )
+
+    # ── SQL validation (charts + KPI) ──
+    import re
+    # Get all existing table names
+    try:
+        all_tables = {c["name"] for c in
+                      nb.s.get(f"{nb.base}/api/collections:list",
+                               params={"paginate": "false"}, timeout=30).json().get("data", [])}
+        # Also include tables being created in this deploy
+        all_tables.update(coll_defs.keys())
+    except Exception:
+        all_tables = set()
+
+    # Common SQL syntax issues (NocoBase flowSql runs on PostgreSQL with column name validation)
+    _SQL_PATTERNS = [
+        (r"DATE\s*\(\s*'now'", "DATE('now', ...) is SQLite. FIX: use NOW() - '7 days'::interval"),
+        (r"strftime\s*\(", "strftime() is SQLite. FIX: use TO_CHAR(col, 'YYYY-MM')"),
+        (r"datetime\s*\(\s*'now'", "datetime('now') is SQLite. FIX: use NOW()"),
+        (r"GROUP_CONCAT\s*\(", "GROUP_CONCAT() is MySQL/SQLite. FIX: use STRING_AGG(col, ',')"),
+        (r"IFNULL\s*\(", "IFNULL() is SQLite. FIX: use COALESCE()"),
+        # NocoBase flowSql requires camelCase column names (not snake_case)
+        (r'\bcreated_at\b', 'created_at is snake_case. FIX: use "createdAt" (NocoBase uses camelCase)'),
+        (r'\bupdated_at\b', 'updated_at is snake_case. FIX: use "updatedAt" (NocoBase uses camelCase)'),
+    ]
+
+    def _validate_sql(sql: str, source: str):
+        """Check SQL for table refs and SQLite syntax incompatible with PostgreSQL."""
+        if not sql:
+            return
+        # Check for SQLite syntax and NocoBase naming rules
+        for pattern, msg in _SQL_PATTERNS:
+            if re.search(pattern, sql, re.IGNORECASE):
+                errors.append(f"SQL syntax error in {source}: {msg}")
+        # Check table references
+        if not all_tables:
+            return
+        table_refs = re.findall(
+            r'(?:FROM|JOIN)\s+([a-zA-Z_][a-zA-Z0-9_]*)',
+            sql, re.IGNORECASE)
+        for tbl in table_refs:
+            if tbl.lower() in ('select', 'where', 'group', 'order', 'having',
+                               'limit', 'union', 'as', 'on', 'and', 'or', 'not',
+                               'case', 'when', 'then', 'else', 'end', 'with',
+                               'sla_check', 'true', 'false', 'null'):
+                continue  # SQL keywords / CTE names
+            if tbl not in all_tables:
+                errors.append(f"SQL references non-existent table '{tbl}' ({source})")
+
+    for ps in structure.get("pages", []):
+        page_name = ps.get("page", "?")
+        for bs in ps.get("blocks", []):
+            # Chart config validation
+            btype_c = bs.get("type", "")
+            bkey_c = bs.get("key", btype_c)
+            chart_file = bs.get("chart_config", "")
+            if btype_c == "chart" and not chart_file:
+                errors.append(
+                    f"Chart block '{bkey_c}' on page '{page_name}' has no chart_config. "
+                    f"FIX: add chart_config: ./charts/{bkey_c}.yaml"
+                )
+            elif btype_c == "chart" and chart_file and not (mod / chart_file).exists():
+                errors.append(
+                    f"Chart config not found: {chart_file} (block '{bkey_c}' on '{page_name}')"
+                )
+            if chart_file and (mod / chart_file).exists():
+                try:
+                    if chart_file.endswith((".yaml", ".yml")):
+                        chart_spec = yaml.safe_load((mod / chart_file).read_text()) or {}
+                        # Check render_file exists
+                        render_file = chart_spec.get("render_file", "")
+                        has_render = (render_file and (mod / render_file).exists()) or chart_spec.get("render")
+                        if not has_render:
+                            errors.append(
+                                f"Chart '{chart_file}' has no render_file. "
+                                f"FIX: add render_file: ./charts/{chart_file.split('/')[-1].replace('.yaml','')}_render.js "
+                                f"(copy from templates/chart_render.js)"
+                            )
+                        # Check sql_file exists
+                        sql_file = chart_spec.get("sql_file", "")
+                        has_sql = (sql_file and (mod / sql_file).exists()) or chart_spec.get("sql")
+                        if not has_sql:
+                            errors.append(
+                                f"Chart '{chart_file}' has no sql_file or sql. "
+                                f"FIX: add sql_file: ./charts/{chart_file.split('/')[-1].replace('.yaml','')}.sql"
+                            )
+                        if sql_file and (mod / sql_file).exists():
+                            sql = (mod / sql_file).read_text()
+                            _validate_sql(sql, f"chart {chart_file} → {sql_file}")
+                        elif chart_spec.get("sql"):
+                            _validate_sql(chart_spec["sql"], f"chart {chart_file} (inline)")
+                    else:
+                        config = json.loads((mod / chart_file).read_text())
+                        sql = config.get("query", {}).get("sql", "")
+                        _validate_sql(sql, f"chart {chart_file}")
+                except Exception:
+                    pass
+
+            # KPI JS — extract SQL from CONFIG.sql in JS file
+            js_file = bs.get("file", "")
+            if js_file and bs.get("type") == "jsBlock" and (mod / js_file).exists():
+                try:
+                    js_code = (mod / js_file).read_text()
+                    # Validate KPI JS has required rendering patterns
+                    if "ctx.render" not in js_code and "ctx.React.createElement" not in js_code:
+                        errors.append(
+                            f"JS block '{js_file}' missing ctx.render(). "
+                            f"FIX: cp templates/kpi_card.js {js_file} — then only edit CONFIG section"
+                        )
+                    if "ctx.sql" not in js_code and "ctx.request" not in js_code:
+                        errors.append(
+                            f"JS block '{js_file}' has no data fetch (ctx.sql/ctx.request). "
+                            f"FIX: cp templates/kpi_card.js {js_file} — then only edit CONFIG.sql"
+                        )
+                    # Find SQL in CONFIG.sql = `...`
+                    sql_match = re.search(r'sql:\s*`([^`]+)`', js_code)
+                    if sql_match:
+                        _validate_sql(sql_match.group(1), f"KPI {js_file}")
+                except Exception:
+                    pass
+
+    # ── Build plan summary ──
+    pages = structure.get("pages", [])
+    for ps in pages:
+        blocks = ps.get("blocks", [])
+        plan["pages"].append({
+            "name": ps.get("page", "?"),
+            "blocks": len(blocks),
+            "types": [b.get("type", "?") for b in blocks],
+        })
+
+    # Popup plan
+    all_popups = list(enhance.get("popups", []))
+    for fname, ps in popup_files:
+        all_popups.append(ps)
+    expanded = _expand_popups(all_popups)
+    for p in expanded:
+        target = p.get("target", "")
+        blocks = p.get("blocks", [])
+        auto = p.get("auto", [])
+        plan["popups"].append({
+            "target": target,
+            "blocks": len(blocks),
+            "auto": auto,
+        })
+
+    # ── Report ──
+    if errors:
+        msg = f"\n  Validation failed ({len(errors)} errors):\n"
+        for e in errors:
+            msg += f"    ✗ {e}\n"
+        if warnings:
+            for w in warnings:
+                msg += f"    ⚠ {w}\n"
+        raise ValueError(msg)
+
+    return plan
+
+
+def print_plan(plan: dict, warnings: list[str] = None):
+    """Pretty-print an execution plan."""
+    colls = plan.get("collections", [])
+    pages = plan.get("pages", [])
+    popups = plan.get("popups", [])
+
+    print(f"\n  ── Plan ──")
+    if colls:
+        print(f"  Collections: {len(colls)}")
+        for c in colls:
+            print(f"    {c}")
+
+    print(f"  Pages: {len(pages)}")
+    for p in pages:
+        types = ", ".join(p["types"])
+        print(f"    {p['name']}: {p['blocks']} blocks ({types})")
+
+    print(f"  Popups: {len(popups)}")
+    for p in popups:
+        target = p["target"]
+        auto = p.get("auto", [])
+        n = p["blocks"]
+        label = f"{n} blocks"
+        if auto:
+            label = f"auto: {auto}"
+        print(f"    {target} → {label}")
+
+    total_blocks = sum(p["blocks"] for p in pages)
+    print(f"\n  Total: {len(colls)} collections, {len(pages)} pages, "
+          f"{total_blocks} blocks, {len(popups)} popups")
+    print(f"  ✓ Validation passed\n")
+
+
+# ══════════════════════════════════════════════════════════════════
 #  Main entry
 # ══════════════════════════════════════════════════════════════════
 
-def deploy(mod_dir: str, force: bool = False):
+def deploy(mod_dir: str, force: bool = False, plan_only: bool = False):
     mod = Path(mod_dir)
+
+    # Phase 0: Validate
+    nb = NocoBase()
+    try:
+        plan = validate(mod_dir, nb)
+        print_plan(plan)
+        if plan_only:
+            return
+    except ValueError as e:
+        print(str(e))
+        sys.exit(1)
+
     structure = yaml.safe_load((mod / "structure.yaml").read_text())
     enhance = {}
     if (mod / "enhance.yaml").exists():
@@ -51,8 +475,6 @@ def deploy(mod_dir: str, force: bool = False):
                 print(f"  + popup file: {pf.name}")
     state_file = mod / "state.yaml"
     state = yaml.safe_load(state_file.read_text()) if state_file.exists() else {}
-
-    nb = NocoBase()
     print(f"  Connected to {nb.base}")
 
     # Collections
@@ -87,16 +509,28 @@ def deploy(mod_dir: str, force: bool = False):
         except Exception:
             pass
 
-    # Group
+    # Group — supports nested groups via "Parent/Child" format
     module_name = structure.get("module", "Untitled")
+    group_path = structure.get("group", module_name)
     icon = structure.get("icon", "appstoreoutlined")
-    group_id = state.get("group_id") or _find_group(nb, module_name)
+
+    # Split group path for nested groups (e.g., "Main Copy/More Charts Copy")
+    group_parts = [p.strip() for p in group_path.split("/")]
+    group_id = state.get("group_id")
     if not group_id:
-        result = nb.create_group(module_name, icon=icon)
-        group_id = result["routeId"]
-        print(f"  + group: {module_name}")
+        parent_id = None
+        for i, gname in enumerate(group_parts):
+            gid = _find_group(nb, gname, parent_id)
+            if not gid:
+                result = nb.create_group(gname, icon=icon, parent_id=parent_id)
+                gid = result["routeId"]
+                print(f"  + group: {gname}")
+            else:
+                print(f"  = group: {gname}")
+            parent_id = gid
+        group_id = parent_id
     else:
-        print(f"  = group: {module_name}")
+        print(f"  = group: {group_path}")
     state["group_id"] = group_id
     state.setdefault("pages", {})
 
@@ -119,11 +553,83 @@ def deploy(mod_dir: str, force: bool = False):
         else:
             print(f"  = page: {page_title}")
 
-        # Deploy surface (blocks + layout)
-        existing_blocks = page_state.get("blocks", {})
-        blocks_state = deploy_surface(nb, page_state["tab_uid"], ps, mod, force,
-                                       existing_blocks)
-        page_state["blocks"] = blocks_state
+        page_tabs = ps.get("tabs", [])
+        if page_tabs:
+            # Multi-tab page: deploy each tab
+            tab_states = page_state.get("tab_states", {})
+            for ti, tab_spec in enumerate(page_tabs):
+                tab_title = tab_spec.get("title", f"Tab{ti}")
+                tab_key = slugify(tab_title)
+
+                if ti == 0:
+                    # First tab = default tab (already created)
+                    tab_uid = page_state["tab_uid"]
+                    # Rename if needed
+                    if tab_title:
+                        route_id = page_state.get("route_id")
+                        if route_id:
+                            try:
+                                # Find the tabs child route and rename
+                                r_data = nb.s.get(f"{nb.base}/api/desktopRoutes:list",
+                                    params={"filter": json.dumps({"parentId": route_id, "type": "tabs"}),
+                                            "pageSize": 10}, timeout=30)
+                                tab_routes = r_data.json().get("data", [])
+                                if tab_routes:
+                                    nb.s.post(f"{nb.base}/api/desktopRoutes:update",
+                                              params={"filterByTk": tab_routes[0]["id"]},
+                                              json={"title": tab_title}, timeout=30)
+                            except Exception:
+                                pass
+                elif tab_key in tab_states:
+                    tab_uid = tab_states[tab_key].get("tab_uid", "")
+                else:
+                    # Create additional tab
+                    try:
+                        route_id = page_state.get("route_id")
+                        r2 = nb.s.post(f"{nb.base}/api/desktopRoutes:create",
+                                       json={"type": "tabs", "title": tab_title,
+                                             "parentId": route_id}, timeout=30)
+                        tab_data = r2.json().get("data", {})
+                        tab_uid = tab_data.get("schemaUid", "")
+                        print(f"    + tab: {tab_title}")
+                    except Exception as e:
+                        print(f"    ! tab {tab_title}: {e}")
+                        continue
+
+                existing_blocks = tab_states.get(tab_key, {}).get("blocks", {})
+                blocks_state = deploy_surface(nb, tab_uid, tab_spec, mod, force,
+                                               existing_blocks)
+                tab_states[tab_key] = {"tab_uid": tab_uid, "blocks": blocks_state}
+
+            page_state["tab_states"] = tab_states
+        else:
+            # Single tab page
+            existing_blocks = page_state.get("blocks", {})
+            blocks_state = deploy_surface(nb, page_state["tab_uid"], ps, mod, force,
+                                           existing_blocks)
+            page_state["blocks"] = blocks_state
+
+        # Page-level event flows (e.g., customVariable for filterForm → chart binding)
+        page_flows = ps.get("page_event_flows", [])
+        if page_flows and page_state.get("page_uid"):
+            flow_registry = {}
+            for pf in page_flows:
+                flow_key = pf.get("flow_key", "")
+                if flow_key:
+                    flow_registry[flow_key] = {
+                        "key": flow_key,
+                        "title": pf.get("title", "Event flow"),
+                        "on": pf.get("event", {}),
+                        "steps": pf.get("steps", {}),
+                    }
+            if flow_registry:
+                try:
+                    page_uid = page_state["page_uid"]
+                    nb.save_model({"uid": page_uid, "flowRegistry": flow_registry})
+                    print(f"    + page event flows: {len(flow_registry)}")
+                except Exception as e:
+                    print(f"    ! page event flows: {e}")
+
         state["pages"][page_key] = page_state
 
     # Popups
@@ -146,9 +652,183 @@ def deploy(mod_dir: str, force: bool = False):
         _deploy_popup(nb, target_uid, target_ref, popup_spec, state, mod, force,
                       popup_path=pp)
 
+    # ── Final column reorder (after popups may have added ChildPage columns) ──
+    for ps in structure.get("pages", []):
+        page_key = slugify(ps.get("page", ""))
+        page_state = state.get("pages", {}).get(page_key, {})
+        for tab_spec in ps.get("tabs", [ps]):
+            for bs in tab_spec.get("blocks", []):
+                if bs.get("type") == "table":
+                    bk = bs.get("key", "")
+                    blocks_info = page_state.get("blocks", {})
+                    # Also check tab_states
+                    if bk not in blocks_info:
+                        for tk, tv in page_state.get("tab_states", {}).items():
+                            if bk in tv.get("blocks", {}):
+                                blocks_info = tv["blocks"]
+                                break
+                    block_uid = blocks_info.get(bk, {}).get("uid", "")
+                    spec_fields = [f if isinstance(f, str) else f.get("field", "")
+                                   for f in bs.get("fields", [])
+                                   if (f if isinstance(f, str) else f.get("field", ""))]
+                    if block_uid and spec_fields:
+                        _reorder_table_columns(nb, block_uid, spec_fields)
+
     # Save state
     state_file.write_text(dump_yaml(state))
     print(f"\n  State saved. Done.")
+
+    # ── Post-deploy verification ──
+    post_errors = []
+    post_warnings = []
+    for ps in structure.get("pages", []):
+        for tab_spec in ps.get("tabs", [ps]):
+            for bs in tab_spec.get("blocks", []):
+                btype = bs.get("type", "")
+                key = bs.get("key", "")
+                page_key = slugify(ps.get("page", ""))
+                binfo = state.get("pages", {}).get(page_key, {})
+                # Check in blocks or tab_states
+                block_uid = binfo.get("blocks", {}).get(key, {}).get("uid", "")
+                if not block_uid:
+                    for tk, tv in binfo.get("tab_states", {}).items():
+                        block_uid = tv.get("blocks", {}).get(key, {}).get("uid", "")
+                        if block_uid:
+                            break
+                if not block_uid:
+                    continue
+
+                if btype == "chart":
+                    try:
+                        d = nb.get(uid=block_uid)
+                        chart_cfg = d.get("tree", {}).get("stepParams", {}).get("chartSettings", {}).get("configure", {})
+                        if not chart_cfg.get("query", {}).get("sql"):
+                            post_errors.append(f"Chart '{key}' deployed but has NO SQL config — redeploy with --force")
+                    except Exception:
+                        pass
+
+                if btype == "jsBlock":
+                    try:
+                        d = nb.get(uid=block_uid)
+                        code = d.get("tree", {}).get("stepParams", {}).get("jsSettings", {}).get("runJs", {}).get("code", "")
+                        if len(code) < 100:
+                            post_errors.append(f"JS block '{key}' has only {len(code)} chars — likely empty or stub")
+                        else:
+                            # Validate KPI SQL returns data
+                            import re as _re2
+                            sql_m = _re2.search(r'sql:\s*`([^`]+)`', code)
+                            uid_m = _re2.search(r"reportUid:\s*['\"]([^'\"]+)['\"]", code)
+                            if sql_m and uid_m:
+                                try:
+                                    resp = nb.s.post(f"{nb.base}/api/flowSql:run", json={
+                                        "type": "selectRows", "uid": uid_m.group(1),
+                                        "dataSourceKey": "main", "sql": sql_m.group(1).strip(), "bind": {},
+                                    }, timeout=15)
+                                    if resp.status_code >= 400:
+                                        err = resp.json().get("errors", [{}])[0].get("message", resp.text[:100])
+                                        post_errors.append(f"KPI '{key}' SQL error: {err}")
+                                    else:
+                                        rows = resp.json().get("data", [])
+                                        if not rows or not rows[0].get("value"):
+                                            post_warnings.append(
+                                                f"KPI '{key}' SQL returns empty/zero — insert test data to see results"
+                                            )
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+
+    # ── Duplicate block warning (soft check, not blocking) ──
+    for ps in structure.get("pages", []):
+        page_key = slugify(ps.get("page", ""))
+        page_state = state.get("pages", {}).get(page_key, {})
+        tab_uid = page_state.get("tab_uid", "")
+        spec_count = len(ps.get("blocks", []))
+        if tab_uid and spec_count > 0:
+            try:
+                d = nb.get(uid=tab_uid)
+                grid = d.get("tree", {}).get("subModels", {}).get("grid", {})
+                actual_items = grid.get("subModels", {}).get("items", [])
+                actual_count = len(actual_items) if isinstance(actual_items, list) else 0
+                if actual_count > spec_count:
+                    post_warnings.append(
+                        f"Page '{ps.get('page')}' has {actual_count} blocks on page but spec defines {spec_count} — "
+                        f"possible duplicates"
+                    )
+            except Exception:
+                pass
+
+    # ── Popup verification (check auto-derived popups have content) ──
+    def _check_popup_content(uid: str) -> bool:
+        """Check if a popup target has actual content (ChildPage with blocks)."""
+        try:
+            data = nb.get(uid=uid)
+            tree = data.get("tree", {})
+            page = tree.get("subModels", {}).get("page", {})
+            if not page:
+                return False
+            tabs = page.get("subModels", {}).get("tabs", [])
+            if not isinstance(tabs, list):
+                tabs = [tabs] if tabs else []
+            for t in tabs:
+                g = t.get("subModels", {}).get("grid", {})
+                items = g.get("subModels", {}).get("items", [])
+                if isinstance(items, list) and items:
+                    return True
+            return False
+        except Exception:
+            return False
+
+    for popup_spec in popups:
+        target_ref = popup_spec.get("target", "")
+        blocks = popup_spec.get("blocks", [])
+
+        # Check all popups with blocks OR auto-derived popups (edit/detail should have content)
+        is_auto_edit = "record_actions.edit" in target_ref
+        is_auto_detail = False
+        # Detail popup = targets a field (fields.xxx)
+        if ".fields." in target_ref and blocks:
+            is_auto_detail = True
+
+        # Skip popups that are intentionally empty (no blocks, not auto)
+        if not blocks and not is_auto_edit:
+            continue
+
+        try:
+            target_uid = resolver.resolve_uid(target_ref)
+        except KeyError:
+            post_errors.append(
+                f"Popup {target_ref}: ref not found — popup NOT created. "
+                f"FIX: check enhance.yaml target path and ensure the table has this action/field"
+            )
+            continue
+
+        has_content = _check_popup_content(target_uid)
+        if not has_content:
+            if is_auto_edit:
+                post_errors.append(
+                    f"Popup {target_ref}: edit popup is EMPTY (no edit form inside). "
+                    f"FIX: redeploy with --force to populate the edit popup"
+                )
+            elif blocks:
+                popup_type = "detail" if is_auto_detail else "form"
+                post_errors.append(
+                    f"Popup {target_ref}: {popup_type} popup is EMPTY (no blocks inside). "
+                    f"FIX: redeploy with --force, or check enhance.yaml blocks"
+                )
+
+    if post_errors:
+        print(f"\n  ── Post-deploy errors ──")
+        for e in post_errors:
+            print(f"  ✗ {e}")
+
+    if post_warnings:
+        print(f"\n  ── Hints ──")
+        for w in post_warnings:
+            print(f"  💡 {w}")
+
+    # ── Auto SQL verification (runs all chart/KPI SQL against live DB) ──
+    _auto_verify_sql(structure, mod, nb)
 
     # ── Next steps hint ──
     has_enhance = (mod / "enhance.yaml").exists()
@@ -167,6 +847,73 @@ def deploy(mod_dir: str, force: bool = False):
     print(f"\n  ── Next steps ──")
     for h in hints:
         print(f"  → {h}")
+
+
+def _auto_verify_sql(structure: dict, mod: Path, nb: NocoBase):
+    """Run all chart/KPI SQL against live DB after deploy. Reports failures."""
+    import re as _re
+    sql_sources = []
+    for ps in structure.get("pages", []):
+        page_name = ps.get("page", "?")
+        for bs in ps.get("blocks", []):
+            chart_file = bs.get("chart_config", "")
+            if chart_file and (mod / chart_file).exists():
+                try:
+                    if chart_file.endswith((".yaml", ".yml")):
+                        spec = yaml.safe_load((mod / chart_file).read_text()) or {}
+                        sf = spec.get("sql_file", "")
+                        if sf and (mod / sf).exists():
+                            sql_sources.append((f"{chart_file}", (mod / sf).read_text(), str(mod / sf)))
+                    else:
+                        cfg = json.loads((mod / chart_file).read_text())
+                        sq = cfg.get("query", {}).get("sql", "")
+                        if sq:
+                            sql_sources.append((chart_file, sq, str(mod / chart_file)))
+                except Exception:
+                    pass
+            js_file = bs.get("file", "")
+            if js_file and bs.get("type") == "jsBlock" and (mod / js_file).exists():
+                try:
+                    js_code = (mod / js_file).read_text()
+                    m = _re.search(r'sql:\s*`([^`]+)`', js_code)
+                    if m:
+                        sql_sources.append((js_file, m.group(1), str(mod / js_file)))
+                except Exception:
+                    pass
+
+    if not sql_sources:
+        return
+
+    ok, fail = 0, 0
+    failed_items = []
+    for label, sql, fpath in sql_sources:
+        clean = _re.sub(r"\{%\s*if\s+[^%]*%\}.*?\{%\s*endif\s*%\}", "", sql, flags=_re.DOTALL)
+        clean = "\n".join(l for l in clean.split("\n") if "{{" not in l and "{%" not in l)
+        try:
+            uid = f"_verify_{label.replace('/', '_').replace('.', '_')}"
+            resp = nb.s.post(f"{nb.base}/api/flowSql:run", json={
+                "type": "selectRows", "uid": uid,
+                "dataSourceKey": "main", "sql": clean.strip(), "bind": {},
+            }, timeout=15)
+            if resp.status_code >= 400:
+                fail += 1
+                try:
+                    msg = resp.json().get("errors", [{}])[0].get("message", resp.text[:200])
+                except Exception:
+                    msg = resp.text[:200]
+                failed_items.append((label, msg, fpath))
+            else:
+                ok += 1
+        except Exception as e:
+            fail += 1
+            failed_items.append((label, str(e), fpath))
+
+    print(f"\n  ── SQL Verification: {ok} passed, {fail} failed ──")
+    for label, msg, fpath in failed_items:
+        print(f"  ✗ {label}: {msg}")
+        print(f"    FIX: edit {fpath}")
+    if fail > 0:
+        print(f"  Run: python deployer.py --verify-sql {mod} to re-check after fixing")
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -664,7 +1411,10 @@ def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
     resource = bs.get("resource")
     block_coll = bs.get("coll", default_coll)
     if resource:
-        block["resource"] = resource
+        block["resource"] = dict(resource)  # copy to avoid mutating spec
+        # Ensure dataSourceKey is always present
+        if "collectionName" in block["resource"] and "dataSourceKey" not in block["resource"]:
+            block["resource"]["dataSourceKey"] = "main"
     elif res_binding.get("associationName"):
         block["resource"] = {
             "collectionName": block_coll,
@@ -674,7 +1424,11 @@ def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
         if res_binding.get("sourceId"):
             block["resource"]["sourceId"] = res_binding["sourceId"]
     elif res_binding.get("filterByTk"):
-        block["resource"] = {"binding": "currentRecord"}
+        # Popup context: compose needs collectionName + "currentRecord" binding
+        if block_coll:
+            block["resource"] = {"collectionName": block_coll, "dataSourceKey": "main", "binding": "currentRecord"}
+        else:
+            block["resource"] = {"binding": "currentRecord"}
     elif block_coll and btype not in ("filterForm", "jsBlock", "chart", "markdown"):
         block["resource"] = {"collectionName": block_coll, "dataSourceKey": "main"}
 
@@ -713,16 +1467,14 @@ def _to_compose_block(bs: dict, default_coll: str) -> dict | None:
         compose_fields = [{"fieldPath": fp} for fp in all_fields]
         block["fields"] = compose_fields
 
-    # Include actions — compose handles standard action types
-    # Exclude edit/view — compose auto-creates empty popup stubs for these.
-    # Instead, create them via _fill_block (save_model) so NocoBase
-    # generates the popup form at runtime.
-    _POPUP_ACTIONS = {"edit", "view", "duplicate"}
+    # Include actions — compose handles standard action types + edit/view (creates ChildPage stubs).
+    # Other action types (ai, workflow, duplicate, export, import) created via save_model in _fill_block.
+    _COMPOSE_ACTIONS = {"filter", "refresh", "addNew", "delete", "bulkDelete", "submit", "reset", "edit", "view"}
     actions = list(bs.get("actions", []))
     record_actions = list(bs.get("recordActions", []))
 
-    compose_actions = [a for a in actions if a not in _POPUP_ACTIONS]
-    compose_rec_actions = [a for a in record_actions if a not in _POPUP_ACTIONS]
+    compose_actions = [a for a in actions if (a if isinstance(a, str) else a.get("type", "")) in _COMPOSE_ACTIONS]
+    compose_rec_actions = [a for a in record_actions if (a if isinstance(a, str) else a.get("type", "")) in _COMPOSE_ACTIONS]
 
     if compose_actions:
         block["actions"] = [{"type": a} if isinstance(a, str) else a for a in compose_actions]
@@ -995,6 +1747,20 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
     btype = bs.get("type", "")
     coll = bs.get("coll", default_coll)
 
+    # ── Table settings: dataScope + pageSize ──
+    table_updates = {}
+    if bs.get("dataScope"):
+        table_updates["dataScope"] = {"filter": bs["dataScope"]}
+    if bs.get("pageSize"):
+        table_updates["pageSize"] = {"pageSize": bs["pageSize"]}
+    if bs.get("sort"):
+        table_updates["sort"] = bs["sort"]
+    if table_updates:
+        try:
+            nb.update_model(block_uid, {"tableSettings": table_updates})
+        except Exception:
+            pass
+
     # ── Fields ──
     # compose includes fields but uses DisplayTextFieldModel for all.
     # Fix display model based on collection interface.
@@ -1081,6 +1847,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 nb.update_model(block_uid, {
                         "jsSettings": {"runJs": {"code": code, "version": "v1"}}
                     })
+                print(f"      ~ JS: {bs.get('desc', js_file)[:40]}")
 
     # ── Chart config ──
     if btype == "chart":
@@ -1088,48 +1855,111 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
         if config_file:
             p = mod / config_file
             if p.exists():
-                config = json.loads(p.read_text())
+                if config_file.endswith(".yaml") or config_file.endswith(".yml"):
+                    # New format: YAML with sql_file + render_file refs
+                    chart_spec = yaml.safe_load(p.read_text()) or {}
+                    sql = chart_spec.get("sql", "")
+                    if chart_spec.get("sql_file"):
+                        sf = mod / chart_spec["sql_file"]
+                        if sf.exists():
+                            sql = sf.read_text()
+                    render_js = chart_spec.get("render", "")
+                    if chart_spec.get("render_file"):
+                        rf = mod / chart_spec["render_file"]
+                        if rf.exists():
+                            render_js = rf.read_text()
+                    config = {
+                        "query": {"mode": "sql", "sql": sql},
+                        "chart": {"option": {"mode": "custom", "raw": render_js}},
+                    }
+                else:
+                    # Legacy: JSON with everything inline
+                    config = json.loads(p.read_text())
+
                 nb.update_model(block_uid, {"chartSettings": {"configure": config}})
-                # flowSql:save + run
                 sql = config.get("query", {}).get("sql", "")
                 if sql:
-                    import re
+                    # Save SQL template (don't run — table may not exist yet)
                     nb.s.post(f"{nb.base}/api/flowSql:save", json={
                         "type": "selectRows", "uid": block_uid,
                         "dataSourceKey": "main", "sql": sql, "bind": {},
                     }, timeout=30)
-                    clean = re.sub(r"\{%\s*if\s+[^%]*%\}.*?\{%\s*endif\s*%\}", "", sql, flags=re.DOTALL)
-                    clean = "\n".join(l for l in clean.split("\n") if "{{" not in l and "{%" not in l)
-                    nb.s.post(f"{nb.base}/api/flowSql:run", json={
-                        "type": "selectRows", "uid": block_uid,
-                        "dataSourceKey": "main", "sql": clean, "bind": {},
-                    }, timeout=30)
+                    # Try to run — report errors so AI can fix SQL
+                    try:
+                        import re as _re
+                        clean = _re.sub(r"\{%\s*if\s+[^%]*%\}.*?\{%\s*endif\s*%\}", "", sql, flags=_re.DOTALL)
+                        clean = "\n".join(l for l in clean.split("\n") if "{{" not in l and "{%" not in l)
+                        resp = nb.s.post(f"{nb.base}/api/flowSql:run", json={
+                            "type": "selectRows", "uid": block_uid,
+                            "dataSourceKey": "main", "sql": clean, "bind": {},
+                        }, timeout=15)
+                        if resp.status_code >= 400:
+                            err_msg = ""
+                            try:
+                                err_data = resp.json()
+                                err_msg = err_data.get("errors", [{}])[0].get("message", resp.text[:200])
+                            except Exception:
+                                err_msg = resp.text[:200]
+                            print(f"    ✗ chart SQL error ({config_file}): {err_msg}")
+                            print(f"      FIX: edit {config_file} SQL — NocoBase uses PostgreSQL, not SQLite")
+                        else:
+                            print(f"      + chart: {config_file} (SQL verified ✓)")
+                    except Exception as e:
+                        print(f"    ! chart SQL run failed ({config_file}): {e}")
+                        print(f"      + chart: {config_file}")
 
-    # ── Actions (popup-type: edit/view/duplicate) ──
-    # These are excluded from compose to avoid empty popup stubs.
-    # Create as plain action buttons — NocoBase auto-generates popup at runtime.
-    _POPUP_ACTION_MAP = {
+    # ── Actions not created by compose ──
+    # Compose only handles a whitelist. Others created here via save_model.
+    _NON_COMPOSE_ACTION_MAP = {
         "edit": "EditActionModel",
         "view": "ViewActionModel",
         "duplicate": "DuplicateActionModel",
+        "export": "ExportActionModel",
+        "import": "ImportActionModel",
+        "link": "LinkActionModel",
+        "workflowTrigger": "CollectionTriggerWorkflowActionModel",
+        "ai": "AIEmployeeButtonModel",
+        "expandCollapse": "ExpandCollapseActionModel",
+        "popup": "PopupCollectionActionModel",
+        "updateRecord": "UpdateRecordActionModel",
     }
     all_actions = list(bs.get("actions", []))
     all_rec_actions = list(bs.get("recordActions", []))
 
-    for atype in all_actions + all_rec_actions:
-        if isinstance(atype, dict):
-            atype = atype.get("type", "")
-        amodel = _POPUP_ACTION_MAP.get(atype)
+    for aspec in all_actions + all_rec_actions:
+        action_sp = {}
+        action_props = {}
+        if isinstance(aspec, dict):
+            atype = aspec.get("type", "")
+            action_sp = aspec.get("stepParams", {})
+            action_props = aspec.get("props", {})
+
+            # AI button shorthand: {type: ai, employee: viz, tasks_file: ./ai/tasks.yaml}
+            if atype == "ai" and aspec.get("employee") and not action_sp:
+                action_sp, action_props = _build_ai_button(
+                    aspec, block_uid, mod)
+        else:
+            atype = aspec
+        amodel = _NON_COMPOSE_ACTION_MAP.get(atype)
         if not amodel:
             continue
-        # Check if compose already created it
         a_key = atype
         existing_actions = block_state.get("actions", {})
         existing_rec = block_state.get("record_actions", {})
         if a_key in existing_actions or a_key in existing_rec:
+            # Already tracked in state — but update stepParams if spec has config
+            if action_sp or action_props:
+                existing_uid = (existing_actions.get(a_key) or existing_rec.get(a_key, {})).get("uid", "")
+                if existing_uid:
+                    update = {"uid": existing_uid}
+                    if action_sp:
+                        update["stepParams"] = action_sp
+                    if action_props:
+                        update["props"] = action_props
+                    nb.save_model(update)
             continue
         # Determine correct subKey from spec position
-        desired_sub_key = "recordActions" if atype in all_rec_actions else "actions"
+        desired_sub_key = "recordActions" if aspec in all_rec_actions else "actions"
 
         # Check live block for existing action
         try:
@@ -1146,9 +1976,17 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
                 if found_uid:
                     break
             if found_uid:
-                # Fix subKey if mismatched (e.g., was recordActions, should be actions)
+                # Fix subKey if mismatched
                 if found_sub_key != desired_sub_key:
                     nb.save_model({"uid": found_uid, "subKey": desired_sub_key})
+                # Update stepParams if spec has config (e.g., AI button)
+                if action_sp or action_props:
+                    update = {"uid": found_uid}
+                    if action_sp:
+                        update["stepParams"] = action_sp
+                    if action_props:
+                        update["props"] = action_props
+                    nb.save_model(update)
                 # Track in block_state so refs can resolve
                 state_key = "record_actions" if desired_sub_key == "recordActions" else "actions"
                 block_state.setdefault(state_key, {})[atype] = {"uid": found_uid}
@@ -1160,7 +1998,7 @@ def _fill_block(nb: NocoBase, block_uid: str, grid_uid: str,
         nb.save_model({
             "uid": new_uid, "use": amodel,
             "parentId": block_uid, "subKey": desired_sub_key, "subType": "array",
-            "sortIndex": 0, "stepParams": {}, "flowRegistry": {},
+            "sortIndex": 0, "stepParams": action_sp, "props": action_props, "flowRegistry": {},
         })
         # Track in block_state
         state_key = "record_actions" if desired_sub_key == "recordActions" else "actions"
@@ -2245,8 +3083,15 @@ def _expand_popups(popups: list[dict]) -> list[dict]:
     auto options:
       - edit: derive editForm from addNew (same fields/layout)
       - detail: derive details popup for first table field click (name/title)
+
+    If a popup with the same target already exists (e.g., from popups/*.yaml),
+    the auto-derived one is skipped.
     """
     import copy
+
+    # Collect existing targets to avoid duplicates
+    existing_targets = {ps.get("target", "") for ps in popups if ps.get("target")}
+
     result = []
     for ps in popups:
         result.append(ps)
@@ -2268,11 +3113,22 @@ def _expand_popups(popups: list[dict]) -> list[dict]:
         view_field = ps.get("view_field", "name")
 
         if "edit" in auto:
-            # Don't create blocks — NocoBase auto-generates editForm at runtime
-            result.append({
-                "target": f"{base_ref}.record_actions.edit",
-                "coll": coll,
-            })
+            edit_target = f"{base_ref}.record_actions.edit"
+            if edit_target not in existing_targets:
+                # Derive editForm from addNew's createForm (same fields/layout)
+                edit_block = copy.deepcopy(src_block)
+                edit_block["key"] = "form"
+                edit_block["type"] = "editForm"
+                edit_block.pop("resource", None)
+                edit_block["resource_binding"] = {
+                    "filterByTk": "{{ctx.view.inputArgs.filterByTk}}"
+                }
+                edit_block["coll"] = coll
+                result.append({
+                    "target": edit_target,
+                    "coll": coll,
+                    "blocks": [edit_block],
+                })
 
         if "detail" in auto:
             # Auto-generate detail popup from addNew form fields
@@ -2285,27 +3141,30 @@ def _expand_popups(popups: list[dict]) -> list[dict]:
             }
             detail_block["coll"] = coll
             detail_block.pop("actions", None)
-            detail_block["actions"] = ["edit"]
+            detail_block["recordActions"] = ["edit"]
             # Add createdAt to fields if not present
             detail_fields = detail_block.get("fields", [])
             if "createdAt" not in detail_fields:
                 detail_fields.append("createdAt")
             detail_block["fields"] = detail_fields
 
-            result.append({
-                "target": f"{base_ref}.fields.{view_field}",
-                "mode": "drawer",
-                "coll": coll,
-                "blocks": [detail_block],
-            })
+            detail_target = f"{base_ref}.fields.{view_field}"
+            if detail_target not in existing_targets:
+                result.append({
+                    "target": detail_target,
+                    "mode": "drawer",
+                    "coll": coll,
+                    "blocks": [detail_block],
+                })
 
         # Legacy: "view" still supported
         if "view" in auto and view_field:
             view_block = copy.deepcopy(src_block)
             view_block["type"] = "details"
-            view_block["resource"] = {"binding": "currentRecord"}
+            view_block["resource_binding"] = {"filterByTk": "{{ctx.view.inputArgs.filterByTk}}"}
+            view_block.pop("resource", None)
             view_block.pop("actions", None)
-            view_block["actions"] = ["edit"]
+            view_block["recordActions"] = ["edit"]
             result.append({
                 "target": f"{base_ref}.fields.{view_field}",
                 "mode": "drawer",
@@ -2361,8 +3220,73 @@ def _ensure_collection(nb: NocoBase, name: str, coll_def: dict):
             print(f"    ! {name}.{fname}: {e}")
 
 
-def _find_group(nb: NocoBase, title: str) -> int | None:
-    for r in nb.routes():
+def _build_ai_button(aspec: dict, block_uid: str, mod: Path) -> tuple[dict, dict]:
+    """Build AI button stepParams + props from shorthand DSL.
+
+    Shorthand: {type: ai, employee: viz, tasks_file: ./ai/tasks.yaml}
+    Tasks file: {tasks: [{title, user, system_file, autoSend}]}
+
+    Returns (stepParams, props).
+    """
+    employee = aspec.get("employee", "")
+    tasks_file = aspec.get("tasks_file", "")
+
+    # Load tasks
+    tasks_spec = []
+    if tasks_file and mod:
+        tf = mod / tasks_file
+        if tf.exists():
+            td = yaml.safe_load(tf.read_text()) or {}
+            tasks_spec = td.get("tasks", [])
+
+    # Build tasks → stepParams format
+    built_tasks = []
+    for t in tasks_spec:
+        system_text = t.get("system", "")
+        if not system_text and t.get("system_file") and mod:
+            sf = mod / t["system_file"]
+            if sf.exists():
+                system_text = sf.read_text()
+
+        built_tasks.append({
+            "title": t.get("title", ""),
+            "autoSend": t.get("autoSend", True),
+            "message": {
+                "user": t.get("user", ""),
+                "system": system_text,
+                "workContext": [{"type": "flow-model", "uid": block_uid}],
+                "skillSettings": {},
+            },
+        })
+
+    step_params = {
+        "shortcutSettings": {
+            "editTasks": {"tasks": built_tasks},
+        }
+    }
+
+    props = {
+        "aiEmployee": {"username": employee},
+        "context": {"workContext": [{"type": "flow-model", "uid": block_uid}]},
+        "auto": False,
+    }
+
+    return step_params, props
+
+
+def _find_group(nb: NocoBase, title: str, parent_id: int = None) -> int | None:
+    """Find a menu group by title, optionally within a parent group."""
+    routes = nb.routes()
+    if parent_id:
+        # Search within parent's children
+        for r in routes:
+            if r.get("id") == parent_id:
+                for c in r.get("children", []):
+                    if c.get("type") == "group" and c.get("title") == title:
+                        return c["id"]
+                return None
+    # Search top-level
+    for r in routes:
         if r.get("type") == "group" and r.get("title") == title:
             return r["id"]
     return None
@@ -2373,11 +3297,356 @@ def _find_group(nb: NocoBase, title: str) -> int | None:
 #  CLI
 # ══════════════════════════════════════════════════════════════════
 
+def scaffold(mod_dir: str, module_name: str, pages: list[str]):
+    """Generate a new module scaffold with structure.yaml + enhance.yaml."""
+    mod = Path(mod_dir)
+    mod.mkdir(parents=True, exist_ok=True)
+    (mod / "js").mkdir(exist_ok=True)
+    (mod / "charts").mkdir(exist_ok=True)
+    (mod / "popups").mkdir(exist_ok=True)
+    (mod / "ai").mkdir(exist_ok=True)
+
+    page_specs = []
+    enhance_popups = []
+    mod_slug = slugify(module_name)
+
+    # Find KPI card template
+    template_dir = Path(__file__).parent / "templates"
+    if not template_dir.exists():
+        template_dir = mod.parent / "templates"  # fallback
+
+    for page_name in pages:
+        page_key = slugify(page_name)
+        is_dashboard = "dashboard" in page_name.lower()
+
+        if is_dashboard:
+            # ── Dashboard: KPI cards + charts ──
+            kpi_colors = [
+                ("kpi_1", "#3b82f6", "#eff6ff", "#bfdbfe"),
+                ("kpi_2", "#10b981", "#ecfdf5", "#6ee7b7"),
+                ("kpi_3", "#f59e0b", "#fffbeb", "#fcd34d"),
+                ("kpi_4", "#8b5cf6", "#f5f3ff", "#c4b5fd"),
+            ]
+            kpi_labels = ["Total Records", "Active Rate", "Pending Items", "Completed"]
+
+            # Generate KPI JS files from template
+            kpi_template = ""
+            if (template_dir / "kpi_card.js").exists():
+                kpi_template = (template_dir / "kpi_card.js").read_text()
+
+            for i, (key, color, bg, stroke) in enumerate(kpi_colors):
+                if kpi_template:
+                    # Replace CONFIG in template
+                    kpi_js = kpi_template.replace(
+                        "label: 'Total Employees'", f"label: '{kpi_labels[i]}'"
+                    ).replace(
+                        "'#3b82f6'", f"'{color}'"
+                    ).replace(
+                        "'#eff6ff'", f"'{bg}'"
+                    ).replace(
+                        "'#bfdbfe'", f"'{stroke}'"
+                    ).replace(
+                        f"reportUid: 'hrm_kpi_employees'",
+                        f"reportUid: '{mod_slug}_kpi_{i+1}'"
+                    ).replace(
+                        "FROM nb_hrm_employees",
+                        f"FROM nb_{mod_slug}_TODO  -- ← CHANGE THIS"
+                    )
+                else:
+                    kpi_js = f"// KPI Card {i+1}: {kpi_labels[i]}\n// TODO: copy from templates/kpi_card.js and edit CONFIG\nctx.render(ctx.React.createElement('div', null, '{kpi_labels[i]}'));"
+                (mod / "js" / f"{key}.js").write_text(kpi_js)
+
+            # Generate 5 chart files with varied types
+            chart_types = [
+                ("chart_1", "bar",   "Bar Chart — e.g. count by category"),
+                ("chart_2", "pie",   "Pie Chart — e.g. distribution by status"),
+                ("chart_3", "line",  "Line Chart — e.g. trend over time"),
+                ("chart_4", "bar",   "Stacked Bar — e.g. breakdown comparison"),
+                ("chart_5", "pie",   "Donut Chart — e.g. proportion overview"),
+            ]
+            chart_renders = {
+                "bar": "var data = ctx.data.objects || [];\nreturn {\n  title: { text: 'TITLE', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'axis' },\n  xAxis: { type: 'category', data: data.map(function(d) { return d.label; }), axisLabel: { rotate: 30 } },\n  yAxis: { type: 'value' },\n  series: [{ type: 'bar', data: data.map(function(d) { return d.value; }), itemStyle: { color: '#1677ff' } }]\n};",
+                "pie": "var data = ctx.data.objects || [];\nreturn {\n  title: { text: 'TITLE', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },\n  series: [{ type: 'pie', radius: ['40%', '70%'], data: data.map(function(d) { return { name: d.label, value: d.value }; }), label: { show: true, formatter: '{b}\\n{d}%' } }]\n};",
+                "line": "var data = ctx.data.objects || [];\nreturn {\n  title: { text: 'TITLE', left: 'center', textStyle: { fontSize: 14 } },\n  tooltip: { trigger: 'axis' },\n  xAxis: { type: 'category', data: data.map(function(d) { return d.label; }) },\n  yAxis: { type: 'value' },\n  series: [{ type: 'line', data: data.map(function(d) { return d.value; }), smooth: true, areaStyle: { opacity: 0.1 }, itemStyle: { color: '#1677ff' } }]\n};",
+            }
+
+            for chart_key, chart_type, chart_desc in chart_types:
+                (mod / "charts" / f"{chart_key}.yaml").write_text(
+                    f"sql_file: ./charts/{chart_key}.sql\nrender_file: ./charts/{chart_key}_render.js\n"
+                )
+                (mod / "charts" / f"{chart_key}.sql").write_text(
+                    f"-- {chart_desc}\n-- TODO: edit this query for your data\n"
+                    f"SELECT 'Category A' AS label, 10 AS value\n"
+                    f"UNION ALL SELECT 'Category B', 20\n"
+                    f"UNION ALL SELECT 'Category C', 15\n"
+                    f"UNION ALL SELECT 'Category D', 8\n"
+                )
+                render_js = chart_renders.get(chart_type, chart_renders["bar"])
+                render_js = render_js.replace("TITLE", chart_desc.split(" — ")[0])
+                (mod / "charts" / f"{chart_key}_render.js").write_text(render_js)
+
+            # Dashboard layout: CRM Analytics style
+            # Row 1: 4 KPI cards
+            # Row 2: chart_1 (large) + chart_2 (small)
+            # Row 3: chart_3 (full width)
+            # Row 4: chart_4 (large) + chart_5 (small)
+            page_spec = {
+                "page": page_name,
+                "icon": "dashboardoutlined",
+                "blocks": [
+                    {"key": k, "type": "jsBlock", "desc": f"KPI Card {i+1}", "file": f"./js/{k}.js"}
+                    for i, (k, _, _, _) in enumerate(kpi_colors)
+                ] + [
+                    {"key": ck, "type": "chart", "chart_config": f"./charts/{ck}.yaml"}
+                    for ck, _, _ in chart_types
+                ],
+                "layout": [
+                    [{"kpi_1": 6}, {"kpi_2": 6}, {"kpi_3": 6}, {"kpi_4": 6}],
+                    [{"chart_1": 15}, {"chart_2": 9}],
+                    ["chart_3"],
+                    [{"chart_4": 14}, {"chart_5": 10}],
+                ],
+            }
+            page_specs.append(page_spec)
+            # No enhance popup for dashboard
+        else:
+            # ── Regular page: filterForm + table ──
+            coll = f"nb_{mod_slug}_{page_key}"
+            page_spec = {
+                "page": page_name,
+                "icon": "fileoutlined",
+                "coll": coll,
+                "blocks": [
+                    {
+                        "key": "filterForm",
+                        "type": "filterForm",
+                        "coll": coll,
+                        "fields": [
+                            {"field": "name", "filterPaths": ["name"]},
+                        ],
+                    },
+                    {
+                        "key": "table",
+                        "type": "table",
+                        "coll": coll,
+                        "fields": ["name", "status", "createdAt"],
+                        "actions": ["filter", "refresh", "addNew"],
+                        "recordActions": ["edit", "delete"],
+                    },
+                ],
+                "layout": [["filterForm"], ["table"]],
+            }
+            page_specs.append(page_spec)
+
+            enhance_popups.append({
+                "target": f"${page_key}.table.actions.addNew",
+                "auto": ["edit", "detail"],
+                "view_field": "name",
+                "coll": coll,
+                "blocks": [{
+                    "key": "form",
+                    "type": "createForm",
+                    "resource": {"binding": "currentCollection"},
+                    "fields": ["name", "status"],
+                    "field_layout": [
+                        "--- Basic Info ---",
+                        ["name", "status"],
+                    ],
+                    "actions": ["submit"],
+                }],
+            })
+
+    structure = {
+        "module": module_name,
+        "icon": "appstoreoutlined",
+        "collections": {
+            f"nb_{slugify(module_name)}_{slugify(p)}": {
+                "title": p,
+                "fields": [
+                    {"name": "name", "interface": "input", "title": "Name"},
+                    {"name": "status", "interface": "select", "title": "Status",
+                     "options": ["Active", "Inactive"]},
+                ],
+            } for p in pages
+        },
+        "pages": page_specs,
+    }
+    enhance = {"popups": enhance_popups}
+
+    (mod / "structure.yaml").write_text(dump_yaml(structure))
+    (mod / "enhance.yaml").write_text(dump_yaml(enhance))
+
+    print(f"\n  Scaffold created: {mod_dir}/")
+    print(f"    {len(pages)} pages: {', '.join(pages)}")
+    print(f"\n  Next steps:")
+    print(f"    1. Edit structure.yaml — add fields to collections + blocks")
+    print(f"    2. Edit enhance.yaml — customize addNew form fields + layout")
+    print(f"    3. Deploy: cd tools && python deployer.py ../{mod_dir}/")
+    print(f"    4. Test in browser, then iterate with --force")
+
+
+def verify_sql(mod_dir: str):
+    """Verify all SQL in a module by running against live PostgreSQL.
+
+    Checks: chart SQL files, KPI JS embedded SQL.
+    Reports errors with fix suggestions.
+    Usage: python deployer.py --verify-sql <dir>
+    """
+    import re
+    mod = Path(mod_dir).resolve()
+    if not mod.exists():
+        print(f"Directory not found: {mod}")
+        sys.exit(1)
+
+    structure_file = mod / "structure.yaml"
+    if not structure_file.exists():
+        print(f"No structure.yaml in {mod}")
+        sys.exit(1)
+
+    structure = yaml.safe_load(structure_file.read_text()) or {}
+    nb = NocoBase()
+
+    # Collect all SQL sources
+    sql_sources = []  # (label, sql_text, file_path)
+
+    for ps in structure.get("pages", []):
+        page_name = ps.get("page", "?")
+        for bs in ps.get("blocks", []):
+            # Chart SQL
+            chart_file = bs.get("chart_config", "")
+            if chart_file and (mod / chart_file).exists():
+                try:
+                    if chart_file.endswith((".yaml", ".yml")):
+                        chart_spec = yaml.safe_load((mod / chart_file).read_text()) or {}
+                        sql_file = chart_spec.get("sql_file", "")
+                        if sql_file and (mod / sql_file).exists():
+                            sql_sources.append((
+                                f"{page_name}/{chart_file}",
+                                (mod / sql_file).read_text(),
+                                str(mod / sql_file)
+                            ))
+                    else:
+                        config = json.loads((mod / chart_file).read_text())
+                        sql = config.get("query", {}).get("sql", "")
+                        if sql:
+                            sql_sources.append((f"{page_name}/{chart_file}", sql, str(mod / chart_file)))
+                except Exception:
+                    pass
+
+            # KPI JS embedded SQL
+            js_file = bs.get("file", "")
+            if js_file and bs.get("type") == "jsBlock" and (mod / js_file).exists():
+                try:
+                    js_code = (mod / js_file).read_text()
+                    sql_match = re.search(r'sql:\s*`([^`]+)`', js_code)
+                    if sql_match:
+                        sql_sources.append((
+                            f"{page_name}/{js_file}",
+                            sql_match.group(1),
+                            str(mod / js_file)
+                        ))
+                except Exception:
+                    pass
+
+    if not sql_sources:
+        print("No SQL found to verify.")
+        return
+
+    # SQL syntax patterns (same as validate)
+    sql_patterns = [
+        (r"DATE\s*\(\s*'now'", "DATE('now',...) → NOW() - '7 days'::interval"),
+        (r"strftime\s*\(", "strftime() → TO_CHAR(col, 'YYYY-MM')"),
+        (r"datetime\s*\(\s*'now'", "datetime('now') → NOW()"),
+        (r"GROUP_CONCAT\s*\(", "GROUP_CONCAT() → STRING_AGG(col, ',')"),
+        (r"IFNULL\s*\(", "IFNULL() → COALESCE()"),
+        (r'\bcreated_at\b', 'created_at → "createdAt" (NocoBase uses camelCase)'),
+        (r'\bupdated_at\b', 'updated_at → "updatedAt" (NocoBase uses camelCase)'),
+    ]
+
+    print(f"── Verify SQL ({len(sql_sources)} queries) ──")
+    print(f"  Target: {nb.base} (PostgreSQL)\n")
+
+    ok_count = 0
+    err_count = 0
+
+    for label, sql, fpath in sql_sources:
+        # Static check first
+        static_issues = []
+        for pattern, fix in sql_patterns:
+            if re.search(pattern, sql, re.IGNORECASE):
+                static_issues.append(fix)
+
+        if static_issues:
+            err_count += 1
+            print(f"  ✗ {label}")
+            for issue in static_issues:
+                print(f"    SQLite syntax: {issue}")
+            print(f"    File: {fpath}")
+            continue
+
+        # Live execution test
+        # Clean liquid/jinja templates
+        clean = re.sub(r"\{%\s*if\s+[^%]*%\}.*?\{%\s*endif\s*%\}", "", sql, flags=re.DOTALL)
+        clean = "\n".join(l for l in clean.split("\n") if "{{" not in l and "{%" not in l)
+
+        try:
+            # Use a temp UID for testing
+            test_uid = f"_verify_{label.replace('/', '_').replace('.', '_')}"
+            resp = nb.s.post(f"{nb.base}/api/flowSql:run", json={
+                "type": "selectRows", "uid": test_uid,
+                "dataSourceKey": "main", "sql": clean.strip(), "bind": {},
+            }, timeout=15)
+
+            if resp.status_code >= 400:
+                err_count += 1
+                err_msg = ""
+                try:
+                    err_data = resp.json()
+                    err_msg = err_data.get("errors", [{}])[0].get("message", resp.text[:300])
+                except Exception:
+                    err_msg = resp.text[:300]
+                print(f"  ✗ {label}")
+                print(f"    Error: {err_msg}")
+                print(f"    File: {fpath}")
+            else:
+                ok_count += 1
+                rows = resp.json().get("data", [])
+                print(f"  ✓ {label} ({len(rows)} rows)")
+        except Exception as e:
+            err_count += 1
+            print(f"  ✗ {label}: {e}")
+            print(f"    File: {fpath}")
+
+    print(f"\n  Result: {ok_count} passed, {err_count} failed")
+    if err_count > 0:
+        print(f"  Fix the SQL files above and re-run: python deployer.py --verify-sql {mod_dir}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
 
-    mod_dir = sys.argv[1]
-    force = "--force" in sys.argv
-    deploy(mod_dir, force)
+    if sys.argv[1] == "--new":
+        if len(sys.argv) < 4:
+            print("Usage: python deployer.py --new <dir> <module_name> --pages Page1,Page2,...")
+            sys.exit(1)
+        mod_dir = sys.argv[2]
+        module_name = sys.argv[3]
+        pages_str = ""
+        if "--pages" in sys.argv:
+            pi = sys.argv.index("--pages")
+            pages_str = sys.argv[pi + 1]
+        pages = [p.strip() for p in pages_str.split(",")] if pages_str else ["Main"]
+        scaffold(mod_dir, module_name, pages)
+    elif sys.argv[1] == "--verify-sql":
+        if len(sys.argv) < 3:
+            print("Usage: python deployer.py --verify-sql <dir>")
+            sys.exit(1)
+        verify_sql(sys.argv[2])
+    else:
+        mod_dir = sys.argv[1]
+        force = "--force" in sys.argv
+        plan_only = "--plan" in sys.argv
+        deploy(mod_dir, force, plan_only)

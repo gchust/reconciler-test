@@ -20,7 +20,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from nb import NocoBase, slugify
+from nb import NocoBase, slugify, dump_yaml
 
 
 _exported_popup_uids: set[str] = set()  # track exported popups to avoid circular refs
@@ -32,13 +32,52 @@ def export_page_surface(nb: NocoBase, tab_uid: str,
     """Export a complete page/popup surface.
 
     Returns a spec dict matching enhance.yaml popup format:
-      {blocks: [...], layout: [...]}
+      {blocks: [...], layout: [...], page_event_flows: [...]}
     """
     data = nb.get(tabSchemaUid=tab_uid)
     tree = data.get("tree", {})
     grid = tree.get("subModels", {}).get("grid", {})
 
-    return _export_grid(nb, grid, js_dir, page_key, reset_keys=True)
+    result = _export_grid(nb, grid, js_dir, page_key, reset_keys=True)
+
+    # Export page-level event flows (on RootPageModel, above the tab)
+    # e.g., customVariable bindings for filterForm → chart SQL params
+    try:
+        # Find page schemaUid from routes (tab → parent page)
+        page_schema_uid = ""
+        for r in nb.routes():
+            for c in r.get("children", []):
+                for t in c.get("children", []):
+                    if t.get("schemaUid") == tab_uid:
+                        page_schema_uid = c.get("schemaUid", "")
+                        break
+                if not page_schema_uid and c.get("schemaUid") == tab_uid:
+                    page_schema_uid = c.get("schemaUid", "")
+                if page_schema_uid:
+                    break
+            if page_schema_uid:
+                break
+
+        if page_schema_uid:
+            page_data = nb.get(pageSchemaUid=page_schema_uid)
+            page_tree = page_data.get("tree", {})
+            page_fr = page_tree.get("flowRegistry", {}) or {}
+            if page_fr:
+                page_flows = []
+                for flow_key, flow_def in page_fr.items():
+                    if not isinstance(flow_def, dict):
+                        continue
+                    page_flows.append({
+                        "flow_key": flow_key,
+                        "event": flow_def.get("on", {}),
+                        "steps": flow_def.get("steps", {}),
+                    })
+                if page_flows:
+                    result["page_event_flows"] = page_flows
+    except Exception:
+        pass
+
+    return result
 
 
 def export_all_popups(nb: NocoBase, popup_refs: list[dict],
@@ -87,8 +126,12 @@ def export_all_popups(nb: NocoBase, popup_refs: list[dict],
         for tab in popup_data.get("tabs", []):
             tab.pop("_state", None)
 
-        popup_spec = {"field": field_name, "field_uid": field_uid}
-        # Preserve block_key if present
+        popup_spec = {}
+        # Preserve target if present (for top-level popups loaded by deploy)
+        if p.get("target"):
+            popup_spec["target"] = p["target"]
+        popup_spec["field"] = field_name
+        popup_spec["field_uid"] = field_uid
         if p.get("block_key"):
             popup_spec["block_key"] = p["block_key"]
         popup_spec.update(popup_data)
@@ -252,23 +295,23 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     # Block title
     title = sp.get("cardSettings", {}).get("titleDescription", {}).get("title", "")
 
-    # Generate semantic key: title > JS desc > type+index
+    # Generate semantic key: title > JS desc > type (no index for first of each type)
     if title:
         key = slugify(title)
     elif btype == "jsBlock":
         code = sp.get("jsSettings", {}).get("runJs", {}).get("code", "")
         desc = _extract_js_desc(code)
-        key = slugify(desc) if desc else f"{btype}_{index}"
+        key = slugify(desc) if desc else btype
     else:
-        key = f"{btype}_{index}"
+        key = btype  # no _0 suffix — cleaner variable names
 
-    # Deduplicate key within same page
+    # Deduplicate: first=table, second=table_2, third=table_3
     _keys = used_keys if used_keys is not None else set()
-    base_key = key
-    counter = 2
-    while key in _keys:
-        key = f"{base_key}_{counter}"
-        counter += 1
+    if key in _keys:
+        counter = 2
+        while f"{key}_{counter}" in _keys:
+            counter += 1
+        key = f"{key}_{counter}"
     _keys.add(key)
 
     spec: dict[str, Any] = {"key": key, "type": btype}
@@ -291,6 +334,22 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     if binding:
         spec["resource_binding"] = binding
 
+    # tableSettings: dataScope + pageSize (NocoBase stores these here, not resourceSettings)
+    table_settings = sp.get("tableSettings", {})
+    data_scope = table_settings.get("dataScope", {})
+    if data_scope.get("filter"):
+        spec["dataScope"] = data_scope["filter"]
+
+    page_size_obj = table_settings.get("pageSize", {})
+    page_size = page_size_obj.get("pageSize") if isinstance(page_size_obj, dict) else page_size_obj
+    if page_size and page_size != 20:
+        spec["pageSize"] = page_size
+
+    # Default sort (can be in resourceSettings or tableSettings)
+    data_sort = res.get("sort", []) or table_settings.get("sort", [])
+    if data_sort:
+        spec["sort"] = data_sort
+
     # ── Type-specific extraction ──
     popup_refs = []
 
@@ -308,12 +367,27 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     elif btype == "chart":
         config = sp.get("chartSettings", {}).get("configure", {})
         if config and js_dir:
-            import json
-            fname = f"{prefix}_{key}.json" if prefix else f"{key}.json"
             chart_dir = js_dir.parent / "charts"
             chart_dir.mkdir(exist_ok=True)
-            (chart_dir / fname).write_text(json.dumps(config, indent=2, ensure_ascii=False))
-            spec["chart_config"] = f"./charts/{fname}"
+            base = f"{prefix}_{key}" if prefix else key
+
+            # Extract SQL and render JS into separate files
+            sql = config.get("query", {}).get("sql", "")
+            render_js = config.get("chart", {}).get("option", {}).get("raw", "")
+
+            chart_spec: dict[str, Any] = {}
+            if sql:
+                sql_fname = f"{base}.sql"
+                (chart_dir / sql_fname).write_text(sql)
+                chart_spec["sql_file"] = f"./charts/{sql_fname}"
+            if render_js:
+                render_fname = f"{base}_render.js"
+                (chart_dir / render_fname).write_text(render_js)
+                chart_spec["render_file"] = f"./charts/{render_fname}"
+
+            yaml_fname = f"{base}.yaml"
+            (chart_dir / yaml_fname).write_text(dump_yaml(chart_spec))
+            spec["chart_config"] = f"./charts/{yaml_fname}"
 
     elif btype == "table":
         fields, js_cols, field_popups = _export_table_contents(item, js_dir, prefix, key)
@@ -324,7 +398,7 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
         popup_refs.extend(field_popups)
 
         # Actions
-        actions = _export_actions(subs.get("actions", []))
+        actions = _export_actions(subs.get("actions", []), js_dir)
         if actions:
             spec["actions"] = actions
         rec_actions = _export_record_actions(subs)
@@ -411,10 +485,10 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
             popup_refs.extend(field_popups)
 
         # Actions
-        actions = _export_actions(subs.get("actions", []))
+        actions = _export_actions(subs.get("actions", []), js_dir)
         if actions:
             spec["actions"] = actions
-        rec_actions = _export_actions(subs.get("recordActions", []))
+        rec_actions = _export_actions(subs.get("recordActions", []), js_dir)
         if rec_actions:
             spec["recordActions"] = rec_actions
 
@@ -481,14 +555,14 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
                 popup_refs.extend(li_popups)
 
             # ListItem actions (e.g., EditAction with popup)
-            li_actions = _export_actions(list_item.get("subModels", {}).get("actions", []))
+            li_actions = _export_actions(list_item.get("subModels", {}).get("actions", []), js_dir)
             if li_actions:
                 spec["item_actions"] = li_actions
             # Collect popup refs from list item actions
             _collect_action_popups(list_item.get("subModels", {}).get("actions", []), popup_refs, key)
 
         # Block-level actions
-        actions = _export_actions(subs.get("actions", []))
+        actions = _export_actions(subs.get("actions", []), js_dir)
         if actions:
             spec["actions"] = actions
 
@@ -524,13 +598,13 @@ def _export_block(nb: NocoBase, item: dict, js_dir: Path = None,
     elif btype == "comments":
         # Comments block — preserve association binding
         # Actions
-        actions = _export_actions(subs.get("actions", []))
+        actions = _export_actions(subs.get("actions", []), js_dir)
         if actions:
             spec["actions"] = actions
 
     elif btype == "recordHistory":
         # RecordHistory block — export actions (filter, refresh, expand, collapse)
-        actions = _export_actions(subs.get("actions", []))
+        actions = _export_actions(subs.get("actions", []), js_dir)
         if actions:
             spec["actions"] = actions
 
@@ -774,16 +848,66 @@ def _collect_action_popups(actions, popup_refs: list, block_key: str = ""):
             popup_refs.append(ref)
 
 
-def _export_actions(actions) -> list[str]:
+def _export_actions(actions, js_dir: Path = None) -> list:
+    """Export actions. Simple actions → string, complex (with config) → dict."""
     if not isinstance(actions, list):
         return []
+    # Actions that need stepParams preserved
+    _COMPLEX_ACTIONS = {"AIEmployeeButtonModel", "CollectionTriggerWorkflowActionModel",
+                        "PopupCollectionActionModel", "UpdateRecordActionModel"}
     result = []
     for act in actions:
         use = act.get("use", "")
         if "TableActionsColumn" in use:
             continue
         semantic = ACTION_MAP.get(use, use.replace("Model", ""))
-        result.append(semantic)
+        if use in _COMPLEX_ACTIONS:
+            sp = act.get("stepParams", {})
+            props = act.get("props", {})
+            if use == "AIEmployeeButtonModel" and props.get("aiEmployee") and js_dir:
+                # AI button → export as shorthand + tasks file
+                employee = props.get("aiEmployee", {}).get("username", "")
+                tasks = sp.get("shortcutSettings", {}).get("editTasks", {}).get("tasks", [])
+                if tasks:
+                    ai_dir = js_dir.parent / "ai"
+                    ai_dir.mkdir(exist_ok=True)
+                    # Write tasks file
+                    block_key_slug = act.get("parentId", "table")[-8:]
+                    tasks_fname = f"{block_key_slug}_tasks.yaml"
+                    export_tasks = []
+                    for ti, t in enumerate(tasks):
+                        msg = t.get("message", {})
+                        system_text = msg.get("system", "")
+                        task_entry: dict = {
+                            "title": t.get("title", f"Task {ti}"),
+                            "user": msg.get("user", ""),
+                            "autoSend": t.get("autoSend", True),
+                        }
+                        if system_text:
+                            prompt_fname = f"{block_key_slug}_task{ti}.md"
+                            (ai_dir / prompt_fname).write_text(system_text)
+                            task_entry["system_file"] = f"./ai/{prompt_fname}"
+                        export_tasks.append(task_entry)
+                    from nb import dump_yaml
+                    (ai_dir / tasks_fname).write_text(dump_yaml({"tasks": export_tasks}))
+                    result.append({
+                        "type": "ai",
+                        "employee": employee,
+                        "tasks_file": f"./ai/{tasks_fname}",
+                    })
+                else:
+                    result.append({"type": semantic, "employee": employee})
+            elif sp or props:
+                entry = {"type": semantic}
+                if sp:
+                    entry["stepParams"] = sp
+                if props:
+                    entry["props"] = props
+                result.append(entry)
+            else:
+                result.append(semantic)
+        else:
+            result.append(semantic)
     return result
 
 
@@ -808,3 +932,217 @@ def _extract_js_desc(code: str) -> str:
     return ""
 
 
+
+
+# ══════════════════════════════════════════════════════════════════
+#  CLI
+# ══════════════════════════════════════════════════════════════════
+
+def _export_tab_surface(nb, tab_uid, js_dir, prefix, page_key, coll):
+    """Export one tab surface and return (result, popup_refs, coll)."""
+    result = export_page_surface(nb, tab_uid, js_dir, prefix)
+    if not result:
+        return None, [], coll
+
+    popup_refs = list(result.get("popups", []))
+    for b in result.get("blocks", []):
+        popup_refs.extend(b.pop("_popups", []))
+        tpl = b.get("template_content", {})
+        if isinstance(tpl, dict):
+            popup_refs.extend(tpl.pop("_popups", []))
+        if b.get("type") == "reference" and b.get("template_content"):
+            idx = result["blocks"].index(b)
+            tpl = b["template_content"]
+            tpl["key"] = tpl.get("key", "table")
+            result["blocks"][idx] = tpl
+        if b.get("type") == "filterForm" and not b.get("coll") and coll:
+            b["coll"] = coll
+
+    for p in popup_refs:
+        field = p.get("field", "")
+        bk = p.get("block_key", "")
+        block_ref = bk or "table"
+        if field == "addnew":
+            p["target"] = f"${page_key}.{block_ref}.actions.addNew"
+        elif field:
+            p["target"] = f"${page_key}.{block_ref}.fields.{field}"
+
+    if not coll:
+        for b in result.get("blocks", []):
+            if b.get("type") == "table" and b.get("coll"):
+                coll = b["coll"]
+                break
+
+    # Fix layout
+    layout = result.get("layout", [])
+    def fix_layout(item):
+        if isinstance(item, str) and "reference" in item:
+            return "table"
+        elif isinstance(item, list):
+            return [fix_layout(i) for i in item]
+        elif isinstance(item, dict):
+            return {k: fix_layout(v) for k, v in item.items()}
+        return item
+    result["layout"] = fix_layout(layout)
+
+    return result, popup_refs, coll
+
+
+def export_module(page_title: str, out_dir: str, group_name: str = None,
+                  tab_index: int = 0, coll: str = ""):
+    """Export a page (all tabs) as a deployable module."""
+    nb = NocoBase()
+    mod = Path(out_dir)
+    mod.mkdir(parents=True, exist_ok=True)
+    js_dir = mod / "js"; js_dir.mkdir(exist_ok=True)
+    popups_dir = mod / "popups"; popups_dir.mkdir(exist_ok=True)
+
+    # Find page in routes
+    page_route = None
+    for r in nb.routes():
+        for c in r.get("children", []):
+            if c.get("title") == page_title:
+                page_route = c
+                break
+            # Also check sub-groups
+            if c.get("type") == "group":
+                for sc in c.get("children", []):
+                    if sc.get("title") == page_title:
+                        page_route = sc
+                        break
+        if page_route:
+            break
+
+    if not page_route:
+        print(f"  Page '{page_title}' not found")
+        return
+
+    page_key = slugify(page_title) + "_copy"
+    tabs = page_route.get("children", [])
+    all_popup_refs = []
+
+    if len(tabs) <= 1:
+        # Single tab — flat page
+        tab_uid = tabs[0].get("schemaUid") if tabs else page_route.get("schemaUid")
+        if not tab_uid:
+            return
+        result, popup_refs, coll = _export_tab_surface(
+            nb, tab_uid, js_dir, slugify(page_title), page_key, coll)
+        if not result:
+            return
+        all_popup_refs = popup_refs
+        page_spec = {k: v for k, v in result.items() if k not in ("_state", "popups")}
+    else:
+        # Multi-tab — export each tab
+        tab_specs = []
+        for i, tab in enumerate(tabs):
+            tab_uid = tab.get("schemaUid", "")
+            tab_title = tab.get("title", f"Tab{i}")
+            if not tab_uid:
+                continue
+            result, popup_refs, coll = _export_tab_surface(
+                nb, tab_uid, js_dir, f"{slugify(page_title)}_{slugify(tab_title)}",
+                page_key, coll)
+            if not result:
+                tab_specs.append({"title": tab_title, "blocks": []})
+                continue
+            all_popup_refs.extend(popup_refs)
+            tab_spec = {"title": tab_title}
+            tab_spec.update({k: v for k, v in result.items() if k not in ("_state", "popups")})
+            tab_specs.append(tab_spec)
+
+        page_spec = {"tabs": tab_specs}
+
+    # Save structure.yaml
+    spec = {"module": page_title + " Copy", "icon": "fundoutlined"}
+    if group_name:
+        spec["group"] = group_name
+    spec["pages"] = [{
+        "page": page_title + " Copy", "coll": coll, "icon": "fundoutlined",
+        **page_spec,
+    }]
+    (mod / "structure.yaml").write_text(dump_yaml(spec))
+
+    # Export popups
+    n_popups = 0
+    if all_popup_refs:
+        exported = export_all_popups(nb, all_popup_refs, js_dir, popups_dir,
+                                      prefix=f"popup_{slugify(page_title)}")
+        n_popups = len(exported)
+
+    n_tabs = len(tabs) if len(tabs) > 1 else 0
+    blocks_count = sum(len(t.get("blocks", [])) for t in page_spec.get("tabs", [page_spec]))
+    tab_info = f" ({n_tabs} tabs)" if n_tabs else ""
+    print(f"  Exported: {page_title} → {out_dir}/")
+    print(f"    {blocks_count} blocks, {n_popups} popups{tab_info}")
+
+
+def export_all_pages(out_dir: str, group_filter: str = None):
+    """Export ALL pages from the system, including sub-groups."""
+    nb = NocoBase()
+    routes = nb.routes()
+
+    for r in routes:
+        group_title = r.get("title", "")
+        if group_filter and group_title != group_filter:
+            continue
+        children = r.get("children", [])
+        if not children:
+            continue
+
+        group_copy = group_title + " Copy"
+        print(f"\n{group_title}:")
+
+        for c in children:
+            c_title = c.get("title", "")
+            if not c_title:
+                continue
+
+            if c.get("type") == "group":
+                # Sub-group: export each child page with sub-group name
+                sub_group_copy = c_title + " Copy"
+                print(f"  {c_title} (sub-group):")
+                for sc in c.get("children", []):
+                    sc_title = sc.get("title", "")
+                    if not sc_title:
+                        continue
+                    mod_dir = f"{out_dir}/{slugify(c_title)}/{slugify(sc_title)}"
+                    export_module(sc_title, mod_dir,
+                                  group_name=f"{group_copy}/{sub_group_copy}")
+            else:
+                mod_dir = f"{out_dir}/{slugify(c_title)}"
+                export_module(c_title, mod_dir, group_name=group_copy)
+
+
+if __name__ == "__main__":
+    import sys
+
+    usage = """Usage:
+    python exporter.py <page_title> <out_dir>              # export one page
+    python exporter.py <page_title> <out_dir> --group "Main Copy"  # with group
+    python exporter.py --all <out_dir>                     # export all pages
+    python exporter.py --all <out_dir> --group "Main"      # export one group
+"""
+    if len(sys.argv) < 3:
+        print(usage)
+        sys.exit(1)
+
+    if sys.argv[1] == "--all":
+        out_dir = sys.argv[2]
+        group = None
+        if "--group" in sys.argv:
+            gi = sys.argv.index("--group")
+            group = sys.argv[gi + 1]
+        export_all_pages(out_dir, group)
+    else:
+        page_title = sys.argv[1]
+        out_dir = sys.argv[2]
+        group = None
+        tab = 0
+        if "--group" in sys.argv:
+            gi = sys.argv.index("--group")
+            group = sys.argv[gi + 1]
+        if "--tab" in sys.argv:
+            ti = sys.argv.index("--tab")
+            tab = int(sys.argv[ti + 1])
+        export_module(page_title, out_dir, group_name=group, tab_index=tab)
