@@ -90,22 +90,33 @@ export async function fillBlock(
               },
             };
 
-            // Step 2: Compose a details block with fields into the field's popup
-            // NocoBase reads popupSettings.uid → finds field → uses field.subModels.page
+            // Step 2: Compose popup content from export spec or default
+            // Check if the field has popup content spec in export (popupBlocks)
+            const popupBlocks = (f as unknown as Record<string, unknown>).popupBlocks as Record<string, unknown>[];
             try {
-              // Get collection fields for a useful default detail view
-              const meta = await nb.collections.fieldMeta(popupColl);
-              const defaultFields = Object.keys(meta)
-                .filter(k => !['id', 'createdById', 'updatedById'].includes(k))
-                .slice(0, 10)
-                .map(k => ({ fieldPath: k }));
-
-              await nb.surfaces.compose(fieldUid, [{
-                key: 'details',
-                type: 'details',
-                resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
-                fields: defaultFields,
-              }], 'replace');
+              if (popupBlocks?.length) {
+                // Use exported popup blocks
+                const composeBlocks = popupBlocks.map(b => ({
+                  key: b.key || 'details',
+                  type: b.type || 'details',
+                  resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
+                  fields: (b.fields as string[])?.map(fp => ({ fieldPath: fp })),
+                }));
+                await nb.surfaces.compose(fieldUid, composeBlocks, 'replace');
+              } else {
+                // Default: create details block with all collection fields
+                const meta = await nb.collections.fieldMeta(popupColl);
+                const defaultFields = Object.keys(meta)
+                  .filter(k => !['id', 'createdById', 'updatedById'].includes(k))
+                  .slice(0, 10)
+                  .map(k => ({ fieldPath: k }));
+                await nb.surfaces.compose(fieldUid, [{
+                  key: 'details',
+                  type: 'details',
+                  resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
+                  fields: defaultFields,
+                }], 'replace');
+              }
             } catch { /* popup might already have content */ }
           }
           await nb.updateModel(fieldUid, update);
