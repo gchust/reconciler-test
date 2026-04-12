@@ -111,7 +111,33 @@ export async function deployProject(
   }
   if (hasError) { log('\n  Validation failed'); process.exit(1); }
   log('  ✓ Validation passed');
-  if (opts.planOnly) return;
+
+  // ── 2b. Build graph for circular ref detection ──
+  const { buildGraph } = await import('../graph/graph-builder');
+  const graph = buildGraph(root);
+  const graphStats = graph.stats();
+  if (graphStats.cycles > 0) {
+    log(`  ⚠ ${graphStats.cycles} circular popup references detected — deploy will stop at cycle boundary`);
+  }
+  log(`  Graph: ${graphStats.nodes} nodes, ${graphStats.edges} edges`);
+
+  if (opts.planOnly) {
+    // Generate _refs.yaml in plan mode too
+    const { saveYaml: sy } = await import('../utils/yaml');
+    const nodes = (graph as any).nodes as Map<string, any>;
+    for (const [id, n] of nodes) {
+      if (n.type !== 'page') continue;
+      const refs = graph.pageRefs(id);
+      const pageDir = path.join(root, n.meta?.dir || `pages/${n.name}`);
+      if (fs.existsSync(pageDir)) {
+        sy(path.join(pageDir, '_refs.yaml'), {
+          _generated: true, _readonly: 'Auto-generated. Edits will be overwritten.',
+          ...refs,
+        });
+      }
+    }
+    return;
+  }
 
   // ── 3. Connect + deploy ──
   const nb = await NocoBaseClient.create();
@@ -204,6 +230,28 @@ export async function deployProject(
   } catch (e) {
     log(`  ! Sync failed: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
   }
+
+  // Rebuild graph + _refs.yaml after sync
+  try {
+    const freshGraph = buildGraph(root);
+    const { saveYaml: sy } = await import('../utils/yaml');
+    const gNodes = (freshGraph as any).nodes as Map<string, any>;
+    let refsCount = 0;
+    for (const [, n] of gNodes) {
+      if (n.type !== 'page') continue;
+      const refs = freshGraph.pageRefs(n.id || '');
+      const pageDir = path.join(root, n.meta?.dir || `pages/${n.name}`);
+      if (fs.existsSync(pageDir)) {
+        sy(path.join(pageDir, '_refs.yaml'), {
+          _generated: true, _readonly: 'Auto-generated. Edits will be overwritten.',
+          ...refs,
+        });
+        refsCount++;
+      }
+    }
+    sy(path.join(root, '_graph.yaml'), { stats: freshGraph.stats(), ...freshGraph.toJSON() });
+    log(`  ✓ Graph: ${freshGraph.stats().nodes} nodes, ${refsCount} _refs.yaml`);
+  } catch { /* skip */ }
 }
 
 async function deployGroup(
