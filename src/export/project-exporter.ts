@@ -467,12 +467,50 @@ async function exportPopupsToDir(
     try {
       const data = await nb.get({ uid: ref.field_uid });
       const tree = data.tree;
+
+      // Check if popup uses a template — if so, read content from template file
+      const openView = ((tree.stepParams as Record<string, unknown>)?.popupSettings as Record<string, unknown>)
+        ?.openView as Record<string, unknown>;
+      const popupTemplateUid = openView?.popupTemplateUid as string;
+
+      if (popupTemplateUid) {
+        // Read from template file (already exported to templates/)
+        let resolved = false;
+        for (let d = path.dirname(popupsDir); d !== path.dirname(d); d = path.dirname(d)) {
+          const tplIndexFile = path.join(d, 'templates', '_index.yaml');
+          if (!fs.existsSync(tplIndexFile)) continue;
+          const tplIndex = loadYaml<Record<string, unknown>[]>(tplIndexFile) || [];
+          const tplEntry = tplIndex.find(t => t.uid === popupTemplateUid);
+          if (tplEntry?.file) {
+            const tplFile = path.join(d, 'templates', tplEntry.file as string);
+            if (fs.existsSync(tplFile)) {
+              const tplSpec = loadYaml<Record<string, unknown>>(tplFile);
+              const content = tplSpec.content as Record<string, unknown>;
+              if (content) {
+                const popupSpec: Record<string, unknown> = {
+                  target: ref.target || ref.field,
+                  mode: (openView?.mode as string) || 'drawer',
+                };
+                if (content.blocks) popupSpec.blocks = content.blocks;
+                if (content.tabs) popupSpec.tabs = content.tabs;
+                const fname = ref.block_key
+                  ? `${ref.block_key}.${ref.field}.yaml`
+                  : `${ref.field}.yaml`;
+                fs.writeFileSync(path.join(popupsDir, fname), dumpYaml(popupSpec));
+                resolved = true;
+              }
+            }
+          }
+          break;
+        }
+        if (resolved) continue; // skip live tree reading for this ref
+      }
+
       const popupPage = tree.subModels?.page;
       if (!popupPage || Array.isArray(popupPage)) continue;
 
       const popupNode = popupPage as FlowModelNode;
-      const mode = ((tree.stepParams as Record<string, unknown>)?.popupSettings as Record<string, unknown>)
-        ?.openView as Record<string, unknown>;
+      const mode = openView;
 
       const rawTabs = popupNode.subModels?.tabs;
       const tabs = Array.isArray(rawTabs) ? rawTabs : rawTabs ? [rawTabs] : [];

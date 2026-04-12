@@ -354,14 +354,17 @@ function exportTableContents(
       }
     }
 
-    // Check for popup on column's display field (col → field → page)
-    const fieldModel = col.subModels?.field;
-    if (fieldModel && !Array.isArray(fieldModel)) {
-      const fmNode = fieldModel as FlowModelNode;
+    // Check for popup on column's display field (col → field → page OR popupTemplateUid)
+    const fieldModel2 = col.subModels?.field;
+    if (fieldModel2 && !Array.isArray(fieldModel2)) {
+      const fmNode = fieldModel2 as FlowModelNode;
       const popupPage = fmNode.subModels?.page;
-      if (popupPage && !Array.isArray(popupPage) && (popupPage as FlowModelNode).uid) {
-        const openView = ((fmNode.stepParams as Record<string, unknown>)?.popupSettings as Record<string, unknown>)
-          ?.openView as Record<string, unknown>;
+      const hasPopupPage = popupPage && !Array.isArray(popupPage) && (popupPage as FlowModelNode).uid;
+      const hasPopupTemplate = ((fmNode.stepParams as Record<string, unknown>)?.popupSettings as Record<string, unknown>)
+        ?.openView as Record<string, unknown>;
+      const hasPopupTemplateUid = !!(hasPopupTemplate?.popupTemplateUid);
+
+      if (hasPopupPage || hasPopupTemplateUid) {
         fieldPopups.push({
           field: fieldPath || col.uid,
           field_uid: fmNode.uid || col.uid,
@@ -371,7 +374,7 @@ function exportTableContents(
       }
     }
     // Also check direct popup on column (fallback)
-    if (!fieldModel && col.subModels?.page) {
+    if (!fieldModel2 && col.subModels?.page) {
       fieldPopups.push({
         field: fieldPath || col.uid, field_uid: col.uid, block_key: blockKey,
         target: `$SELF.${blockKey}.fields.${fieldPath || col.uid}`,
