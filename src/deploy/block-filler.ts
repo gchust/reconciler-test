@@ -96,6 +96,44 @@ export async function fillBlock(
                 seenColls: new Set([...popupContext.seenColls, coll]),
               };
 
+              // Find correct modDir for template JS files
+              // Templates export JS to: templates/popup/<slug>/js/ or templates/block/<slug>/js/
+              let popupModDir = mod;
+              const templateName = inlinePopup._template as string;
+              if (templateName) {
+                for (let d = mod; d !== path.dirname(d); d = path.dirname(d)) {
+                  if (fs.existsSync(path.join(d, 'templates'))) {
+                    const slugName = templateName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+                    // Try: templates/popup/<slug>/ (has js/ subdir with files)
+                    for (const tplType of ['popup', 'block']) {
+                      const candidate = path.join(d, 'templates', tplType, slugName);
+                      if (fs.existsSync(path.join(candidate, 'js'))) {
+                        popupModDir = candidate;
+                        break;
+                      }
+                      // Legacy: templates/popup/<slug>_js/ (old format)
+                      const legacyCandidate = path.join(d, 'templates', tplType, `${slugName}_js`);
+                      if (fs.existsSync(legacyCandidate)) {
+                        // Create js/ symlink for compatibility
+                        const jsSubDir = path.join(legacyCandidate, 'js');
+                        if (!fs.existsSync(jsSubDir)) {
+                          // Copy files to js/ subdir
+                          fs.mkdirSync(jsSubDir, { recursive: true });
+                          for (const f of fs.readdirSync(legacyCandidate)) {
+                            if (f.endsWith('.js')) {
+                              fs.copyFileSync(path.join(legacyCandidate, f), path.join(jsSubDir, f));
+                            }
+                          }
+                        }
+                        popupModDir = legacyCandidate;
+                        break;
+                      }
+                    }
+                    break;
+                  }
+                }
+              }
+
               // Deploy as popup (tabbed or simple)
               const popupTabs = inlinePopup.tabs as Record<string, unknown>[];
               const popupBlocks = inlinePopup.blocks as Record<string, unknown>[];
@@ -111,13 +149,13 @@ export async function fillBlock(
                     title: t.title as string,
                     blocks: (t.blocks || []) as any[],
                   })),
-                }, mod, false, '', log);
+                }, popupModDir, false, '', log);
               } else if (popupBlocks?.length) {
                 // Simple popup
                 try {
                   await deploySurfaceFn(nb, fieldUid,
                     { blocks: popupBlocks as any[], coll: popupColl } as any,
-                    mod, false, {}, log, childPopupCtx);
+                    popupModDir, false, {}, log, childPopupCtx);
                 } catch { /* skip */ }
               }
 

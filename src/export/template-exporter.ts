@@ -60,7 +60,7 @@ export async function exportAllTemplates(
   for (const tpl of templates) {
     const tplSlug = slugify(tpl.name || tpl.uid);
     const typeDir = tpl.type === 'popup' ? popupDir : blockDir;
-    const jsDir = path.join(typeDir, `${tplSlug}_js`);
+    const jsDir = path.join(typeDir, tplSlug, 'js');
 
     try {
       // Read template content via targetUid
