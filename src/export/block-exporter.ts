@@ -255,6 +255,43 @@ export function exportBlock(
   if (mergedRecActs.length) spec.recordActions = mergedRecActs;
   popupRefs.push(...actionPopups);
 
+  // ── Event flows (flowRegistry → JS files) ──
+  const flowRegistry = (item.flowRegistry || {}) as Record<string, unknown>;
+  const gridNode = item.subModels?.grid;
+  const gridFr = (gridNode && !Array.isArray(gridNode))
+    ? ((gridNode as FlowModelNode).flowRegistry || {}) as Record<string, unknown>
+    : {};
+  const allFlows = { ...flowRegistry, ...gridFr };
+  if (Object.keys(allFlows).length && jsDir) {
+    const eventFlows: Record<string, unknown>[] = [];
+    for (const [flowKey, flowDef] of Object.entries(allFlows)) {
+      if (!flowDef || typeof flowDef !== 'object') continue;
+      const fd = flowDef as Record<string, unknown>;
+      const steps = (fd.steps || {}) as Record<string, unknown>;
+      for (const [stepKey, stepDef] of Object.entries(steps)) {
+        if (!stepDef || typeof stepDef !== 'object') continue;
+        const sd = stepDef as Record<string, unknown>;
+        const code = ((sd.runJs as Record<string, unknown>)?.code as string)
+          || ((sd.defaultParams as Record<string, unknown>)?.code as string)
+          || '';
+        if (code) {
+          const eventsDir = path.join(path.dirname(jsDir), 'events');
+          fs.mkdirSync(eventsDir, { recursive: true });
+          const fname = `${prefix}_${key}_event_${flowKey}_${stepKey}.js`;
+          safeWrite(path.join(eventsDir, fname), code);
+          eventFlows.push({
+            event: fd.on || 'formValuesChange',
+            flow_key: flowKey,
+            step_key: stepKey,
+            desc: (sd.title as string) || flowKey,
+            file: `./events/${fname}`,
+          });
+        }
+      }
+    }
+    if (eventFlows.length) spec.event_flows = eventFlows;
+  }
+
   // State
   const state: Record<string, unknown> = { uid, type: btype };
 
