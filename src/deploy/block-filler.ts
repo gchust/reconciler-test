@@ -279,5 +279,5 @@ export async function fillBlock(
 
   // ── Field layout (apply after all content created) ──
   // gridSettings.rows controls rendering order — no need for subModels.items reorder
-  await applyFieldLayout(nb, gridUid, bs.field_layout || [], log);
+  await applyFieldLayout(nb, gridUid, bs.field_layout || [], log, bs);
 }

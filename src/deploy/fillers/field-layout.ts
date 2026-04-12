@@ -5,8 +5,8 @@
  * into gridSettings.rows/sizes for the block's internal grid.
  */
 import type { NocoBaseClient } from '../../client';
+import type { BlockSpec } from '../../types/spec';
 import { bestEffort } from '../../utils/error-utils';
-import { extractJsDesc } from '../../utils/js-utils';
 import type { LogFn } from './types';
 
 export async function applyFieldLayout(
@@ -14,6 +14,7 @@ export async function applyFieldLayout(
   gridUid: string,
   fieldLayout: unknown[],
   log?: LogFn,
+  bs?: BlockSpec,
 ): Promise<void> {
   if (!fieldLayout.length || !gridUid) return;
 
@@ -23,7 +24,16 @@ export async function applyFieldLayout(
     const itemArr = (Array.isArray(items) ? items : []) as { uid: string; use?: string; stepParams?: Record<string, unknown> }[];
     if (!itemArr.length) return;
 
-    // Build uid map
+    // Build desc → uid map from spec js_items (stable, no regex)
+    const jsDescToUid = new Map<string, string>();
+    const jsItems = bs?.js_items || [];
+    const liveJsItems = itemArr.filter(d => d.use?.includes('JSItem'));
+    for (let i = 0; i < jsItems.length && i < liveJsItems.length; i++) {
+      const desc = jsItems[i].desc || jsItems[i].key;
+      if (desc) jsDescToUid.set(`[JS:${desc}]`, liveJsItems[i].uid);
+    }
+
+    // Build uid map: fieldPath/label/[JS:desc] → uid
     const uidMap = new Map<string, string>();
     const allUids = new Set<string>();
     for (const d of itemArr) {
@@ -33,14 +43,9 @@ export async function applyFieldLayout(
       const label = ((d.stepParams?.markdownItemSetting as Record<string, unknown>)?.title as Record<string, unknown>)?.label as string;
       if (fieldPath) uidMap.set(fieldPath, d.uid);
       else if (label) uidMap.set(label, d.uid);
-      if (d.use?.includes('JSItem')) {
-        // Map by JS description: [JS:desc] format used in field_layout
-        const jsCode = ((d.stepParams?.jsSettings as Record<string, unknown>)?.runJs as Record<string, unknown>)?.code as string || '';
-        const jsDesc = extractJsDesc(jsCode);
-        if (jsDesc) uidMap.set(`[JS:${jsDesc}]`, d.uid);
-        uidMap.set('_js_', d.uid); // fallback
-      }
     }
+    // Merge JS desc mappings
+    for (const [k, v] of jsDescToUid) uidMap.set(k, v);
 
     const rows: Record<string, string[][]> = {};
     const sizes: Record<string, number[]> = {};
