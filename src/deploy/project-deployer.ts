@@ -353,7 +353,7 @@ async function deployOnePage(
 
     // Enable tabs on the page (must update route, not flowModel)
     try {
-      await nb.http.put(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${pageState.route_id}`, {
+      await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${pageState.route_id}`, {
         enableTabs: true,
       });
     } catch { /* skip */ }
@@ -371,7 +371,7 @@ async function deployOnePage(
           (r: any) => r.schemaUid === pageState.tab_uid && r.type === 'tabs',
         );
         if (tabRoute) {
-          await nb.http.put(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${tabRoute.id}`, {
+          await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${tabRoute.id}`, {
             title: firstTabTitle,
           });
         }
@@ -415,7 +415,7 @@ async function deployOnePage(
             const tabRouteId = r.tabRouteId as number;
             if (tabRouteId) {
               try {
-                await nb.http.put(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${tabRouteId}`, {
+                await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${tabRouteId}`, {
                   title: tabTitle,
                 });
               } catch { /* skip */ }
