@@ -266,41 +266,141 @@ function exportFormContents(
   const grid = item.subModels?.grid;
   if (!grid || Array.isArray(grid)) return { fields: [], jsItems: [], fieldLayout: [], fieldPopups: [] };
 
-  const gridItems = (grid as FlowModelNode).subModels?.items;
-  const items = (Array.isArray(gridItems) ? gridItems : []) as FlowModelNode[];
+  const gridNode = grid as FlowModelNode;
+  const rawItems = gridNode.subModels?.items;
+  const items = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
   const fields: unknown[] = [];
   const jsItems: unknown[] = [];
   const fieldPopups: PopupRef[] = [];
 
+  // Build uid → name map for layout extraction
+  const uidToName = new Map<string, string>();
+
   for (const gi of items) {
-    const fp = (gi.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>;
-    const fieldPath = ((fp?.init || {}) as Record<string, unknown>).fieldPath as string;
+    const sp = (gi.stepParams || {}) as Record<string, unknown>;
 
     if (gi.use?.includes('JSItem')) {
-      const js = (gi.stepParams as Record<string, unknown>)?.jsSettings as Record<string, unknown>;
+      const js = sp.jsSettings as Record<string, unknown>;
       const code = ((js?.runJs as Record<string, unknown>)?.code as string) || '';
-      if (code && jsDir) {
-        const desc = extractJsDesc(code);
-        const fname = `${prefix}_${blockKey}_${slugify(desc || 'jsitem')}.js`;
-        safeWrite(path.join(jsDir, fname), code);
-        jsItems.push({ key: slugify(desc || 'jsitem'), file: `./js/${fname}`, desc });
-      }
-    } else if (fieldPath) {
-      fields.push(fieldPath);
-    }
+      const desc = code ? extractJsDesc(code) : '';
+      const jsName = desc ? slugify(desc) : `js_${jsItems.length}`;
 
-    // Check for popup on field
-    if (gi.subModels?.page) {
-      fieldPopups.push({
-        field: fieldPath || gi.uid, field_uid: gi.uid, block_key: blockKey,
-        target: `$SELF.${blockKey}.fields.${fieldPath || gi.uid}`,
-      });
+      if (code && jsDir) {
+        const fname = `${prefix}_${blockKey}_${jsName}.js`;
+        safeWrite(path.join(jsDir, fname), code);
+        jsItems.push({ key: jsName, file: `./js/${fname}`, desc });
+      }
+      uidToName.set(gi.uid, desc ? `[JS:${desc}]` : '[JS]');
+
+    } else if (gi.use?.includes('DividerItem') || gi.use?.includes('MarkdownItem')) {
+      const label = ((sp.markdownItemSetting as Record<string, unknown>)
+        ?.title as Record<string, unknown>)?.label as string || '';
+      uidToName.set(gi.uid, label ? `--- ${label} ---` : '---');
+
+    } else {
+      const fpInit = (sp.fieldSettings as Record<string, unknown>)?.init as Record<string, unknown>;
+      const fieldPath = (fpInit?.fieldPath as string) || '';
+      if (fieldPath) {
+        fields.push(fieldPath);
+        uidToName.set(gi.uid, fieldPath);
+
+        // Check for popup on field (in subModels.field.subModels.page)
+        const fieldSub = gi.subModels?.field;
+        if (fieldSub && !Array.isArray(fieldSub)) {
+          const fpage = (fieldSub as FlowModelNode).subModels?.page;
+          if (fpage && !Array.isArray(fpage) && (fpage as FlowModelNode).uid) {
+            fieldPopups.push({
+              field: fieldPath,
+              field_uid: (fieldSub as FlowModelNode).uid || gi.uid,
+              block_key: blockKey,
+              target: `$SELF.${blockKey}.fields.${fieldPath}`,
+            });
+          }
+        }
+      }
+      // Also check direct popup on the item itself
+      if (gi.subModels?.page && !gi.use?.includes('JSItem')) {
+        const existsAlready = fieldPopups.some(p => p.field_uid === gi.uid);
+        if (!existsAlready) {
+          const fieldPath2 = (fpInit?.fieldPath as string) || gi.uid;
+          fieldPopups.push({
+            field: fieldPath2, field_uid: gi.uid, block_key: blockKey,
+            target: `$SELF.${blockKey}.fields.${fieldPath2}`,
+          });
+        }
+      }
     }
   }
 
-  // TODO: extract fieldLayout from gridSettings.rows
+  // Extract field_layout from gridSettings.rows
+  const fieldLayout = extractGridLayout(gridNode, uidToName);
 
-  return { fields, jsItems, fieldLayout: [], fieldPopups };
+  return { fields, jsItems, fieldLayout, fieldPopups };
+}
+
+/**
+ * Convert gridSettings.rows back to field_layout DSL.
+ * Handles: single items, equal-width rows, complex rows (different sizes, stacked cols).
+ */
+function extractGridLayout(
+  grid: FlowModelNode,
+  uidToName: Map<string, string>,
+): unknown[] {
+  const gs = (grid.stepParams as Record<string, unknown>)?.gridSettings as Record<string, unknown>;
+  const gridInner = (gs?.grid || {}) as Record<string, unknown>;
+  const rows = (gridInner.rows || {}) as Record<string, string[][]>;
+  const sizes = (gridInner.sizes || {}) as Record<string, number[]>;
+  const rowOrder = (gridInner.rowOrder || Object.keys(rows)) as string[];
+
+  if (!Object.keys(rows).length) return [];
+
+  const layout: unknown[] = [];
+
+  for (const rk of rowOrder) {
+    const cols = rows[rk];
+    if (!cols) continue;
+    const sz = sizes[rk] || [];
+    const nCols = cols.length;
+    const defaultSize = nCols > 0 ? Math.floor(24 / nCols) : 24;
+
+    const allSingle = cols.every(col => col.length === 1);
+    const equalSize = new Set(sz).size <= 1;
+
+    if (nCols === 1 && cols[0].length === 1) {
+      // Single item row
+      const name = uidToName.get(cols[0][0]) || cols[0][0].slice(0, 8);
+      if (name.startsWith('--- ')) {
+        layout.push(name); // divider as string
+      } else {
+        layout.push([name]);
+      }
+    } else if (allSingle && equalSize && sz.every(s => s === defaultSize)) {
+      // Simple equal-width row
+      const names = cols.map(col => uidToName.get(col[0]) || col[0].slice(0, 8));
+      layout.push(names);
+    } else {
+      // Complex row (different sizes or stacked items)
+      const rowItems: unknown[] = [];
+      for (let j = 0; j < cols.length; j++) {
+        const s = j < sz.length ? sz[j] : defaultSize;
+        const names = cols[j].map(u => uidToName.get(u) || u.slice(0, 8));
+
+        if (names.length === 1) {
+          if (s === defaultSize && equalSize) {
+            rowItems.push(names[0]);
+          } else {
+            rowItems.push({ [names[0]]: s });
+          }
+        } else {
+          // Stacked column
+          rowItems.push({ col: names, size: s });
+        }
+      }
+      layout.push(rowItems);
+    }
+  }
+
+  return layout;
 }
 
 // ── Actions ──
