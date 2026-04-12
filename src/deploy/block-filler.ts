@@ -75,24 +75,38 @@ export async function fillBlock(
           // Set popupSettings if specified
           const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
           if (ps) {
-            const openView: Record<string, unknown> = {
-              collectionName: ps.collectionName || coll,
-              dataSourceKey: 'main',
-              mode: ps.mode || 'drawer',
-              size: ps.size || 'medium',
-              pageModelClass: 'ChildPageModel',
-              filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
+            // Create a ChildPage via compose (details block) so popup has content
+            const popupColl = (ps.collectionName || coll) as string;
+            try {
+              const composeResult = await nb.surfaces.compose(fieldUid, [{
+                key: 'details',
+                type: 'details',
+                resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
+              }], 'replace');
+              log(`      ~ popup created for: ${fp}`);
+            } catch { /* might already exist */ }
+
+            // Read back to get the ChildPage UID
+            let popupUid = fieldUid;
+            try {
+              const refreshed = await nb.get({ uid: fieldUid });
+              const childPage = refreshed.tree.subModels?.page;
+              if (childPage && !Array.isArray(childPage)) {
+                popupUid = (childPage as { uid: string }).uid || fieldUid;
+              }
+            } catch { /* skip */ }
+
+            update.popupSettings = {
+              openView: {
+                collectionName: popupColl,
+                dataSourceKey: 'main',
+                mode: ps.mode || 'drawer',
+                size: ps.size || 'medium',
+                pageModelClass: 'ChildPageModel',
+                uid: popupUid,
+                filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
+              },
             };
-            if (ps.popupTemplateUid) {
-              // Template mode: NocoBase generates popup from template
-              openView.popupTemplateUid = ps.popupTemplateUid;
-              // uid must NOT be the field itself — leave for NocoBase to assign
-              // or set to a new UID that will become the ChildPage
-              openView.uid = generateUid();
-            } else {
-              openView.uid = fieldUid;
-            }
-            update.popupSettings = { openView };
           }
           await nb.updateModel(fieldUid, update);
           log(`      ~ clickToOpen: ${fp}`);
