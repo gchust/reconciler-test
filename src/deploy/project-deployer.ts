@@ -350,18 +350,17 @@ async function deployOnePage(
         { enableTabs: true },
         { params: { 'filter[id]': pageState.route_id } },
       );
-      // 2. RootPageModel props (frontend reads enableTabs from props, not stepParams)
+      // 2. RootPageModel.props.enableTabs (frontend reads from props, not stepParams)
+      // page_uid from createPage IS the RootPageModel UID
       if (pageState.page_uid) {
-        const pageData = await nb.get({ uid: pageState.page_uid });
-        const rootPage = pageData.tree.subModels?.page;
-        if (rootPage && !Array.isArray(rootPage)) {
-          const rootUid = (rootPage as { uid: string }).uid;
-          const existingProps = ((rootPage as unknown as Record<string, unknown>).props || {}) as Record<string, unknown>;
-          await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
-            uid: rootUid,
-            props: { ...existingProps, enableTabs: true },
-          });
-        }
+        const fmResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, {
+          params: { filterByTk: pageState.page_uid },
+        });
+        const existingProps = fmResp.data?.data?.props || {};
+        await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+          uid: pageState.page_uid,
+          props: { ...existingProps, enableTabs: true },
+        });
       }
     } catch (e) {
       log(`    ! enableTabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
