@@ -42,13 +42,8 @@ export async function deployEventFlows(
 
   try {
     await nb.models.save({ uid: blockUid, flowRegistry });
-  } catch {
-    try {
-      await nb.http.post(`${nb.baseUrl}/api/flowModels:update?filterByTk=${blockUid}`, {
-        options: { flowRegistry },
-      });
-    } catch (e) {
-      log(`      ! event flows: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-    }
+  } catch (e) {
+    // DO NOT fallback to flowModels:update — it clears parentId (PITFALL!)
+    log(`      ! event flows: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
   }
 }
