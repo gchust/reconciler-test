@@ -105,16 +105,29 @@ export async function fillBlock(
                 },
               };
             } else {
-              // Copy mode: read template content → compose into field's ChildPage
+              // Copy mode: read template content → deploy full blocks with JS/layout
               const tplContent = await loadTemplateContent(nb, modDir, ps.popupTemplateUid as string, popupColl);
+              const childPopupCtx = {
+                depth: popupContext.depth + 1,
+                maxDepth: popupContext.maxDepth,
+                seenColls: new Set([...popupContext.seenColls, coll]),
+              };
+
               if (tplContent.length) {
+                // Use deploySurface to compose + fill (JS, field_layout, event flows)
+                const { deploySurface: deploySurfaceFn } = await import('./surface-deployer');
                 try {
-                  const composeBlocks = tplContent
-                    .map(b => toComposeBlock(b as any, popupColl))
-                    .filter(Boolean) as Record<string, unknown>[];
-                  if (composeBlocks.length) {
-                    await nb.surfaces.compose(fieldUid, composeBlocks, 'replace');
+                  // Find template's JS dir (walk up to templates/)
+                  let tplDir = mod;
+                  for (let d = mod; d !== path.dirname(d); d = path.dirname(d)) {
+                    if (fs.existsSync(path.join(d, 'templates'))) { tplDir = d; break; }
                   }
+
+                  await deploySurfaceFn(
+                    nb, fieldUid,
+                    { blocks: tplContent as any[], coll: popupColl } as any,
+                    tplDir, false, {}, log, childPopupCtx,
+                  );
                 } catch { /* skip */ }
                 log(`      ~ clickToOpen: ${fp} (copy: ${tplContent.length} blocks, depth=${popupContext.depth})`);
               } else {
