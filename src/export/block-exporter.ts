@@ -259,7 +259,20 @@ function exportTableContents(
       const isClickable = (clickToOpen?.clickToOpen as Record<string, unknown>)?.clickToOpen === true;
 
       if (isClickable) {
-        fields.push({ field: fieldPath, clickToOpen: true });
+        const popupSettings = ((fieldModel as FlowModelNode).stepParams as Record<string, unknown>)
+          ?.popupSettings as Record<string, unknown>;
+        const openView = popupSettings?.openView as Record<string, unknown>;
+        const fieldSpec: Record<string, unknown> = { field: fieldPath, clickToOpen: true };
+        // Export popup config (collection, mode, filterByTk)
+        if (openView) {
+          fieldSpec.popupSettings = {
+            collectionName: openView.collectionName,
+            mode: openView.mode || 'drawer',
+            size: openView.size || 'medium',
+            filterByTk: openView.filterByTk || '{{ ctx.record.id }}',
+          };
+        }
+        fields.push(fieldSpec);
       } else {
         fields.push(fieldPath);
       }

@@ -60,22 +60,37 @@ export async function fillBlock(
   // ── clickToOpen on table fields (default detail popup) ──
   if (btype === 'table') {
     for (const f of bs.fields || []) {
-      if (typeof f === 'object' && f.clickToOpen) {
-        const fp = f.field || f.fieldPath || '';
-        const wrapperUid = fieldStates[fp]?.wrapper;
-        if (wrapperUid) {
-          try {
-            // Find the field model under the column wrapper
-            const colData = await nb.get({ uid: wrapperUid });
-            const fieldSub = colData.tree.subModels?.field;
-            if (fieldSub && !Array.isArray(fieldSub)) {
-              await nb.updateModel((fieldSub as { uid: string }).uid, {
-                displayFieldSettings: { clickToOpen: { clickToOpen: true } },
-              });
-            }
-          } catch { /* skip */ }
+      if (typeof f !== 'object' || !f.clickToOpen) continue;
+      const fp = f.field || f.fieldPath || '';
+      const wrapperUid = fieldStates[fp]?.wrapper;
+      if (!wrapperUid) continue;
+      try {
+        const colData = await nb.get({ uid: wrapperUid });
+        const fieldSub = colData.tree.subModels?.field;
+        if (fieldSub && !Array.isArray(fieldSub)) {
+          const fieldUid = (fieldSub as { uid: string }).uid;
+          const update: Record<string, unknown> = {
+            displayFieldSettings: { clickToOpen: { clickToOpen: true } },
+          };
+          // Set popupSettings if specified
+          const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
+          if (ps) {
+            update.popupSettings = {
+              openView: {
+                collectionName: ps.collectionName || coll,
+                dataSourceKey: 'main',
+                mode: ps.mode || 'drawer',
+                size: ps.size || 'medium',
+                pageModelClass: 'ChildPageModel',
+                uid: fieldUid,
+                filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
+              },
+            };
+          }
+          await nb.updateModel(fieldUid, update);
+          log(`      ~ clickToOpen: ${fp}`);
         }
-      }
+      } catch { /* skip */ }
     }
   }
 

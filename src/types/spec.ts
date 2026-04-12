@@ -23,6 +23,12 @@ export interface FieldRef {
   filterPaths?: string[];
   fieldPath?: string;
   clickToOpen?: boolean;
+  popupSettings?: {
+    collectionName?: string;
+    mode?: string;
+    size?: string;
+    filterByTk?: string;
+  };
 }
 
 export type FieldSpec = string | FieldRef;
