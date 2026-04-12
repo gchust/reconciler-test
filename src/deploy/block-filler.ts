@@ -75,35 +75,14 @@ export async function fillBlock(
           // Set popupSettings if specified
           const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
           if (ps) {
-            // Create a ChildPage via compose (details block) so popup has content
-            const popupColl = (ps.collectionName || coll) as string;
-            try {
-              const composeResult = await nb.surfaces.compose(fieldUid, [{
-                key: 'details',
-                type: 'details',
-                resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
-              }], 'replace');
-              log(`      ~ popup created for: ${fp}`);
-            } catch { /* might already exist */ }
-
-            // Read back to get the ChildPage UID
-            let popupUid = fieldUid;
-            try {
-              const refreshed = await nb.get({ uid: fieldUid });
-              const childPage = refreshed.tree.subModels?.page;
-              if (childPage && !Array.isArray(childPage)) {
-                popupUid = (childPage as { uid: string }).uid || fieldUid;
-              }
-            } catch { /* skip */ }
-
             update.popupSettings = {
               openView: {
-                collectionName: popupColl,
+                collectionName: (ps.collectionName || coll) as string,
                 dataSourceKey: 'main',
                 mode: ps.mode || 'drawer',
                 size: ps.size || 'medium',
                 pageModelClass: 'ChildPageModel',
-                uid: popupUid,
+                uid: fieldUid,
                 filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
               },
             };
