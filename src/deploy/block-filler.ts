@@ -75,17 +75,19 @@ export async function fillBlock(
           // Set popupSettings if specified
           const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
           if (ps) {
-            update.popupSettings = {
-              openView: {
-                collectionName: ps.collectionName || coll,
-                dataSourceKey: 'main',
-                mode: ps.mode || 'drawer',
-                size: ps.size || 'medium',
-                pageModelClass: 'ChildPageModel',
-                uid: fieldUid,
-                filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
-              },
+            const openView: Record<string, unknown> = {
+              collectionName: ps.collectionName || coll,
+              dataSourceKey: 'main',
+              mode: ps.mode || 'drawer',
+              size: ps.size || 'medium',
+              pageModelClass: 'ChildPageModel',
+              uid: fieldUid,
+              filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
             };
+            if (ps.popupTemplateUid) {
+              openView.popupTemplateUid = ps.popupTemplateUid;
+            }
+            update.popupSettings = { openView };
           }
           await nb.updateModel(fieldUid, update);
           log(`      ~ clickToOpen: ${fp}`);

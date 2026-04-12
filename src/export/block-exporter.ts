@@ -270,6 +270,8 @@ function exportTableContents(
             mode: openView.mode || 'drawer',
             size: openView.size || 'medium',
             filterByTk: openView.filterByTk || '{{ ctx.record.id }}',
+            // Preserve template ref for same-system deploy
+            ...(openView.popupTemplateUid ? { popupTemplateUid: openView.popupTemplateUid } : {}),
           };
         }
         fields.push(fieldSpec);
