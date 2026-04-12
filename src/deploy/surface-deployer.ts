@@ -24,7 +24,7 @@ export async function deploySurface(
   force = false,
   existingState: Record<string, BlockState> = {},
   log: (msg: string) => void = console.log,
-  popupContext?: { depth: number; maxDepth: number; seenColls: Set<string> },
+  popupContext?: { refDepth: number; seenColls: Set<string> },
 ): Promise<Record<string, BlockState>> {
   const coll = (spec as { coll?: string }).coll || '';
   const blocksSpec = (spec as { blocks?: BlockSpec[] }).blocks || [];
