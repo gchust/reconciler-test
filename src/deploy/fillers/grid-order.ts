@@ -39,23 +39,61 @@ export async function syncGridItemsOrder(
       uidByUse.set(use, group);
     }
 
-    // Build desired order from spec: walk through js_items and fields in declaration order
+    // Build desired order from field_layout (if present), otherwise fields then js_items
     const desiredUids: string[] = [];
+    const fieldLayout = bs.field_layout || [];
 
-    // js_items first (they appear before fields in the spec)
-    const jsItemUids = uidByUse.get('JSItemModel') || [];
-    desiredUids.push(...jsItemUids);
-
-    // Then fields in spec order
-    const specFields = (bs.fields || []).map(f =>
-      typeof f === 'string' ? f : (f.field || f.fieldPath || ''),
-    ).filter(Boolean);
-    for (const fp of specFields) {
-      const uid = uidByFieldPath.get(fp);
-      if (uid && !desiredUids.includes(uid)) desiredUids.push(uid);
+    if (fieldLayout.length) {
+      // Follow field_layout declaration order
+      for (const row of fieldLayout) {
+        if (typeof row === 'string') {
+          // Divider
+          const u = uidByFieldPath.get(row) || [...uidByFieldPath.entries()].find(([, v]) => v === row)?.[1];
+          if (u && !desiredUids.includes(u)) desiredUids.push(u);
+        } else if (Array.isArray(row)) {
+          for (const item of row) {
+            let names: string[] = [];
+            if (typeof item === 'string') {
+              names = [item];
+            } else if (item && typeof item === 'object') {
+              // Handle {col: [...], size: N} format
+              const col = (item as Record<string, unknown>).col;
+              if (Array.isArray(col)) {
+                names = col as string[];
+              } else {
+                names = Object.keys(item).filter(k => k !== 'col' && k !== 'size');
+              }
+            }
+            for (const name of names) {
+              if (name.startsWith('[JS:')) {
+                // Find JS item by desc
+                const desc = name.replace(/^\[JS:/, '').replace(/\]$/, '');
+                const jsUids = uidByUse.get('JSItemModel') || [];
+                for (const uid of jsUids) {
+                  if (!desiredUids.includes(uid)) { desiredUids.push(uid); break; }
+                }
+              } else {
+                const uid = uidByFieldPath.get(name);
+                if (uid && !desiredUids.includes(uid)) desiredUids.push(uid);
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // No field_layout — use fields list order, then js_items
+      const specFields = (bs.fields || []).map(f =>
+        typeof f === 'string' ? f : (f.field || f.fieldPath || ''),
+      ).filter(Boolean);
+      for (const fp of specFields) {
+        const uid = uidByFieldPath.get(fp);
+        if (uid && !desiredUids.includes(uid)) desiredUids.push(uid);
+      }
+      const jsItemUids = uidByUse.get('JSItemModel') || [];
+      desiredUids.push(...jsItemUids);
     }
 
-    // Append any remaining items not yet covered (dividers, etc.)
+    // Append any remaining items not yet covered
     for (const item of items) {
       if (!desiredUids.includes(item.uid)) desiredUids.push(item.uid);
     }

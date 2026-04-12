@@ -278,8 +278,6 @@ export async function fillBlock(
   await deployEventFlows(nb, blockUid, bs, mod, log);
 
   // ── Field layout (apply after all content created) ──
+  // gridSettings.rows controls rendering order — no need for subModels.items reorder
   await applyFieldLayout(nb, gridUid, bs.field_layout || [], log);
-
-  // ── Sync grid items order to match spec declaration order ──
-  await syncGridItemsOrder(nb, gridUid, bs, log);
 }

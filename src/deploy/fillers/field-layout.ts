@@ -53,19 +53,47 @@ export async function applyFieldLayout(
         }
       } else if (Array.isArray(row)) {
         const cols: string[][] = [];
+        const colSizes: number[] = [];
         for (const item of row) {
-          const name = typeof item === 'string' ? item
-            : (typeof item === 'object' && item ? Object.keys(item)[0] : null);
-          if (name) {
-            const u = uidMap.get(name);
+          if (typeof item === 'string') {
+            // Simple field name
+            const u = uidMap.get(item);
             if (u && !covered.has(u)) {
               cols.push([u]); covered.add(u);
+              colSizes.push(Math.floor(24 / row.length));
+            }
+          } else if (item && typeof item === 'object') {
+            const obj = item as Record<string, unknown>;
+            if (Array.isArray(obj.col)) {
+              // {col: ['JS:...', 'field1', 'field2'], size: N} — stacked column
+              const colUids: string[] = [];
+              for (const name of obj.col as string[]) {
+                const u = uidMap.get(name);
+                if (u && !covered.has(u)) {
+                  colUids.push(u); covered.add(u);
+                }
+              }
+              if (colUids.length) {
+                cols.push(colUids);
+                colSizes.push((obj.size as number) || 24);
+              }
+            } else {
+              // {fieldName: size} format
+              const entries = Object.entries(obj).filter(([k]) => k !== 'col' && k !== 'size');
+              if (entries.length) {
+                const [name, size] = entries[0];
+                const u = uidMap.get(name);
+                if (u && !covered.has(u)) {
+                  cols.push([u]); covered.add(u);
+                  colSizes.push((size as number) || Math.floor(24 / row.length));
+                }
+              }
             }
           }
         }
         if (cols.length) {
           rows[rk] = cols;
-          sizes[rk] = cols.map(() => Math.floor(24 / cols.length));
+          sizes[rk] = colSizes.length ? colSizes : cols.map(() => Math.floor(24 / cols.length));
           ri++;
         }
       }
