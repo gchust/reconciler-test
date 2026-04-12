@@ -222,6 +222,7 @@ export async function deployProject(
   if (deployedGroupTitle) {
     log('\n  Syncing back from live system...');
     try {
+      nb.routes.clearCache(); // ensure fresh route data for export
       const { exportProject } = await import('../export/project-exporter');
       await exportProject(nb, { outDir: root, group: deployedGroupTitle });
       log('  ✓ Synced');
