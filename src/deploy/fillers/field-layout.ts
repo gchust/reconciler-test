@@ -6,6 +6,7 @@
  */
 import type { NocoBaseClient } from '../../client';
 import { bestEffort } from '../../utils/error-utils';
+import { extractJsDesc } from '../../utils/js-utils';
 import type { LogFn } from './types';
 
 export async function applyFieldLayout(
@@ -32,7 +33,13 @@ export async function applyFieldLayout(
       const label = ((d.stepParams?.markdownItemSetting as Record<string, unknown>)?.title as Record<string, unknown>)?.label as string;
       if (fieldPath) uidMap.set(fieldPath, d.uid);
       else if (label) uidMap.set(label, d.uid);
-      else if (d.use?.includes('JSItem')) uidMap.set('_js_', d.uid);
+      if (d.use?.includes('JSItem')) {
+        // Map by JS description: [JS:desc] format used in field_layout
+        const jsCode = ((d.stepParams?.jsSettings as Record<string, unknown>)?.runJs as Record<string, unknown>)?.code as string || '';
+        const jsDesc = extractJsDesc(jsCode);
+        if (jsDesc) uidMap.set(`[JS:${jsDesc}]`, d.uid);
+        uidMap.set('_js_', d.uid); // fallback
+      }
     }
 
     const rows: Record<string, string[][]> = {};
