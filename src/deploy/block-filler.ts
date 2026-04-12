@@ -76,28 +76,50 @@ export async function fillBlock(
           const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
           if (ps) {
             const popupColl = (ps.collectionName || coll) as string;
-            const openView: Record<string, unknown> = {
-              collectionName: popupColl,
-              dataSourceKey: 'main',
-              mode: ps.mode || 'drawer',
-              size: ps.size || 'medium',
-              pageModelClass: 'ChildPageModel',
-              uid: fieldUid,
-              filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
-            };
 
-            // If popupTemplateUid exists (same system or mapped), use it
-            // NocoBase auto-generates ChildPage from template on first click
             if (ps.popupTemplateUid) {
-              openView.popupTemplateUid = ps.popupTemplateUid;
-              // Register usage
+              // Template mode: look up template's targetUid for popupSettings.uid
+              let targetUid = fieldUid;
+              try {
+                const tplResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, {
+                  params: { filter: { uid: ps.popupTemplateUid }, pageSize: 1 },
+                });
+                const tplData = tplResp.data?.data?.[0];
+                if (tplData?.targetUid) targetUid = tplData.targetUid;
+              } catch { /* use fieldUid as fallback */ }
+
+              update.popupSettings = {
+                openView: {
+                  collectionName: popupColl,
+                  dataSourceKey: 'main',
+                  mode: ps.mode || 'drawer',
+                  size: ps.size || 'medium',
+                  pageModelClass: 'ChildPageModel',
+                  uid: targetUid,
+                  popupTemplateUid: ps.popupTemplateUid,
+                  filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
+                },
+              };
+              // Register template usage
               try {
                 await nb.http.post(`${nb.baseUrl}/api/flowModelTemplateUsages:create`, {
                   values: { uid: generateUid(), templateUid: ps.popupTemplateUid, modelUid: fieldUid },
                 });
               } catch { /* might already exist */ }
+              log(`      ~ clickToOpen: ${fp} (template: ${ps.popupTemplateUid})`);
             } else {
-              // No template: compose default details block into the field
+              // No template: compose default details block
+              update.popupSettings = {
+                openView: {
+                  collectionName: popupColl,
+                  dataSourceKey: 'main',
+                  mode: ps.mode || 'drawer',
+                  size: ps.size || 'medium',
+                  pageModelClass: 'ChildPageModel',
+                  uid: fieldUid,
+                  filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
+                },
+              };
               try {
                 const meta = await nb.collections.fieldMeta(popupColl);
                 const defaultFields = Object.keys(meta)
@@ -111,9 +133,8 @@ export async function fillBlock(
                   fields: defaultFields,
                 }], 'replace');
               } catch { /* skip */ }
+              log(`      ~ clickToOpen: ${fp} (default details)`);
             }
-
-            update.popupSettings = { openView };
           }
           await nb.updateModel(fieldUid, update);
           log(`      ~ clickToOpen: ${fp}`);

@@ -270,12 +270,8 @@ function exportTableContents(
             mode: openView.mode || 'drawer',
             size: openView.size || 'medium',
             filterByTk: openView.filterByTk || '{{ ctx.record.id }}',
+            ...(openView.popupTemplateUid ? { popupTemplateUid: openView.popupTemplateUid } : {}),
           };
-          // Follow the popup uid to read actual popup blocks
-          const popupFieldUid = openView.uid as string;
-          if (popupFieldUid) {
-            fieldSpec._popupSourceUid = popupFieldUid;
-          }
         }
         fields.push(fieldSpec);
       } else {
