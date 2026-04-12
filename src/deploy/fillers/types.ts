@@ -8,9 +8,9 @@ import type { BlockState } from '../../types/state';
 export type LogFn = (msg: string) => void;
 
 export interface PopupContext {
-  depth: number;
-  maxDepth: number;
-  seenColls: Set<string>;
+  depth: number;      // current reference-resolution depth (only increments for template/ref expansion)
+  maxDepth: number;   // max depth for reference expansion (default: 2). Non-ref content always copies.
+  seenColls: Set<string>;  // circular reference detection (stops infinite popup chains)
 }
 
 /** Common params passed to most filler functions. */

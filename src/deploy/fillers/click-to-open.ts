@@ -72,35 +72,49 @@ export async function deployClickToOpen(
           continue;
         }
 
-        // ── Path 3/4/5: Circular, template copy, or default ──
+        // ── Path 3/4/5: Circular, template, or default ──
         const isCircular = popupContext.seenColls.has(popupColl);
-        const atMaxDepth = popupContext.depth >= popupContext.maxDepth;
 
-        if (isCircular || atMaxDepth) {
-          // Circular reference or max depth → simple details (no recursion)
-          log(`      ~ clickToOpen: ${fp} (depth=${popupContext.depth}, ${isCircular ? 'circular: ' + popupColl : 'max depth'})`);
+        if (isCircular) {
+          // Circular reference → stop recursion
+          log(`      ~ clickToOpen: ${fp} (circular: ${popupColl}, stop)`);
           await deployDefaultDetails(nb, fieldUid, popupColl);
           update.popupSettings = makePopupSettings(fieldUid, popupColl, ps);
         } else {
-          // Template copy mode or default
-          const tplContent = await loadTemplateContent(nb, modDir, ps?.popupTemplateUid as string, popupColl);
-          const childCtx = makeChildContext(popupContext, coll);
+          // Non-circular → always recurse for non-reference content
+          // depth only controls whether template references get copied or stay as references
+          const hasTemplateRef = !!ps?.popupTemplateUid;
+          const refDepthExceeded = hasTemplateRef && popupContext.depth >= popupContext.maxDepth;
+          // depth increments only when expanding a reference
+          const childCtx = makeChildContext(popupContext, coll, hasTemplateRef && !refDepthExceeded);
 
-          if (tplContent.length) {
-            const { deploySurface } = await import('../surface-deployer');
-            let tplDir = mod;
-            for (let d = mod; d !== path.dirname(d); d = path.dirname(d)) {
-              if (fs.existsSync(path.join(d, 'templates'))) { tplDir = d; break; }
+          if (hasTemplateRef && !refDepthExceeded) {
+            // Template within depth → copy content
+            const tplContent = await loadTemplateContent(nb, modDir, ps.popupTemplateUid as string, popupColl);
+            if (tplContent.length) {
+              const { deploySurface } = await import('../surface-deployer');
+              let tplDir = mod;
+              for (let d = mod; d !== path.dirname(d); d = path.dirname(d)) {
+                if (fs.existsSync(path.join(d, 'templates'))) { tplDir = d; break; }
+              }
+              try {
+                await deploySurface(nb, fieldUid,
+                  { blocks: tplContent as any[], coll: popupColl } as any,
+                  tplDir, false, {}, log, childCtx);
+              } catch (e) {
+                log(`      ! clickToOpen ${fp} template: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+              }
+              log(`      ~ clickToOpen: ${fp} (copy template: ${tplContent.length} blocks, depth=${popupContext.depth})`);
+            } else {
+              await deployDefaultDetails(nb, fieldUid, popupColl);
+              log(`      ~ clickToOpen: ${fp} (default details)`);
             }
-            try {
-              await deploySurface(nb, fieldUid,
-                { blocks: tplContent as any[], coll: popupColl } as any,
-                tplDir, false, {}, log, childCtx);
-            } catch (e) {
-              log(`      ! clickToOpen ${fp} template: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-            }
-            log(`      ~ clickToOpen: ${fp} (copy: ${tplContent.length} blocks, depth=${popupContext.depth})`);
+          } else if (refDepthExceeded) {
+            // Template beyond depth → keep as reference (don't expand)
+            log(`      ~ clickToOpen: ${fp} (reference mode, depth=${popupContext.depth})`);
+            // Just set popupSettings with popupTemplateUid — NocoBase resolves at render time
           } else {
+            // No template reference → deploy default details (always recurse)
             await deployDefaultDetails(nb, fieldUid, popupColl);
             log(`      ~ clickToOpen: ${fp} (default details)`);
           }
@@ -237,9 +251,9 @@ function makePopupSettings(
   };
 }
 
-function makeChildContext(parent: PopupContext, coll: string): PopupContext {
+function makeChildContext(parent: PopupContext, coll: string, isRefExpansion = false): PopupContext {
   return {
-    depth: parent.depth + 1,
+    depth: isRefExpansion ? parent.depth + 1 : parent.depth,  // only increment for reference expansion
     maxDepth: parent.maxDepth,
     seenColls: new Set([...parent.seenColls, coll]),
   };

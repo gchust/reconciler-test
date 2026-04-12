@@ -55,11 +55,18 @@ export async function deployPopup(
 
       // Content is sufficient if live has at least as many tabs and blocks as spec
       const hasContent = tabArr.length >= specTabCount && liveBlockCount >= specBlockCount && liveBlockCount > 0;
-      if (hasContent && !force) {
-        log(`  = popup [${targetRef}] (exists, skip)`);
+      if (hasContent) {
+        // Popup exists — sync content (fillBlock runs for templateRef, JS, etc.)
+        log(`  = popup [${targetRef}] (exists, sync content)`);
+        const blocks = popupSpec.blocks || (tabsSpec ? tabsSpec[0]?.blocks : []) || [];
+        if (blocks.length) {
+          const syncResult = await deploySurface(
+            nb, targetUid, { blocks, coll } as any, modDir, false, {}, log,
+          );
+          return syncResult;
+        }
         return {};
       }
-      // force mode: fall through to re-deploy content
     }
   } catch (e) {
     log(`  ! popup check [${targetRef}]: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
