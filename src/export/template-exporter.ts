@@ -1,8 +1,13 @@
 /**
- * Export popup templates — ChildPage content referenced by popupSettings.uid.
+ * Export V2 templates (flowModelTemplates) — both popup and block templates.
  *
- * Templates are shared across pages (e.g., Leads detail popup used by Overview and Leads).
- * Export to templates/<uid>.yaml with full block + field_layout content.
+ * Templates are shared across pages. Export to templates/ directory:
+ *   templates/
+ *     _index.yaml              # all templates with metadata
+ *     popup/
+ *       activity_view.yaml     # popup template with content blocks
+ *     block/
+ *       form_add_leads.yaml    # block template with content
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -12,173 +17,215 @@ import { exportBlock } from './block-exporter';
 import { dumpYaml } from '../utils/yaml';
 import { slugify } from '../utils/slugify';
 
-interface TemplateRef {
-  uid: string;            // popupSettings.uid pointing to template field
+interface TemplateRecord {
+  uid: string;
+  name: string;
+  type: 'popup' | 'block';
   collectionName: string;
-  fieldPath: string;      // field that references this template
-  pageName: string;
+  dataSourceKey: string;
+  targetUid: string;
+  description?: string;
+  associationName?: string;
+  useModel?: string;
+  usageCount?: number;
 }
 
 /**
- * Scan all table columns for popupSettings.uid references.
- * Returns unique template refs.
+ * Export all V2 templates from flowModelTemplates API.
  */
-export async function scanPopupTemplates(
+export async function exportAllTemplates(
   nb: NocoBaseClient,
-  routes: { schemaUid?: string; title?: string; type: string; children?: any[] }[],
-): Promise<TemplateRef[]> {
-  const seen = new Map<string, TemplateRef>();
-
-  for (const route of routes) {
-    if (route.type === 'group') {
-      const childRefs = await scanPopupTemplates(nb, route.children || []);
-      for (const ref of childRefs) {
-        if (!seen.has(ref.uid)) seen.set(ref.uid, ref);
-      }
-      continue;
-    }
-    if (route.type !== 'flowPage') continue;
-
-    const tabRoute = route.children?.find((c: any) => c.type === 'tabs');
-    if (!tabRoute?.schemaUid) continue;
-
-    try {
-      const d = await nb.get({ tabSchemaUid: tabRoute.schemaUid });
-      const grid = d.tree.subModels?.grid;
-      if (!grid || Array.isArray(grid)) continue;
-
-      scanGridForTemplates(grid as FlowModelNode, route.title || '', seen);
-    } catch { continue; }
-  }
-
-  return [...seen.values()];
-}
-
-function scanGridForTemplates(
-  grid: FlowModelNode,
-  pageName: string,
-  seen: Map<string, TemplateRef>,
-): void {
-  const rawItems = grid.subModels?.items;
-  const items = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
-
-  for (const item of items) {
-    if (!item.use?.includes('Table')) continue;
-
-    const rawCols = item.subModels?.columns;
-    const cols = (Array.isArray(rawCols) ? rawCols : []) as FlowModelNode[];
-    const tableColl = ((item.stepParams as Record<string, unknown>)?.resourceSettings as Record<string, unknown>)
-      ?.init as Record<string, unknown>;
-
-    for (const col of cols) {
-      const field = col.subModels?.field;
-      if (!field || Array.isArray(field)) continue;
-
-      const ps = ((field as FlowModelNode).stepParams as Record<string, unknown>)?.popupSettings as Record<string, unknown>;
-      const openView = ps?.openView as Record<string, unknown>;
-      if (!openView?.uid) continue;
-
-      const templateUid = openView.uid as string;
-      if (templateUid === (field as FlowModelNode).uid) continue; // self-reference, not a template
-
-      const fp = ((col.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
-        ?.init as Record<string, unknown>;
-
-      if (!seen.has(templateUid)) {
-        seen.set(templateUid, {
-          uid: templateUid,
-          collectionName: (openView.collectionName || tableColl?.collectionName || '') as string,
-          fieldPath: (fp?.fieldPath || '') as string,
-          pageName,
-        });
-      }
-    }
-  }
-}
-
-/**
- * Export all popup templates to templates/ directory.
- */
-export async function exportPopupTemplates(
-  nb: NocoBaseClient,
-  templates: TemplateRef[],
   outDir: string,
 ): Promise<void> {
-  if (!templates.length) return;
-
   const tplDir = path.join(outDir, 'templates');
-  fs.mkdirSync(tplDir, { recursive: true });
+
+  // Fetch all templates
+  const resp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, {
+    params: { paginate: false },
+  });
+  const templates = (resp.data?.data || []) as TemplateRecord[];
+  if (!templates.length) {
+    console.log('  No templates found');
+    return;
+  }
+
+  // Create directories
+  const popupDir = path.join(tplDir, 'popup');
+  const blockDir = path.join(tplDir, 'block');
+  fs.mkdirSync(popupDir, { recursive: true });
+  fs.mkdirSync(blockDir, { recursive: true });
 
   const index: Record<string, unknown>[] = [];
 
   for (const tpl of templates) {
+    const tplSlug = slugify(tpl.name || tpl.uid);
+    const typeDir = tpl.type === 'popup' ? popupDir : blockDir;
+    const jsDir = path.join(typeDir, `${tplSlug}_js`);
+
     try {
-      const d = await nb.get({ uid: tpl.uid });
-      const page = d.tree.subModels?.page;
-      if (!page || Array.isArray(page)) continue;
-
-      const pageNode = page as FlowModelNode;
-      const rawTabs = pageNode.subModels?.tabs;
-      const tabs = (Array.isArray(rawTabs) ? rawTabs : rawTabs ? [rawTabs] : []) as FlowModelNode[];
-
-      const jsDir = path.join(tplDir, tpl.uid, 'js');
-      fs.mkdirSync(jsDir, { recursive: true });
-
-      const tabSpecs: Record<string, unknown>[] = [];
-      for (let ti = 0; ti < tabs.length; ti++) {
-        const tab = tabs[ti];
-        const tabGrid = tab.subModels?.grid;
-        if (!tabGrid || Array.isArray(tabGrid)) continue;
-
-        const gridNode = tabGrid as FlowModelNode;
-        const rawItems = gridNode.subModels?.items;
-        const gridItems = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
-        const usedKeys = new Set<string>();
-        const blocks: Record<string, unknown>[] = [];
-
-        for (let i = 0; i < gridItems.length; i++) {
-          const exported = exportBlock(gridItems[i], jsDir, `tpl_${tpl.uid.slice(0, 6)}`, i, usedKeys);
-          if (exported) {
-            const spec = { ...exported.spec };
-            delete spec._popups;
-            blocks.push(spec);
-          }
-        }
-
-        const title = ((tab.stepParams as Record<string, unknown>)?.pageTabSettings as Record<string, unknown>)
-          ?.title as Record<string, unknown>;
-        tabSpecs.push({
-          title: (title?.title as string) || `Tab${ti}`,
-          blocks,
-        });
+      // Read template content via targetUid
+      let contentSpec: Record<string, unknown> = {};
+      if (tpl.targetUid) {
+        contentSpec = await exportTemplateContent(nb, tpl.targetUid, jsDir, tplSlug, tpl.type);
       }
 
       const tplSpec: Record<string, unknown> = {
         uid: tpl.uid,
-        collectionName: tpl.collectionName,
-        referencedBy: `${tpl.pageName}/${tpl.fieldPath}`,
+        name: tpl.name,
+        type: tpl.type,
+        collectionName: tpl.collectionName || undefined,
+        dataSourceKey: tpl.dataSourceKey || 'main',
+        targetUid: tpl.targetUid,
+        ...(tpl.associationName ? { associationName: tpl.associationName } : {}),
+        ...(tpl.description ? { description: tpl.description } : {}),
+        ...contentSpec,
       };
-      if (tabSpecs.length <= 1) {
-        tplSpec.blocks = tabSpecs[0]?.blocks || [];
-      } else {
-        tplSpec.tabs = tabSpecs;
-      }
 
-      fs.writeFileSync(path.join(tplDir, `${tpl.uid}.yaml`), dumpYaml(tplSpec));
+      fs.writeFileSync(path.join(typeDir, `${tplSlug}.yaml`), dumpYaml(tplSpec));
+
       index.push({
         uid: tpl.uid,
+        name: tpl.name,
+        type: tpl.type,
         collection: tpl.collectionName,
-        referencedBy: `${tpl.pageName}/${tpl.fieldPath}`,
-        blocks: tabSpecs.reduce((n, t) => n + ((t.blocks as unknown[])?.length || 0), 0),
-        tabs: tabSpecs.length,
+        targetUid: tpl.targetUid,
+        file: `${tpl.type}/${tplSlug}.yaml`,
+        usageCount: tpl.usageCount || 0,
       });
 
-      console.log(`  + template ${tpl.uid}: ${tpl.collectionName}/${tpl.fieldPath} (${tabSpecs.length} tabs)`);
+      // Clean up empty js dir
+      try {
+        if (fs.existsSync(jsDir) && !fs.readdirSync(jsDir).length) fs.rmdirSync(jsDir);
+      } catch { /* skip */ }
+
     } catch (e) {
-      console.log(`  ! template ${tpl.uid}: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
+      console.log(`  ! template ${tpl.name}: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
     }
   }
 
   // Write index
   fs.writeFileSync(path.join(tplDir, '_index.yaml'), dumpYaml(index));
+
+  const popupCount = templates.filter(t => t.type === 'popup').length;
+  const blockCount = templates.filter(t => t.type === 'block').length;
+  console.log(`  + ${templates.length} templates (${popupCount} popup, ${blockCount} block)`);
+}
+
+/**
+ * Export template content by reading the targetUid's flowModel tree.
+ */
+async function exportTemplateContent(
+  nb: NocoBaseClient,
+  targetUid: string,
+  jsDir: string,
+  prefix: string,
+  templateType: 'popup' | 'block',
+): Promise<Record<string, unknown>> {
+  let tree: FlowModelNode;
+  try {
+    const d = await nb.get({ uid: targetUid });
+    tree = d.tree;
+  } catch {
+    return {};
+  }
+
+  if (templateType === 'popup') {
+    // Popup template: targetUid → field model → subModels.page → ChildPage → tabs → blocks
+    const page = tree.subModels?.page;
+    if (!page || Array.isArray(page)) {
+      // Maybe targetUid IS the ChildPage directly
+      if (tree.use === 'ChildPageModel') {
+        return exportChildPageContent(nb, tree, jsDir, prefix);
+      }
+      return {};
+    }
+    return exportChildPageContent(nb, page as FlowModelNode, jsDir, prefix);
+  } else {
+    // Block template: targetUid → the actual block model (form/table/details/etc.)
+    const usedKeys = new Set<string>();
+    const exported = exportBlock(tree, jsDir, prefix, 0, usedKeys);
+    if (!exported) return {};
+    const spec = { ...exported.spec };
+    delete spec._popups;
+    return { content: spec };
+  }
+}
+
+async function exportChildPageContent(
+  nb: NocoBaseClient,
+  pageNode: FlowModelNode,
+  jsDir: string,
+  prefix: string,
+): Promise<Record<string, unknown>> {
+  const rawTabs = pageNode.subModels?.tabs;
+  const tabs = (Array.isArray(rawTabs) ? rawTabs : rawTabs ? [rawTabs] : []) as FlowModelNode[];
+
+  if (tabs.length <= 1) {
+    // Single tab — export blocks directly
+    const tabGrid = tabs.length ? tabs[0].subModels?.grid : null;
+    if (!tabGrid || Array.isArray(tabGrid)) return { content: { blocks: [] } };
+
+    const blocks = exportGridItems(tabGrid as FlowModelNode, jsDir, prefix);
+    return { content: { blocks } };
+  }
+
+  // Multi tab
+  const tabSpecs: Record<string, unknown>[] = [];
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    const title = ((tab.stepParams as Record<string, unknown>)?.pageTabSettings as Record<string, unknown>)
+      ?.title as Record<string, unknown>;
+    const tabTitle = (title?.title as string) || `Tab${i}`;
+    const tabGrid = tab.subModels?.grid;
+    const blocks = (tabGrid && !Array.isArray(tabGrid))
+      ? exportGridItems(tabGrid as FlowModelNode, jsDir, `${prefix}_tab${i}`)
+      : [];
+    tabSpecs.push({ title: tabTitle, blocks });
+  }
+  return { content: { tabs: tabSpecs } };
+}
+
+function exportGridItems(
+  grid: FlowModelNode,
+  jsDir: string,
+  prefix: string,
+): Record<string, unknown>[] {
+  const rawItems = grid.subModels?.items;
+  const items = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
+  const usedKeys = new Set<string>();
+  const blocks: Record<string, unknown>[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const exported = exportBlock(items[i], jsDir, prefix, i, usedKeys);
+    if (exported) {
+      const spec = { ...exported.spec };
+      delete spec._popups;
+      blocks.push(spec);
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * Fetch template usages (which fields/blocks reference each template).
+ */
+export async function exportTemplateUsages(
+  nb: NocoBaseClient,
+  outDir: string,
+): Promise<void> {
+  const resp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplateUsages:list`, {
+    params: { paginate: false },
+  });
+  const usages = (resp.data?.data || []) as { uid: string; templateUid: string; modelUid: string }[];
+  if (!usages.length) return;
+
+  fs.writeFileSync(
+    path.join(outDir, 'templates', '_usages.yaml'),
+    dumpYaml(usages.map(u => ({
+      templateUid: u.templateUid,
+      modelUid: u.modelUid,
+    }))),
+  );
+  console.log(`  + ${usages.length} template usages`);
 }

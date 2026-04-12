@@ -28,6 +28,7 @@ import type { NocoBaseClient } from '../client';
 import type { RouteInfo } from '../client/routes';
 import type { FlowModelNode } from '../types/api';
 import { exportBlock, TYPE_MAP, type PopupRef } from './block-exporter';
+import { exportAllTemplates, exportTemplateUsages } from './template-exporter';
 import { dumpYaml } from '../utils/yaml';
 import { slugify } from '../utils/slugify';
 
@@ -59,6 +60,10 @@ export async function exportProject(
   if (opts.includeCollections !== false) {
     await exportCollections(nb, outDir);
   }
+
+  // Export V2 templates (popup + block)
+  await exportAllTemplates(nb, outDir);
+  await exportTemplateUsages(nb, outDir);
 
   // Export pages by traversing route tree
   const pagesDir = path.join(outDir, 'pages');
