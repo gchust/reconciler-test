@@ -142,6 +142,7 @@ export interface PopupSpec {
   view_field?: string;
   blocks?: BlockSpec[];
   tabs?: TabSpec[];
+  layout?: LayoutRow[];
 }
 
 // ── Tab spec ──

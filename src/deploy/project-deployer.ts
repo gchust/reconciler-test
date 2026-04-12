@@ -218,16 +218,47 @@ export async function deployProject(
   // Auto-sync: re-export deployed group to keep local files in sync with live state.
   // For copy mode (Main → CRM Copy), this syncs back from CRM Copy, so spec reflects
   // the actual deployed state. Source template (Main) is unaffected.
+  // Sync: only update routes.yaml (state.yaml already saved above).
+  // Full re-export (exportProject) would overwrite source spec files (popup content,
+  // JS files, field_layouts) with potentially incomplete CRM Copy data.
+  // Use explicit `export-project` CLI command for full sync when needed.
   const deployedGroupTitle = routes.find(r => r.type === 'group')?.title;
   if (deployedGroupTitle) {
-    log('\n  Syncing back from live system...');
     try {
-      nb.routes.clearCache(); // ensure fresh route data for export
-      const { exportProject } = await import('../export/project-exporter');
-      await exportProject(nb, { outDir: root, group: deployedGroupTitle });
-      log('  ✓ Synced');
+      nb.routes.clearCache();
+      const liveRoutes = await nb.routes.list();
+      const { buildRoutesTree } = await import('./page-discovery').then(() => {
+        // Just re-export routes.yaml from live data
+        return { buildRoutesTree: null };
+      });
+      // Minimal sync: re-export only routes.yaml
+      const { dumpYaml: dy } = await import('../utils/yaml');
+      const routeTree = liveRoutes
+        .filter(r => {
+          if (r.type === 'group' && r.title === deployedGroupTitle) return true;
+          if (r.type === 'flowPage' && !r.parentId) return true; // top-level pages
+          return false;
+        })
+        .filter(r => r.type !== 'tabs')
+        .map(r => {
+          const entry: Record<string, unknown> = { title: r.title, type: r.type };
+          if (r.icon) entry.icon = r.icon;
+          const children = (r.children || [])
+            .filter(c => c.type !== 'tabs')
+            .map(c => {
+              const ce: Record<string, unknown> = { title: c.title, type: c.type };
+              if (c.icon) ce.icon = c.icon;
+              const sub = (c.children || []).filter(s => s.type !== 'tabs').map(s => ({ title: s.title, type: s.type }));
+              if (sub.length) ce.children = sub;
+              return ce;
+            });
+          if (children.length) entry.children = children;
+          return entry;
+        });
+      fs.writeFileSync(path.join(root, 'routes.yaml'), dy(routeTree));
+      log('\n  ✓ routes.yaml synced');
     } catch (e) {
-      log(`  ! Sync failed: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
+      log(`\n  ! routes sync: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
     }
   }
 

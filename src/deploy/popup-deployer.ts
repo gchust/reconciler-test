@@ -113,6 +113,7 @@ async function deploySimplePopup(
   const spec = {
     coll,
     blocks: popupSpec.blocks || [],
+    layout: popupSpec.layout,
   };
   const blocksState = await deploySurface(nb, targetUid, spec as any, modDir, false, {}, log);
   log(`  + popup [${targetRef}]: ${Object.keys(blocksState).length} blocks`);

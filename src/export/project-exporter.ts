@@ -487,12 +487,17 @@ async function exportPopupsToDir(
               const tplSpec = loadYaml<Record<string, unknown>>(tplFile);
               const content = tplSpec.content as Record<string, unknown>;
               if (content) {
+                // Copy template JS files to page's js dir and rewrite paths
+                const tplBaseDir = path.dirname(tplFile);
+                copyTemplateJsFiles(tplBaseDir, jsDir, content);
+
                 const popupSpec: Record<string, unknown> = {
                   target: ref.target || ref.field,
                   mode: (openView?.mode as string) || 'drawer',
                 };
                 if (content.blocks) popupSpec.blocks = content.blocks;
                 if (content.tabs) popupSpec.tabs = content.tabs;
+                if (content.layout) popupSpec.layout = content.layout;
                 const fname = ref.block_key
                   ? `${ref.block_key}.${ref.field}.yaml`
                   : `${ref.field}.yaml`;
@@ -526,8 +531,9 @@ async function exportPopupsToDir(
         // Single tab
         const tabGrid = tabs.length ? (tabs[0] as FlowModelNode).subModels?.grid : null;
         if (tabGrid && !Array.isArray(tabGrid)) {
-          const { blocks, popupRefs: nested } = await exportGridBlocks(nb, tabGrid as FlowModelNode, jsDir, `${prefix}_${ref.field}`);
+          const { blocks, popupRefs: nested, layout: popupLayout } = await exportGridBlocks(nb, tabGrid as FlowModelNode, jsDir, `${prefix}_${ref.field}`);
           popupSpec.blocks = blocks;
+          if (popupLayout?.length) popupSpec.layout = popupLayout;
           nestedPopupRefs.push(...nested);
         }
       } else {
@@ -539,8 +545,10 @@ async function exportPopupsToDir(
             ?.title as Record<string, unknown>;
           const tabGrid = tab.subModels?.grid;
           if (tabGrid && !Array.isArray(tabGrid)) {
-            const { blocks, popupRefs: nested } = await exportGridBlocks(nb, tabGrid as FlowModelNode, jsDir, `${prefix}_${ref.field}_tab${i}`);
-            tabSpecs.push({ title: (title?.title as string) || `Tab${i}`, blocks });
+            const { blocks, popupRefs: nested, layout: tabLayout } = await exportGridBlocks(nb, tabGrid as FlowModelNode, jsDir, `${prefix}_${ref.field}_tab${i}`);
+            const tabEntry: Record<string, unknown> = { title: (title?.title as string) || `Tab${i}`, blocks };
+            if (tabLayout?.length) tabEntry.layout = tabLayout;
+            tabSpecs.push(tabEntry);
             nestedPopupRefs.push(...nested);
           }
         }
@@ -568,12 +576,13 @@ async function exportGridBlocks(
   grid: FlowModelNode,
   jsDir: string,
   prefix: string,
-): Promise<{ blocks: Record<string, unknown>[]; popupRefs: PopupRef[] }> {
+): Promise<{ blocks: Record<string, unknown>[]; popupRefs: PopupRef[]; layout: unknown[] }> {
   const rawItems = grid.subModels?.items;
   const items = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
   const usedKeys = new Set<string>();
   const blocks: Record<string, unknown>[] = [];
   const popupRefs: PopupRef[] = [];
+  const blockUidToKey = new Map<string, string>();
 
   for (let i = 0; i < items.length; i++) {
     const exported = exportBlock(items[i], jsDir, prefix, i, usedKeys);
@@ -583,6 +592,7 @@ async function exportGridBlocks(
     // templateRef is resolved below in the template-ref resolution loop
     blocks.push(spec);
     popupRefs.push(...exported.popupRefs);
+    blockUidToKey.set(items[i].uid, exported.key);
   }
 
   // Resolve ReferenceFormGridModel — follow template to get actual fields
@@ -640,7 +650,10 @@ async function exportGridBlocks(
     delete b._reference;
   }
 
-  return { blocks, popupRefs };
+  // Extract grid layout (how blocks are arranged in rows/columns)
+  const layout = exportLayout(grid, blockUidToKey);
+
+  return { blocks, popupRefs, layout };
 }
 
 function exportLayout(
@@ -685,6 +698,60 @@ function exportLayout(
   }
 
   return layout;
+}
+
+/**
+ * Copy JS files referenced in template content to the page's js dir.
+ * Rewrites file paths in-place to point to the page's js directory.
+ */
+function copyTemplateJsFiles(
+  tplDir: string,
+  jsDir: string,
+  content: Record<string, unknown>,
+): void {
+  const allBlocks: Record<string, unknown>[] = [];
+  if (content.blocks) allBlocks.push(...(content.blocks as Record<string, unknown>[]));
+  if (content.tabs) {
+    for (const tab of content.tabs as Record<string, unknown>[]) {
+      if (tab.blocks) allBlocks.push(...(tab.blocks as Record<string, unknown>[]));
+    }
+  }
+
+  fs.mkdirSync(jsDir, { recursive: true });
+
+  for (const block of allBlocks) {
+    // Block-level JS file (jsBlock)
+    if (block.file && typeof block.file === 'string' && block.file.includes('/js/')) {
+      const srcPath = path.join(tplDir, block.file);
+      if (fs.existsSync(srcPath)) {
+        const fname = path.basename(srcPath);
+        fs.copyFileSync(srcPath, path.join(jsDir, fname));
+        block.file = `./js/${fname}`;
+      }
+    }
+    // JS items
+    for (const jsSpec of (block.js_items || []) as Record<string, unknown>[]) {
+      if (jsSpec.file && typeof jsSpec.file === 'string' && jsSpec.file.includes('/js/')) {
+        const srcPath = path.join(tplDir, jsSpec.file);
+        if (fs.existsSync(srcPath)) {
+          const fname = path.basename(srcPath);
+          fs.copyFileSync(srcPath, path.join(jsDir, fname));
+          jsSpec.file = `./js/${fname}`;
+        }
+      }
+    }
+    // JS columns
+    for (const jsSpec of (block.js_columns || []) as Record<string, unknown>[]) {
+      if (jsSpec.file && typeof jsSpec.file === 'string' && jsSpec.file.includes('/js/')) {
+        const srcPath = path.join(tplDir, jsSpec.file);
+        if (fs.existsSync(srcPath)) {
+          const fname = path.basename(srcPath);
+          fs.copyFileSync(srcPath, path.join(jsDir, fname));
+          jsSpec.file = `./js/${fname}`;
+        }
+      }
+    }
+  }
 }
 
 function buildRoutesTree(
