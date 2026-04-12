@@ -141,8 +141,20 @@ export function toComposeBlock(
 function collectFields(fields: FieldSpec[], fieldLayout: LayoutRow[]): Set<string> {
   const result = new Set<string>();
 
-  // From fields list
+  // Collect names of non-compose fields (custom, markdown) to skip in field_layout
+  const skipNames = new Set<string>();
   for (const f of fields) {
+    if (typeof f !== 'object') continue;
+    const fObj = f as unknown as Record<string, unknown>;
+    if (fObj.type === 'custom' || fObj.type === 'markdown') {
+      skipNames.add((fObj.name as string) || (fObj.key as string) || '');
+    }
+  }
+
+  // From fields list (skip custom/markdown — they're created via save_model, not compose)
+  for (const f of fields) {
+    if (typeof f === 'object' && (f as unknown as Record<string, unknown>).type === 'custom') continue;
+    if (typeof f === 'object' && (f as unknown as Record<string, unknown>).type === 'markdown') continue;
     const fp = typeof f === 'string' ? f : (f.field || f.fieldPath || '');
     if (fp && !fp.startsWith('[') && !SYSTEM_FIELDS.has(fp)) {
       result.add(fp);
@@ -154,11 +166,11 @@ function collectFields(fields: FieldSpec[], fieldLayout: LayoutRow[]): Set<strin
     if (!Array.isArray(row)) continue;
     for (const item of row) {
       if (typeof item === 'string' && !item.startsWith('[') && !item.startsWith('---')) {
-        if (!SYSTEM_FIELDS.has(item)) result.add(item);
+        if (!SYSTEM_FIELDS.has(item) && !skipNames.has(item)) result.add(item);
       } else if (item && typeof item === 'object') {
         for (const k of Object.keys(item)) {
           if (!LAYOUT_KEYS.has(k) && !k.startsWith('[') && !k.startsWith('---')) {
-            if (!SYSTEM_FIELDS.has(k)) result.add(k);
+            if (!SYSTEM_FIELDS.has(k) && !skipNames.has(k)) result.add(k);
           }
         }
       }

@@ -102,7 +102,23 @@ export function exportBlock(
   const resSettings = sp.resourceSettings as Record<string, unknown>;
   const resInit = (resSettings?.init || {}) as Record<string, unknown>;
   const coll = resInit.collectionName as string || '';
-  if (coll) spec.coll = coll;
+  if (coll) {
+    spec.coll = coll;
+  } else if (btype === 'filterForm') {
+    // Infer coll from field's collectionName (filterForm may not have own resource)
+    const gridNode = item.subModels?.grid;
+    if (gridNode && !Array.isArray(gridNode)) {
+      const gridItems = ((gridNode as FlowModelNode).subModels?.items || []) as FlowModelNode[];
+      for (const gi of gridItems) {
+        const fieldColl = ((gi.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
+          ?.init as Record<string, unknown>;
+        if (fieldColl?.collectionName) {
+          spec.coll = fieldColl.collectionName as string;
+          break;
+        }
+      }
+    }
+  }
 
   // Resource binding
   const binding: Record<string, unknown> = {};
