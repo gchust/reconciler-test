@@ -80,9 +80,23 @@ export function readPageDir(pageDir: string, title: string, icon?: string): Page
   const layoutFile = path.join(pageDir, 'layout.yaml');
 
   // Check for multi-tab page (has tab_* subdirs but no layout.yaml)
-  const tabDirs = fs.existsSync(pageDir)
-    ? fs.readdirSync(pageDir).filter(d => d.startsWith('tab_') && fs.statSync(path.join(pageDir, d)).isDirectory()).sort()
+  let tabDirs = fs.existsSync(pageDir)
+    ? fs.readdirSync(pageDir).filter(d => d.startsWith('tab_') && fs.statSync(path.join(pageDir, d)).isDirectory())
     : [];
+
+  // Sort by page.yaml tabs order (not alphabetical)
+  const pageTabsOrder = ((pageMeta.tabs || []) as unknown[]).map(t =>
+    'tab_' + slugify(typeof t === 'string' ? t : (t as Record<string, string>).title || ''),
+  );
+  if (pageTabsOrder.length) {
+    tabDirs.sort((a, b) => {
+      const ai = pageTabsOrder.indexOf(a);
+      const bi = pageTabsOrder.indexOf(b);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+  } else {
+    tabDirs.sort();
+  }
 
   let layout: PageSpec;
 
