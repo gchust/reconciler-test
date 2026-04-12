@@ -234,17 +234,43 @@ function exportTableContents(
     if (col.use === 'JSColumnModel') {
       const js = (col.stepParams as Record<string, unknown>)?.jsSettings as Record<string, unknown>;
       const code = ((js?.runJs as Record<string, unknown>)?.code as string) || '';
-      if (code && jsDir && fieldPath) {
-        const fname = `${prefix}_${blockKey}_col_${slugify(fieldPath)}.js`;
+      const colTitle = ((col.stepParams as Record<string, unknown>)?.tableColumnSettings as Record<string, unknown>)
+        ?.title as Record<string, unknown>;
+      const title = (colTitle?.title as string) || '';
+      const desc = code ? extractJsDesc(code) : '';
+      if (code && jsDir) {
+        const safe = slugify(title || desc || `col_${jsCols.length}`);
+        const fname = `${prefix}_${blockKey}_col_${safe}.js`;
         safeWrite(path.join(jsDir, fname), code);
-        jsCols.push({ key: slugify(fieldPath), field: fieldPath, file: `./js/${fname}`, desc: extractJsDesc(code) });
+        jsCols.push({
+          key: safe, field: fieldPath || '',
+          file: `./js/${fname}`,
+          ...(title ? { title } : {}),
+          ...(desc ? { desc } : {}),
+        });
       }
     } else if (fieldPath) {
       fields.push(fieldPath);
     }
 
-    // Check for popup (ChildPage under column)
-    if (col.subModels?.page) {
+    // Check for popup on column's display field (col → field → page)
+    const fieldModel = col.subModels?.field;
+    if (fieldModel && !Array.isArray(fieldModel)) {
+      const fmNode = fieldModel as FlowModelNode;
+      const popupPage = fmNode.subModels?.page;
+      if (popupPage && !Array.isArray(popupPage) && (popupPage as FlowModelNode).uid) {
+        const openView = ((fmNode.stepParams as Record<string, unknown>)?.popupSettings as Record<string, unknown>)
+          ?.openView as Record<string, unknown>;
+        fieldPopups.push({
+          field: fieldPath || col.uid,
+          field_uid: fmNode.uid || col.uid,
+          block_key: blockKey,
+          target: `$SELF.${blockKey}.fields.${fieldPath || col.uid}`,
+        });
+      }
+    }
+    // Also check direct popup on column (fallback)
+    if (!fieldModel && col.subModels?.page) {
       fieldPopups.push({
         field: fieldPath || col.uid, field_uid: col.uid, block_key: blockKey,
         target: `$SELF.${blockKey}.fields.${fieldPath || col.uid}`,
@@ -412,7 +438,11 @@ const ACTION_TYPE_MAP: Record<string, string> = {
   DeleteActionModel: 'delete',
   BulkDeleteActionModel: 'bulkDelete',
   SubmitActionModel: 'submit',
+  FormSubmitActionModel: 'submit',
   ResetActionModel: 'reset',
+  FilterFormSubmitActionModel: 'submit',
+  FilterFormResetActionModel: 'reset',
+  FilterFormCollapseActionModel: 'collapse',
   EditActionModel: 'edit',
   ViewActionModel: 'view',
   DuplicateActionModel: 'duplicate',
@@ -424,6 +454,8 @@ const ACTION_TYPE_MAP: Record<string, string> = {
   ExpandCollapseActionModel: 'expandCollapse',
   PopupCollectionActionModel: 'popup',
   UpdateRecordActionModel: 'updateRecord',
+  RecordHistoryExpandActionModel: 'historyExpand',
+  RecordHistoryCollapseActionModel: 'historyCollapse',
 };
 
 function exportActions(
