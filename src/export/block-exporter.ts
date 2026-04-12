@@ -433,6 +433,22 @@ function exportFormContents(
       }
       uidToName.set(gi.uid, desc ? `[JS:${desc}]` : '[JS]');
 
+    } else if (gi.use === 'FilterFormCustomFieldModel') {
+      // Custom filter field (date range, etc.) — not a collection field
+      const fmSettings = (sp.formItemSettings as Record<string, unknown>)
+        ?.fieldSettings as Record<string, unknown>;
+      const customName = (fmSettings?.name as string) || `custom_${fields.length}`;
+      const customTitle = (fmSettings?.title as string) || customName;
+      fields.push({
+        type: 'custom',
+        name: customName,
+        title: customTitle,
+        fieldModel: fmSettings?.fieldModel,
+        fieldModelProps: fmSettings?.fieldModelProps,
+        source: fmSettings?.source,
+      });
+      uidToName.set(gi.uid, customName);
+
     } else if (gi.use?.includes('DividerItem') || gi.use?.includes('MarkdownItem')) {
       const label = ((sp.markdownItemSetting as Record<string, unknown>)
         ?.title as Record<string, unknown>)?.label as string || '';

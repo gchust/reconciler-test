@@ -186,6 +186,46 @@ export async function fillBlock(
   // ── clickToOpen on table fields ──
   await deployClickToOpen(nb, bs, coll, fieldStates, mod, allBlocksState, popupContext, log);
 
+  // ── FilterForm custom fields (FilterFormCustomFieldModel) ──
+  if (btype === 'filterForm' && gridUid) {
+    for (const f of bs.fields || []) {
+      if (typeof f !== 'object' || (f as unknown as Record<string, unknown>).type !== 'custom') continue;
+      const custom = f as unknown as Record<string, unknown>;
+      const customName = (custom.name as string) || '';
+      if (!customName) continue;
+      // Check if already exists
+      if (blockState.fields?.[customName]) continue;
+      try {
+        const newUid = (await import('../utils/uid')).generateUid();
+        await nb.models.save({
+          uid: newUid,
+          use: 'FilterFormCustomFieldModel',
+          parentId: gridUid,
+          subKey: 'items',
+          subType: 'array',
+          sortIndex: 0,
+          stepParams: {
+            formItemSettings: {
+              fieldSettings: {
+                name: customName,
+                title: custom.title || customName,
+                fieldModel: custom.fieldModel || 'InputFilterFieldModel',
+                fieldModelProps: custom.fieldModelProps || {},
+                source: custom.source || [],
+              },
+            },
+          },
+          flowRegistry: {},
+        });
+        if (!blockState.fields) blockState.fields = {};
+        blockState.fields[customName] = { wrapper: newUid, field: '' };
+        log(`      + custom filter: ${custom.title || customName}`);
+      } catch (e) {
+        log(`      ! custom filter ${customName}: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+      }
+    }
+  }
+
   // ── FilterForm configuration (connect filter to table) ──
   if (btype === 'filterForm' && pageGridUid) {
     await configureFilter(nb, bs, blockUid, blockState, coll, allBlocksState, pageGridUid, log);
