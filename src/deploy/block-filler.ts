@@ -74,31 +74,91 @@ export async function fillBlock(
           const update: Record<string, unknown> = {
             displayFieldSettings: { clickToOpen: { clickToOpen: true } },
           };
-          // Set popupSettings + create popup content (copy mode)
+          // Set popupSettings + create popup content
           const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
-          if (ps) {
-            const popupColl = (ps.collectionName || coll) as string;
+          const inlinePopup = (f as unknown as Record<string, unknown>).popup as Record<string, unknown>;
+          if (ps || inlinePopup) {
+            const popupColl = ((ps?.collectionName || inlinePopup?.collectionName || coll) as string) || coll;
 
-            // Check if field already has a ChildPage (popup-deployer may have created it)
-            let fieldHasPopup = false;
-            try {
-              const fieldCheck = await nb.get({ uid: fieldUid });
-              fieldHasPopup = !!(fieldCheck.tree.subModels?.page);
-            } catch { /* skip */ }
+            // Inline popup content takes priority (from template export)
+            if (inlinePopup && (inlinePopup.blocks || inlinePopup.tabs)) {
+              const { deploySurface: deploySurfaceFn } = await import('./surface-deployer');
+              const childPopupCtx = {
+                depth: popupContext.depth + 1,
+                maxDepth: popupContext.maxDepth,
+                seenColls: new Set([...popupContext.seenColls, coll]),
+              };
 
-            if (fieldHasPopup) {
-              // Popup content already exists — just set popupSettings, don't compose
+              // Deploy as popup (tabbed or simple)
+              const popupTabs = inlinePopup.tabs as Record<string, unknown>[];
+              const popupBlocks = inlinePopup.blocks as Record<string, unknown>[];
+
+              if (popupTabs?.length) {
+                // Multi-tab popup → use deployPopup
+                const { deployPopup: deployPopupFn } = await import('./popup-deployer');
+                await deployPopupFn(nb, fieldUid, `${fp}.popup`, {
+                  target: '',
+                  mode: (inlinePopup.mode || ps?.mode || 'drawer') as 'drawer' | 'dialog',
+                  coll: popupColl,
+                  tabs: popupTabs.map(t => ({
+                    title: t.title as string,
+                    blocks: (t.blocks || []) as any[],
+                  })),
+                }, mod, false, '', log);
+              } else if (popupBlocks?.length) {
+                // Simple popup
+                try {
+                  await deploySurfaceFn(nb, fieldUid,
+                    { blocks: popupBlocks as any[], coll: popupColl } as any,
+                    mod, false, {}, log, childPopupCtx);
+                } catch { /* skip */ }
+              }
+
               update.popupSettings = {
                 openView: {
                   collectionName: popupColl, dataSourceKey: 'main',
-                  mode: ps.mode || 'drawer', size: ps.size || 'medium',
+                  mode: (inlinePopup.mode || ps?.mode || 'drawer') as string,
+                  size: (inlinePopup.size || ps?.size || 'medium') as string,
                   pageModelClass: 'ChildPageModel', uid: fieldUid,
-                  filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
+                  filterByTk: (ps?.filterByTk || '{{ ctx.record.id }}') as string,
                 },
               };
-              log(`      ~ clickToOpen: ${fp} (popup already deployed)`);
+              log(`      ~ clickToOpen: ${fp} (inline popup: ${popupTabs?.length || 0} tabs, ${popupBlocks?.length || 0} blocks)`);
               await nb.updateModel(fieldUid, update);
               continue;
+            } else {
+              // No inline content — check if popup-deployer already created content
+              let fieldHasFullPopup = false;
+              try {
+                const fieldCheck = await nb.get({ uid: fieldUid });
+                const existingPage = fieldCheck.tree.subModels?.page;
+                if (existingPage && !Array.isArray(existingPage)) {
+                  const existingTabs = (existingPage as any).subModels?.tabs;
+                  const tabArr = Array.isArray(existingTabs) ? existingTabs : existingTabs ? [existingTabs] : [];
+                  let blockCount = 0;
+                  for (const t of tabArr as any[]) {
+                    const items = t.subModels?.grid?.subModels?.items;
+                    blockCount += Array.isArray(items) ? items.length : 0;
+                  }
+                  fieldHasFullPopup = blockCount > 1; // more than default 1 block
+                }
+              } catch { /* skip */ }
+
+              if (fieldHasFullPopup) {
+                update.popupSettings = {
+                  openView: {
+                    collectionName: popupColl, dataSourceKey: 'main',
+                    mode: ps?.mode || 'drawer', size: ps?.size || 'medium',
+                    pageModelClass: 'ChildPageModel', uid: fieldUid,
+                    filterByTk: ps?.filterByTk || '{{ ctx.record.id }}',
+                  },
+                };
+                log(`      ~ clickToOpen: ${fp} (popup already deployed)`);
+                await nb.updateModel(fieldUid, update);
+                continue;
+              }
+
+              // Fall through to template/default deploy
             }
 
             const isCircular = popupContext.seenColls.has(popupColl);
