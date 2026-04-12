@@ -60,36 +60,50 @@ export async function fillBlock(
   }
 
   // ── Template reference (ReferenceFormGridModel) ──
-  // If form was exported with templateRef, convert grid to reference mode
+  // If form was exported with templateRef, convert grid to reference mode.
+  // ReferenceFormGridModel proxies fields from template — local items must be removed first.
   const templateRef = bs.templateRef;
   if (templateRef?.targetUid && ['createForm', 'editForm'].includes(btype)) {
     try {
-      // Find the form's grid UID
       const formData = await nb.get({ uid: blockUid });
       const formGrid = formData.tree.subModels?.grid;
       if (formGrid && !Array.isArray(formGrid)) {
         const formGridUid = (formGrid as { uid: string }).uid;
-        // Convert grid to ReferenceFormGridModel with useTemplate
-        await nb.models.save({
-          uid: formGridUid,
-          use: 'ReferenceFormGridModel',
-          parentId: blockUid,
-          subKey: 'grid',
-          subType: 'object',
-          sortIndex: 0,
-          stepParams: {
-            referenceSettings: {
-              useTemplate: {
-                templateUid: templateRef.templateUid,
-                templateName: templateRef.templateName,
-                targetUid: templateRef.targetUid,
-                mode: templateRef.mode || 'reference',
+        const currentUse = (formGrid as { use?: string }).use;
+
+        // Only convert if not already a ReferenceFormGridModel
+        if (currentUse !== 'ReferenceFormGridModel') {
+          // Remove compose-created local field items (they conflict with reference proxy)
+          const gridItems = (formGrid as { subModels?: Record<string, unknown> }).subModels?.items;
+          const itemArr = (Array.isArray(gridItems) ? gridItems : []) as { uid: string }[];
+          for (const item of itemArr) {
+            try { await nb.surfaces.removeNode(item.uid); } catch { /* skip */ }
+          }
+
+          // Convert to ReferenceFormGridModel
+          await nb.models.save({
+            uid: formGridUid,
+            use: 'ReferenceFormGridModel',
+            parentId: blockUid,
+            subKey: 'grid',
+            subType: 'object',
+            sortIndex: 0,
+            stepParams: {
+              referenceSettings: {
+                useTemplate: {
+                  templateUid: templateRef.templateUid,
+                  templateName: templateRef.templateName,
+                  targetUid: templateRef.targetUid,
+                  mode: templateRef.mode || 'reference',
+                },
               },
             },
-          },
-          flowRegistry: {},
-        });
-        log(`      ~ templateRef: ${templateRef.templateName} (reference mode)`);
+            flowRegistry: {},
+          });
+          log(`      ~ templateRef: ${templateRef.templateName} (converted to reference)`);
+        } else {
+          log(`      = templateRef: ${templateRef.templateName} (already reference)`);
+        }
       }
     } catch (e) {
       log(`      ! templateRef: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
