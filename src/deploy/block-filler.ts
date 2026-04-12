@@ -76,35 +76,29 @@ export async function fillBlock(
           const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
           if (ps) {
             const popupColl = (ps.collectionName || coll) as string;
-
-            // Step 1: Set popupSettings to enable click-to-open
-            update.popupSettings = {
-              openView: {
-                collectionName: popupColl,
-                dataSourceKey: 'main',
-                mode: ps.mode || 'drawer',
-                size: ps.size || 'medium',
-                pageModelClass: 'ChildPageModel',
-                uid: fieldUid,
-                filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
-              },
+            const openView: Record<string, unknown> = {
+              collectionName: popupColl,
+              dataSourceKey: 'main',
+              mode: ps.mode || 'drawer',
+              size: ps.size || 'medium',
+              pageModelClass: 'ChildPageModel',
+              uid: fieldUid,
+              filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
             };
 
-            // Step 2: Compose popup content from export spec or default
-            // Check if the field has popup content spec in export (popupBlocks)
-            const popupBlocks = (f as unknown as Record<string, unknown>).popupBlocks as Record<string, unknown>[];
-            try {
-              if (popupBlocks?.length) {
-                // Use exported popup blocks
-                const composeBlocks = popupBlocks.map(b => ({
-                  key: b.key || 'details',
-                  type: b.type || 'details',
-                  resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
-                  fields: (b.fields as string[])?.map(fp => ({ fieldPath: fp })),
-                }));
-                await nb.surfaces.compose(fieldUid, composeBlocks, 'replace');
-              } else {
-                // Default: create details block with all collection fields
+            // If popupTemplateUid exists (same system or mapped), use it
+            // NocoBase auto-generates ChildPage from template on first click
+            if (ps.popupTemplateUid) {
+              openView.popupTemplateUid = ps.popupTemplateUid;
+              // Register usage
+              try {
+                await nb.http.post(`${nb.baseUrl}/api/flowModelTemplateUsages:create`, {
+                  values: { uid: generateUid(), templateUid: ps.popupTemplateUid, modelUid: fieldUid },
+                });
+              } catch { /* might already exist */ }
+            } else {
+              // No template: compose default details block into the field
+              try {
                 const meta = await nb.collections.fieldMeta(popupColl);
                 const defaultFields = Object.keys(meta)
                   .filter(k => !['id', 'createdById', 'updatedById'].includes(k))
@@ -116,8 +110,10 @@ export async function fillBlock(
                   resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
                   fields: defaultFields,
                 }], 'replace');
-              }
-            } catch { /* popup might already have content */ }
+              } catch { /* skip */ }
+            }
+
+            update.popupSettings = { openView };
           }
           await nb.updateModel(fieldUid, update);
           log(`      ~ clickToOpen: ${fp}`);
