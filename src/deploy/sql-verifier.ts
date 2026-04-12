@@ -4,8 +4,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { NocoBaseClient } from '../client';
-import type { StructureSpec } from '../types/spec';
+import type { StructureSpec, BlockSpec } from '../types/spec';
 import { loadYaml } from '../utils/yaml';
+import { slugify } from '../utils/slugify';
+import type { PageInfo } from './page-discovery';
 
 interface SqlSource {
   label: string;
@@ -98,4 +100,77 @@ function collectSqlSources(mod: string, structure: StructureSpec): SqlSource[] {
   }
 
   return sources;
+}
+
+export interface SqlVerifyResult {
+  passed: number;
+  failed: number;
+  results: { label: string; ok: boolean; rows?: number; error?: string }[];
+}
+
+/**
+ * Verify SQL from project page directories (chart configs + KPI JS blocks).
+ */
+export async function verifySqlFromPages(
+  nb: NocoBaseClient,
+  pages: PageInfo[],
+): Promise<SqlVerifyResult> {
+  const results: { label: string; ok: boolean; rows?: number; error?: string }[] = [];
+
+  for (const p of pages) {
+    for (const bs of p.layout.blocks || []) {
+      // Chart SQL
+      if (bs.chart_config) {
+        const cfgPath = path.join(p.dir, bs.chart_config);
+        if (fs.existsSync(cfgPath) && (bs.chart_config.endsWith('.yaml') || bs.chart_config.endsWith('.yml'))) {
+          try {
+            const spec = loadYaml<Record<string, string>>(cfgPath);
+            const sqlFile = spec.sql_file || '';
+            const sql = (sqlFile && fs.existsSync(path.join(p.dir, sqlFile)))
+              ? fs.readFileSync(path.join(p.dir, sqlFile), 'utf8')
+              : spec.sql || '';
+            if (sql) {
+              const clean = sql.replace(/\{%.*?%\}/gs, '').split('\n').filter((l: string) => !l.includes('{{')).join('\n').trim();
+              try {
+                const uid = `_v_${slugify(p.title)}_${bs.key}`;
+                const resp = await nb.http.post(`${nb.baseUrl}/api/flowSql:run`, {
+                  type: 'selectRows', uid, dataSourceKey: 'main', sql: clean, bind: {},
+                });
+                if (resp.status >= 400 || resp.data?.errors?.length) {
+                  results.push({ label: `${p.title}/${bs.chart_config}`, ok: false, error: resp.data?.errors?.[0]?.message });
+                } else {
+                  results.push({ label: `${p.title}/${bs.chart_config}`, ok: true, rows: resp.data?.data?.length });
+                }
+              } catch (e) { results.push({ label: `${p.title}/${bs.chart_config}`, ok: false, error: String(e) }); }
+            }
+          } catch { /* skip malformed chart config */ }
+        }
+      }
+      // KPI JS
+      if (bs.type === 'jsBlock' && bs.file) {
+        const jsPath = path.join(p.dir, bs.file);
+        if (fs.existsSync(jsPath)) {
+          const code = fs.readFileSync(jsPath, 'utf8');
+          const m = code.match(/sql:\s*`([^`]+)`/);
+          if (m) {
+            try {
+              const uid = `_v_${slugify(p.title)}_${bs.key}`;
+              const resp = await nb.http.post(`${nb.baseUrl}/api/flowSql:run`, {
+                type: 'selectRows', uid, dataSourceKey: 'main', sql: m[1].trim(), bind: {},
+              });
+              if (resp.status >= 400) {
+                results.push({ label: `${p.title}/${bs.file}`, ok: false, error: resp.data?.errors?.[0]?.message });
+              } else {
+                results.push({ label: `${p.title}/${bs.file}`, ok: true, rows: resp.data?.data?.length });
+              }
+            } catch (e) { results.push({ label: `${p.title}/${bs.file}`, ok: false, error: String(e) }); }
+          }
+        }
+      }
+    }
+  }
+
+  const passed = results.filter(r => r.ok).length;
+  const failed = results.filter(r => !r.ok).length;
+  return { passed, failed, results };
 }

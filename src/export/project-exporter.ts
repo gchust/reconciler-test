@@ -232,6 +232,7 @@ async function exportSingleTab(
 
     const spec = { ...exported.spec };
     delete spec._popups;
+    // templateRef kept in spec for deploy to recreate reference mode
 
     // Move event flow files from js/ to events/
     const eventFlows = spec.event_flows as Record<string, unknown>[];
@@ -471,8 +472,35 @@ async function exportGridBlocks(
     if (!exported) continue;
     const spec = { ...exported.spec };
     delete spec._popups;
+    // templateRef is resolved below in the template-ref resolution loop
     blocks.push(spec);
     popupRefs.push(...exported.popupRefs);
+  }
+
+  // Resolve ReferenceFormGridModel — follow template to get actual fields
+  for (const b of blocks) {
+    const br = b as Record<string, unknown>;
+    const tplRef = br.templateRef as Record<string, unknown>;
+    if (!tplRef?.targetUid) continue;
+    try {
+      const targetData = await nb.get({ uid: tplRef.targetUid as string });
+      const targetGrid = targetData.tree.subModels?.grid;
+      if (!targetGrid || Array.isArray(targetGrid)) continue;
+      const targetItems = (targetGrid as FlowModelNode).subModels?.items;
+      const tItems = (Array.isArray(targetItems) ? targetItems : []) as FlowModelNode[];
+      // Extract field paths from template
+      const tplFields: string[] = [];
+      for (const ti of tItems) {
+        const fp = ((ti.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
+          ?.init as Record<string, unknown>;
+        const fieldPath = fp?.fieldPath as string;
+        if (fieldPath) tplFields.push(fieldPath);
+      }
+      if (tplFields.length && !(br.fields as unknown[])?.length) {
+        br.fields = tplFields;
+      }
+    } catch { /* template read failed — fields stay empty */ }
+    // templateRef kept — fields resolved but ref info preserved for deploy
   }
 
   // Dereference reference blocks

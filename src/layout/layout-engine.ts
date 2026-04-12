@@ -10,6 +10,7 @@
  */
 import type { NocoBaseClient } from '../client';
 import type { LayoutRow } from '../types/spec';
+import { bestEffort } from '../utils/error-utils';
 
 export interface GridLayout {
   rows: Record<string, string[][]>;
@@ -106,13 +107,11 @@ export async function applyLayout(
   }
 
   if (Object.keys(resolvedRows).length) {
-    try {
-      await nb.surfaces.setLayout(gridUid, resolvedRows, resolvedSizes);
-    } catch { /* best effort */ }
+    await bestEffort('setLayout', async () => { await nb.surfaces.setLayout(gridUid, resolvedRows, resolvedSizes); });
 
     // Sync items order to match rows order via moveNode
     // gridSettings.rows defines layout, but subModels.items order affects rendering
-    try {
+    await bestEffort('syncLayoutOrder', async () => {
       const allUidsInOrder: string[] = [];
       for (const cols of Object.values(resolvedRows)) {
         for (const col of cols) {
@@ -124,6 +123,6 @@ export async function applyLayout(
           await nb.surfaces.moveNode(allUidsInOrder[i], allUidsInOrder[i - 1], 'after');
         }
       }
-    } catch { /* best effort */ }
+    });
   }
 }

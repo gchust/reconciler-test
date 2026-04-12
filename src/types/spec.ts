@@ -109,6 +109,12 @@ export interface BlockSpec {
   desc?: string;
   file?: string;                    // jsBlock JS file
   chart_config?: string;            // chart config file
+  templateRef?: {                   // ReferenceFormGridModel template reference
+    templateUid: string;
+    templateName?: string;
+    targetUid: string;
+    mode?: string;
+  };
   fields?: FieldSpec[];
   actions?: (string | ActionSpec)[];
   recordActions?: (string | ActionSpec)[];

@@ -34,6 +34,11 @@ export interface TabState {
   blocks: Record<string, BlockState>;
 }
 
+export interface PopupState {
+  target_uid: string;
+  blocks: Record<string, BlockState>;
+}
+
 export interface PageState {
   route_id?: number;
   page_uid?: string;
@@ -41,6 +46,7 @@ export interface PageState {
   grid_uid?: string;
   blocks: Record<string, BlockState>;
   tab_states?: Record<string, TabState>;
+  popups?: Record<string, PopupState>;
 }
 
 export interface ModuleState {

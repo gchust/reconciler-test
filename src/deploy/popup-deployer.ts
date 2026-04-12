@@ -24,7 +24,7 @@ export async function deployPopup(
   force = false,
   popupPath = '',
   log: (msg: string) => void = console.log,
-): Promise<void> {
+): Promise<Record<string, BlockState>> {
   const mode = popupSpec.mode || 'drawer';
   const coll = popupSpec.coll || '';
   const tabsSpec = popupSpec.tabs;
@@ -55,16 +55,15 @@ export async function deployPopup(
 
       // Content is sufficient if live has at least as many tabs and blocks as spec
       const hasContent = tabArr.length >= specTabCount && liveBlockCount >= specBlockCount && liveBlockCount > 0;
-      if (hasContent) {
-        if (force) {
-          log(`  ~ popup [${targetRef}] (update in-place)`);
-        } else {
-          log(`  = popup [${targetRef}] (exists, skip)`);
-        }
-        return;
+      if (hasContent && !force) {
+        log(`  = popup [${targetRef}] (exists, skip)`);
+        return {};
       }
+      // force mode: fall through to re-deploy content
     }
-  } catch { /* popup check best-effort */ }
+  } catch (e) {
+    log(`  ! popup check [${targetRef}]: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
 
   // Set click-to-open settings
   await nb.updateModel(targetUid, {
@@ -83,14 +82,16 @@ export async function deployPopup(
     },
   });
 
+  let result: Record<string, BlockState> = {};
   if (tabsSpec) {
-    await deployTabbedPopup(nb, targetUid, targetRef, tabsSpec, coll, modDir, force, popupPath, log);
+    result = await deployTabbedPopup(nb, targetUid, targetRef, tabsSpec, coll, modDir, force, popupPath, log);
   } else {
     const blocks = popupSpec.blocks || [];
     if (blocks.length) {
-      await deploySimplePopup(nb, targetUid, targetRef, popupSpec, coll, modDir, log);
+      result = await deploySimplePopup(nb, targetUid, targetRef, popupSpec, coll, modDir, log);
     }
   }
+  return result;
 }
 
 async function deploySimplePopup(
@@ -101,13 +102,14 @@ async function deploySimplePopup(
   coll: string,
   modDir: string,
   log: (msg: string) => void,
-): Promise<void> {
+): Promise<Record<string, BlockState>> {
   const spec = {
     coll,
     blocks: popupSpec.blocks || [],
   };
   const blocksState = await deploySurface(nb, targetUid, spec as any, modDir, false, {}, log);
   log(`  + popup [${targetRef}]: ${Object.keys(blocksState).length} blocks`);
+  return blocksState;
 }
 
 async function deployTabbedPopup(
@@ -120,10 +122,23 @@ async function deployTabbedPopup(
   force: boolean,
   popupPath: string,
   log: (msg: string) => void,
-): Promise<void> {
+): Promise<Record<string, BlockState>> {
   log(`  + popup [${targetRef}]: ${tabsSpec.length} tabs`);
+  const allBlocks: Record<string, BlockState> = {};
 
-  // Read ChildPage to get existing popup tabs
+  // ── Step 1: Deploy first tab content to targetUid ──
+  // Composing to targetUid triggers NocoBase to auto-create ChildPage + first tab.
+  // We MUST do this before trying addPopupTab, or popupPageUid will be empty.
+  const firstTabSpec = tabsSpec[0];
+  const firstTabBlocks = await deploySurface(
+    nb, targetUid, { ...firstTabSpec, coll } as any, modDir, false, {}, log,
+  );
+  Object.assign(allBlocks, firstTabBlocks);
+  log(`    tab '${firstTabSpec.title || 'Tab0'}': ${Object.keys(firstTabBlocks).length} blocks`);
+
+  if (tabsSpec.length <= 1) return allBlocks;
+
+  // ── Step 2: Read ChildPage to get popupPageUid + existing tabs ──
   let existingTabs: { uid: string }[] = [];
   let popupPageUid = '';
   try {
@@ -135,10 +150,17 @@ async function deployTabbedPopup(
       const tl = subs?.tabs;
       existingTabs = (Array.isArray(tl) ? tl : tl ? [tl] : []) as { uid: string }[];
     }
-  } catch { /* skip */ }
+  } catch (e) {
+    log(`    ! read popup tabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
 
-  // Deploy each tab — use popup tab UIDs (not field/action UIDs)
-  for (let i = 0; i < tabsSpec.length; i++) {
+  if (!popupPageUid) {
+    log(`    ! popup [${targetRef}]: ChildPage not found after first tab compose — cannot create additional tabs`);
+    return allBlocks;
+  }
+
+  // ── Step 3: Deploy remaining tabs via addPopupTab ──
+  for (let i = 1; i < tabsSpec.length; i++) {
     const tabSpec = tabsSpec[i];
     const tabTitle = tabSpec.title || `Tab${i}`;
     let tabUid: string;
@@ -152,6 +174,10 @@ async function deployTabbedPopup(
         const result = await nb.surfaces.addPopupTab(popupPageUid, tabTitle);
         const r = result as Record<string, unknown>;
         tabUid = (r.popupTabUid || r.tabSchemaUid || r.tabUid || r.uid || '') as string;
+        if (!tabUid) {
+          log(`    ! tab '${tabTitle}': addPopupTab returned no UID`);
+          continue;
+        }
       } catch (e) {
         log(`    ! tab '${tabTitle}': ${e instanceof Error ? e.message : e}`);
         continue;
@@ -159,6 +185,8 @@ async function deployTabbedPopup(
     }
 
     const tabBlocks = await deploySurface(nb, tabUid, { ...tabSpec, coll } as any, modDir, false, {}, log);
+    Object.assign(allBlocks, tabBlocks);
     log(`    tab '${tabTitle}': ${Object.keys(tabBlocks).length} blocks`);
   }
+  return allBlocks;
 }

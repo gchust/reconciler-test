@@ -28,25 +28,9 @@ import { expandPopups } from './popup-expander';
 import { deployTemplates, type TemplateUidMap } from './template-deployer';
 import { reorderTableColumns } from './column-reorder';
 import { postVerify } from './post-verify';
-import { verifySql } from './sql-verifier';
+import { verifySqlFromPages } from './sql-verifier';
+import { discoverPages, type RouteEntry, type PageInfo } from './page-discovery';
 import { RefResolver } from '../refs';
-
-interface RouteEntry {
-  title: string;
-  type: 'group' | 'flowPage';
-  icon?: string;
-  children?: RouteEntry[];
-}
-
-interface PageInfo {
-  title: string;
-  icon: string;
-  slug: string;
-  dir: string;          // absolute path to page directory
-  layout: PageSpec;      // parsed layout.yaml (blocks + layout)
-  popups: PopupSpec[];   // parsed popups/*.yaml
-  pageMeta: Record<string, unknown>;
-}
 
 export async function deployProject(
   projectDir: string,
@@ -231,14 +215,19 @@ export async function deployProject(
     if (!r.ok) log(`  ✗ ${r.label}: ${r.error}`);
   }
 
-  // Auto-sync: re-export from live system to keep local files in sync
-  log('\n  Syncing back from live system...');
-  try {
-    const { exportProject } = await import('../export/project-exporter');
-    await exportProject(nb, { outDir: root, group: opts.group });
-    log('  ✓ Synced');
-  } catch (e) {
-    log(`  ! Sync failed: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
+  // Auto-sync: re-export deployed group to keep local files in sync with live state.
+  // For copy mode (Main → CRM Copy), this syncs back from CRM Copy, so spec reflects
+  // the actual deployed state. Source template (Main) is unaffected.
+  const deployedGroupTitle = routes.find(r => r.type === 'group')?.title;
+  if (deployedGroupTitle) {
+    log('\n  Syncing back from live system...');
+    try {
+      const { exportProject } = await import('../export/project-exporter');
+      await exportProject(nb, { outDir: root, group: deployedGroupTitle });
+      log('  ✓ Synced');
+    } catch (e) {
+      log(`  ! Sync failed: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
+    }
   }
 
   // Rebuild graph + _refs.yaml after sync
@@ -261,7 +250,9 @@ export async function deployProject(
     }
     sy(path.join(root, '_graph.yaml'), { stats: freshGraph.stats(), ...freshGraph.toJSON() });
     log(`  ✓ Graph: ${freshGraph.stats().nodes} nodes, ${refsCount} _refs.yaml`);
-  } catch { /* skip */ }
+  } catch (e) {
+    log(`  ! Graph rebuild: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
 }
 
 async function deployGroup(
@@ -356,7 +347,9 @@ async function deployOnePage(
       await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${pageState.route_id}`, {
         enableTabs: true,
       });
-    } catch { /* skip */ }
+    } catch (e) {
+      log(`    ! enableTabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+    }
 
     // Rename first tab via both flowModel + route
     const firstTabTitle = tabs[0].title || '';
@@ -375,7 +368,9 @@ async function deployOnePage(
             title: firstTabTitle,
           });
         }
-      } catch { /* skip */ }
+      } catch (e) {
+        log(`    ! tab rename: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+      }
     }
 
     // Read existing tabs from live page
@@ -391,7 +386,9 @@ async function deployOnePage(
           ? (((t.stepParams as Record<string, unknown>)?.pageTabSettings as Record<string, unknown>)?.title as Record<string, unknown>)?.title as string || `Tab${i}`
           : (t.props as Record<string, unknown>)?.title as string || `Tab${i}`,
       }));
-    } catch { /* skip */ }
+    } catch (e) {
+      log(`    ! read live tabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+    }
 
     for (let ti = 1; ti < tabs.length; ti++) {
       const tabTitle = tabs[ti].title || `Tab${ti}`;
@@ -418,7 +415,9 @@ async function deployOnePage(
                 await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update?filterByTk=${tabRouteId}`, {
                   title: tabTitle,
                 });
-              } catch { /* skip */ }
+              } catch (e) {
+                log(`    ! tab route title: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+              }
             }
             log(`    + tab: ${tabTitle}`);
           } catch (e) {
@@ -448,210 +447,56 @@ async function deployOnePage(
   }
   state.pages[pageKey] = pageState;
 
-  // Deploy popups — search both page-level blocks and tab blocks
+  // Deploy popups — two-pass: first pass resolves page-level refs,
+  // second pass resolves nested popup refs (using popup block state from first pass)
   if (pageInfo.popups.length) {
-    const resolver = new RefResolver(state);
+    if (!pageState.popups) pageState.popups = {};
     const expanded = expandPopups(pageInfo.popups);
+    const deferred: typeof expanded = [];
+
+    // Pass 1: deploy popups whose targets are in page-level blocks
     for (const ps of expanded) {
-      let targetUid: string;
       const targetRef = ps.target.replace('$SELF', `$${pageKey}`);
+      const resolver = new RefResolver(state);
+      let targetUid: string;
       try {
         targetUid = resolver.resolveUid(targetRef);
-      } catch (e) {
-        log(`  ! popup ${targetRef}: ${e instanceof Error ? e.message : e}`);
+      } catch {
+        deferred.push(ps);
         continue;
       }
       const pp = targetRef.split('.').pop() || '';
-      await deployPopup(nb, targetUid, targetRef, ps, pageInfo.dir, force, pp, log);
-    }
-  }
-}
-
-// ── Helpers ──
-
-function discoverPages(
-  pagesDir: string,
-  routes: RouteEntry[],
-  filterGroup?: string,
-): PageInfo[] {
-  const pages: PageInfo[] = [];
-  if (!fs.existsSync(pagesDir)) return pages;
-
-  for (const routeEntry of routes) {
-    if (routeEntry.type === 'group') {
-      if (filterGroup && routeEntry.title !== filterGroup) continue;
-      const groupSlug = slugify(routeEntry.title);
-      const groupDir = path.join(pagesDir, groupSlug);
-      if (!fs.existsSync(groupDir)) continue;
-
-      for (const child of routeEntry.children || []) {
-        if (child.type === 'flowPage') {
-          const p = readPageDir(path.join(groupDir, slugify(child.title)), child.title, child.icon);
-          if (p) pages.push(p);
-        } else if (child.type === 'group') {
-          const subDir = path.join(groupDir, slugify(child.title));
-          for (const sc of child.children || []) {
-            if (sc.type === 'flowPage') {
-              const p = readPageDir(path.join(subDir, slugify(sc.title)), sc.title, sc.icon);
-              if (p) pages.push(p);
-            }
-          }
-        }
+      const popupBlocks = await deployPopup(nb, targetUid, targetRef, ps, pageInfo.dir, force, pp, log);
+      if (Object.keys(popupBlocks).length) {
+        // Store popup blocks in state for nested ref resolution
+        const popupKey = targetRef.replace(`$${pageKey}.`, '');
+        pageState.popups[popupKey] = { target_uid: targetUid, blocks: popupBlocks };
+        state.pages[pageKey] = pageState;
       }
-    } else if (routeEntry.type === 'flowPage' && !filterGroup) {
-      const p = readPageDir(path.join(pagesDir, slugify(routeEntry.title)), routeEntry.title, routeEntry.icon);
-      if (p) pages.push(p);
     }
-  }
 
-  return pages;
-}
-
-function readPageDir(pageDir: string, title: string, icon?: string): PageInfo | null {
-  if (!fs.existsSync(pageDir)) return null;
-
-  const pageMeta = fs.existsSync(path.join(pageDir, 'page.yaml'))
-    ? loadYaml<Record<string, unknown>>(path.join(pageDir, 'page.yaml'))
-    : {};
-
-  const layoutFile = path.join(pageDir, 'layout.yaml');
-
-  // Check for multi-tab page (has tab_* subdirs but no layout.yaml)
-  const tabDirs = fs.existsSync(pageDir)
-    ? fs.readdirSync(pageDir).filter(d => d.startsWith('tab_') && fs.statSync(path.join(pageDir, d)).isDirectory()).sort()
-    : [];
-
-  let layout: PageSpec;
-
-  if (fs.existsSync(layoutFile)) {
-    // Single tab page
-    const layoutRaw = loadYaml<Record<string, unknown>>(layoutFile);
-    layout = {
-      page: title,
-      icon: icon || (pageMeta.icon as string) || 'fileoutlined',
-      coll: layoutRaw.coll as string || '',
-      blocks: (layoutRaw.blocks || []) as BlockSpec[],
-      layout: layoutRaw.layout as PageSpec['layout'],
-    };
-  } else if (tabDirs.length) {
-    // Multi-tab page — first tab becomes the main layout, others become tabs
-    const tabs: { title: string; blocks: BlockSpec[]; layout?: PageSpec['layout'] }[] = [];
-    for (const td of tabDirs) {
-      const tabLayout = path.join(pageDir, td, 'layout.yaml');
-      if (!fs.existsSync(tabLayout)) continue;
-      const tabRaw = loadYaml<Record<string, unknown>>(tabLayout);
-      const tabTitle = td.replace('tab_', '').replace(/_/g, ' ');
-      tabs.push({
-        title: tabTitle,
-        blocks: (tabRaw.blocks || []) as BlockSpec[],
-        layout: tabRaw.layout as PageSpec['layout'],
-      });
-    }
-    if (!tabs.length) return null;
-
-    // Use first tab as main page blocks
-    layout = {
-      page: title,
-      icon: icon || (pageMeta.icon as string) || 'fileoutlined',
-      blocks: tabs[0].blocks,
-      layout: tabs[0].layout,
-      tabs: tabs.length > 1 ? tabs.map(t => ({
-        title: t.title,
-        blocks: t.blocks,
-      })) : undefined,
-    };
-  } else {
-    return null;
-  }
-
-  // Read popups (from page dir and all tab dirs)
-  const popups: PopupSpec[] = [];
-  const popupDirs = [path.join(pageDir, 'popups')];
-  for (const td of tabDirs) {
-    popupDirs.push(path.join(pageDir, td, 'popups'));
-  }
-  for (const popupsDir of popupDirs) {
-    if (!fs.existsSync(popupsDir)) continue;
-    for (const f of fs.readdirSync(popupsDir).filter(f => f.endsWith('.yaml')).sort()) {
-      try {
-        const ps = loadYaml<PopupSpec>(path.join(popupsDir, f));
-        if (ps.target) popups.push(ps);
-      } catch { /* skip */ }
-    }
-  }
-
-  return {
-    title,
-    icon: icon || (pageMeta.icon as string) || 'fileoutlined',
-    slug: slugify(title),
-    dir: pageDir,
-    layout,
-    popups,
-    pageMeta,
-  };
-}
-
-async function verifySqlFromPages(
-  nb: NocoBaseClient,
-  pages: PageInfo[],
-): Promise<{ passed: number; failed: number; results: { label: string; ok: boolean; rows?: number; error?: string }[] }> {
-  const results: { label: string; ok: boolean; rows?: number; error?: string }[] = [];
-
-  for (const p of pages) {
-    for (const bs of p.layout.blocks || []) {
-      // Chart SQL
-      if (bs.chart_config) {
-        const cfgPath = path.join(p.dir, bs.chart_config);
-        if (fs.existsSync(cfgPath) && (bs.chart_config.endsWith('.yaml') || bs.chart_config.endsWith('.yml'))) {
-          try {
-            const spec = loadYaml<Record<string, string>>(cfgPath);
-            const sqlFile = spec.sql_file || '';
-            const sql = (sqlFile && fs.existsSync(path.join(p.dir, sqlFile)))
-              ? fs.readFileSync(path.join(p.dir, sqlFile), 'utf8')
-              : spec.sql || '';
-            if (sql) {
-              const clean = sql.replace(/\{%.*?%\}/gs, '').split('\n').filter((l: string) => !l.includes('{{')).join('\n').trim();
-              try {
-                const uid = `_v_${slugify(p.title)}_${bs.key}`;
-                const resp = await nb.http.post(`${nb.baseUrl}/api/flowSql:run`, {
-                  type: 'selectRows', uid, dataSourceKey: 'main', sql: clean, bind: {},
-                });
-                if (resp.status >= 400 || resp.data?.errors?.length) {
-                  results.push({ label: `${p.title}/${bs.chart_config}`, ok: false, error: resp.data?.errors?.[0]?.message });
-                } else {
-                  results.push({ label: `${p.title}/${bs.chart_config}`, ok: true, rows: resp.data?.data?.length });
-                }
-              } catch (e) { results.push({ label: `${p.title}/${bs.chart_config}`, ok: false, error: String(e) }); }
-            }
-          } catch { /* skip */ }
+    // Pass 2: deploy deferred popups (targets inside popup blocks)
+    if (deferred.length) {
+      const resolver2 = new RefResolver(state);
+      for (const ps of deferred) {
+        const targetRef = ps.target.replace('$SELF', `$${pageKey}`);
+        let targetUid: string;
+        try {
+          targetUid = resolver2.resolveUid(targetRef);
+        } catch (e) {
+          log(`  ! popup ${targetRef}: ${e instanceof Error ? e.message : e}`);
+          continue;
         }
-      }
-      // KPI JS
-      if (bs.type === 'jsBlock' && bs.file) {
-        const jsPath = path.join(p.dir, bs.file);
-        if (fs.existsSync(jsPath)) {
-          const code = fs.readFileSync(jsPath, 'utf8');
-          const m = code.match(/sql:\s*`([^`]+)`/);
-          if (m) {
-            try {
-              const uid = `_v_${slugify(p.title)}_${bs.key}`;
-              const resp = await nb.http.post(`${nb.baseUrl}/api/flowSql:run`, {
-                type: 'selectRows', uid, dataSourceKey: 'main', sql: m[1].trim(), bind: {},
-              });
-              if (resp.status >= 400) {
-                results.push({ label: `${p.title}/${bs.file}`, ok: false, error: resp.data?.errors?.[0]?.message });
-              } else {
-                results.push({ label: `${p.title}/${bs.file}`, ok: true, rows: resp.data?.data?.length });
-              }
-            } catch (e) { results.push({ label: `${p.title}/${bs.file}`, ok: false, error: String(e) }); }
-          }
+        const pp = targetRef.split('.').pop() || '';
+        const popupBlocks = await deployPopup(nb, targetUid, targetRef, ps, pageInfo.dir, force, pp, log);
+        if (Object.keys(popupBlocks).length) {
+          const popupKey = targetRef.replace(`$${pageKey}.`, '');
+          pageState.popups[popupKey] = { target_uid: targetUid, blocks: popupBlocks };
         }
       }
     }
   }
-
-  const passed = results.filter(r => r.ok).length;
-  const failed = results.filter(r => !r.ok).length;
-  return { passed, failed, results };
+  state.pages[pageKey] = pageState;
 }
+
 

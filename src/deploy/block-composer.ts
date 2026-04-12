@@ -16,7 +16,7 @@ const COMPOSE_TYPES = new Set([
   'list', 'gridCard', 'jsBlock', 'chart', 'markdown', 'iframe',
 ]);
 
-const LEGACY_TYPES = new Set(['comments', 'recordHistory', 'reference']);
+const LEGACY_TYPES = new Set(['comments', 'recordHistory', 'mailMessages', 'reference']);
 
 const COMPOSE_ACTIONS = new Set([
   'filter', 'refresh', 'addNew', 'delete', 'bulkDelete',
@@ -60,13 +60,29 @@ export function toComposeBlock(
     }
     block.resource = resource;
   } else if (resBinding.associationName) {
-    const resource: Record<string, unknown> = {
-      collectionName: blockColl,
-      dataSourceKey: 'main',
-      associationName: resBinding.associationName,
-    };
-    if (resBinding.sourceId) resource.sourceId = resBinding.sourceId;
-    block.resource = resource;
+    const assocName = resBinding.associationName as string;
+    const sourceId = resBinding.sourceId as string;
+    const isPopupContext = sourceId && sourceId.includes('{{');
+
+    if (isPopupContext) {
+      // Popup context: use binding + associationField (short name)
+      const assocField = assocName.includes('.') ? assocName.split('.').pop()! : assocName;
+      const resource: Record<string, unknown> = {
+        collectionName: blockColl,
+        dataSourceKey: 'main',
+        associationField: assocField,
+        binding: ['list', 'gridCard'].includes(btype) ? 'associatedRecords' : 'currentRecord',
+      };
+      block.resource = resource;
+    } else {
+      const resource: Record<string, unknown> = {
+        collectionName: blockColl,
+        dataSourceKey: 'main',
+        associationName: assocName,
+      };
+      if (sourceId) resource.sourceId = sourceId;
+      block.resource = resource;
+    }
   } else if (resBinding.filterByTk) {
     // Popup context: compose needs collectionName + "currentRecord" binding
     block.resource = blockColl

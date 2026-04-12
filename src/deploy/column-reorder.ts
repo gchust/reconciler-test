@@ -2,13 +2,14 @@
  * Reorder table columns to match spec field order via moveNode.
  */
 import type { NocoBaseClient } from '../client';
+import { bestEffort } from '../utils/error-utils';
 
 export async function reorderTableColumns(
   nb: NocoBaseClient,
   blockUid: string,
   specFields: string[],
 ): Promise<void> {
-  try {
+  await bestEffort('reorderColumns', async () => {
     const data = await nb.get({ uid: blockUid });
     const tree = data.tree;
     const rawCols = tree.subModels?.columns;
@@ -54,7 +55,5 @@ export async function reorderTableColumns(
       }
       prevUid = colUid;
     }
-  } catch {
-    // best-effort
-  }
+  });
 }

@@ -2,6 +2,7 @@
  * Fill a compose-created block with content: JS, charts, actions, dividers, event flows.
  *
  * Compose creates empty shells. This fills them with actual content.
+ * Each concern is delegated to a focused filler module in ./fillers/.
  *
  * ⚠️ PITFALLS:
  * - clickToOpen popup deployment priority: inline popup > popup file > template > default
@@ -16,22 +17,19 @@ import type { NocoBaseClient } from '../client';
 import type { BlockSpec } from '../types/spec';
 import type { BlockState } from '../types/state';
 import { fixDisplayModels } from './display-model-fixer';
-import { toComposeBlock } from './block-composer';
 import { ensureJsHeader, replaceJsUids } from '../utils/js-utils';
-import { generateUid } from '../utils/uid';
-import { loadYaml } from '../utils/yaml';
-
-const NON_COMPOSE_ACTION_MAP: Record<string, string> = {
-  duplicate: 'DuplicateActionModel',
-  export: 'ExportActionModel',
-  import: 'ImportActionModel',
-  link: 'LinkActionModel',
-  workflowTrigger: 'CollectionTriggerWorkflowActionModel',
-  ai: 'AIEmployeeButtonModel',
-  expandCollapse: 'ExpandCollapseActionModel',
-  popup: 'PopupCollectionActionModel',
-  updateRecord: 'UpdateRecordActionModel',
-};
+import {
+  deployClickToOpen,
+  configureFilter,
+  deployChart,
+  deployNonComposeActions,
+  deployJsItems,
+  deployJsColumns,
+  deployDividers,
+  deployEventFlows,
+  applyFieldLayout,
+  syncGridItemsOrder,
+} from './fillers';
 
 export async function fillBlock(
   nb: NocoBaseClient,
@@ -50,13 +48,118 @@ export async function fillBlock(
   const coll = bs.coll || defaultColl;
   const mod = path.resolve(modDir);
 
+  // ── Block title ──
+  if (bs.title) {
+    try {
+      await nb.updateModel(blockUid, {
+        cardSettings: { titleDescription: { title: bs.title } },
+      });
+    } catch (e) {
+      log(`      ! title: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+    }
+  }
+
+  // ── Template reference (ReferenceFormGridModel) ──
+  // If form was exported with templateRef, convert grid to reference mode
+  const templateRef = bs.templateRef;
+  if (templateRef?.targetUid && ['createForm', 'editForm'].includes(btype)) {
+    try {
+      // Find the form's grid UID
+      const formData = await nb.get({ uid: blockUid });
+      const formGrid = formData.tree.subModels?.grid;
+      if (formGrid && !Array.isArray(formGrid)) {
+        const formGridUid = (formGrid as { uid: string }).uid;
+        // Convert grid to ReferenceFormGridModel with useTemplate
+        await nb.models.save({
+          uid: formGridUid,
+          use: 'ReferenceFormGridModel',
+          parentId: blockUid,
+          subKey: 'grid',
+          subType: 'object',
+          sortIndex: 0,
+          stepParams: {
+            referenceSettings: {
+              useTemplate: {
+                templateUid: templateRef.templateUid,
+                templateName: templateRef.templateName,
+                targetUid: templateRef.targetUid,
+                mode: templateRef.mode || 'reference',
+              },
+            },
+          },
+          flowRegistry: {},
+        });
+        log(`      ~ templateRef: ${templateRef.templateName} (reference mode)`);
+      }
+    } catch (e) {
+      log(`      ! templateRef: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+    }
+  }
+
   // ── Table settings: dataScope + pageSize ──
   const tableUpdates: Record<string, unknown> = {};
   if (bs.dataScope) tableUpdates.dataScope = { filter: bs.dataScope };
   if (bs.pageSize) tableUpdates.pageSize = { pageSize: bs.pageSize };
   if (bs.sort) tableUpdates.sort = bs.sort;
   if (Object.keys(tableUpdates).length) {
-    try { await nb.updateModel(blockUid, { tableSettings: tableUpdates }); } catch { /* skip */ }
+    try {
+      await nb.updateModel(blockUid, { tableSettings: tableUpdates });
+    } catch (e) {
+      log(`      ! tableSettings: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+    }
+  }
+
+  // ── Clean compose auto-created actions for table ──
+  // compose always creates actCol + default edit/view/delete; only keep what spec declares
+  if (btype === 'table') {
+    try {
+      const tableData = await nb.get({ uid: blockUid });
+      const cols = tableData.tree.subModels?.columns;
+      const colArr = (Array.isArray(cols) ? cols : []) as { uid: string; use?: string; subModels?: Record<string, unknown> }[];
+      const actCol = colArr.find(c => c.use?.includes('TableActionsColumn'));
+
+      if (!(bs.recordActions?.length)) {
+        // No recordActions in spec → remove entire actCol
+        if (actCol) {
+          await nb.surfaces.removeNode(actCol.uid);
+          log(`      - action column removed (spec has none)`);
+        }
+      } else if (actCol) {
+        // Has recordActions → clean compose-default buttons (edit/view/delete)
+        // that aren't in spec, keep only spec-declared types
+        const specTypes = new Set(
+          (bs.recordActions || []).map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string),
+        );
+        const actColActs = actCol.subModels?.actions;
+        const actColArr = (Array.isArray(actColActs) ? actColActs : []) as { uid: string; use?: string }[];
+        const DEFAULT_RECORD_ACTIONS: Record<string, string> = {
+          EditActionModel: 'edit', ViewActionModel: 'view', DeleteActionModel: 'delete',
+        };
+        for (const a of actColArr) {
+          const defaultType = DEFAULT_RECORD_ACTIONS[a.use || ''];
+          if (defaultType && !specTypes.has(defaultType)) {
+            await nb.surfaces.removeNode(a.uid);
+            log(`      - removed auto-created ${defaultType} button`);
+          }
+        }
+      }
+
+      // Also clean block-level recordActions auto-created by compose
+      const blockRecActs = tableData.tree.subModels?.recordActions;
+      const blockRecArr = (Array.isArray(blockRecActs) ? blockRecActs : []) as { uid: string; use?: string }[];
+      const specRecTypes = new Set(
+        (bs.recordActions || []).map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string),
+      );
+      for (const a of blockRecArr) {
+        const use = a.use || '';
+        const isDefault = ['EditActionModel', 'ViewActionModel', 'DeleteActionModel'].includes(use);
+        const atype = use.replace('ActionModel', '').replace('Action', '').toLowerCase();
+        if (isDefault && !specRecTypes.has(atype) && !specRecTypes.has('edit') && !specRecTypes.has('view') && !specRecTypes.has('delete')) {
+          await nb.surfaces.removeNode(a.uid);
+          log(`      - removed auto-created block ${atype}`);
+        }
+      }
+    } catch { /* best effort */ }
   }
 
   // ── Fix display models ──
@@ -66,230 +169,8 @@ export async function fillBlock(
   }
   blockState.fields = fieldStates;
 
-  // ── clickToOpen on table fields (default detail popup) ──
-  if (btype === 'table') {
-    for (const f of bs.fields || []) {
-      if (typeof f !== 'object' || !f.clickToOpen) continue;
-      const fp = f.field || f.fieldPath || '';
-      const wrapperUid = fieldStates[fp]?.wrapper;
-      if (!wrapperUid) continue;
-      try {
-        const colData = await nb.get({ uid: wrapperUid });
-        const fieldSub = colData.tree.subModels?.field;
-        if (fieldSub && !Array.isArray(fieldSub)) {
-          const fieldUid = (fieldSub as { uid: string }).uid;
-          const update: Record<string, unknown> = {
-            displayFieldSettings: { clickToOpen: { clickToOpen: true } },
-          };
-          // Set popupSettings + create popup content
-          const ps = (f as unknown as Record<string, unknown>).popupSettings as Record<string, unknown>;
-          const inlinePopup = (f as unknown as Record<string, unknown>).popup as Record<string, unknown>;
-          if (ps || inlinePopup) {
-            const popupColl = ((ps?.collectionName || inlinePopup?.collectionName || coll) as string) || coll;
-
-            // Inline popup content takes priority (from template export)
-            if (inlinePopup && (inlinePopup.blocks || inlinePopup.tabs)) {
-              const { deploySurface: deploySurfaceFn } = await import('./surface-deployer');
-              const childPopupCtx = {
-                depth: popupContext.depth + 1,
-                maxDepth: popupContext.maxDepth,
-                seenColls: new Set([...popupContext.seenColls, coll]),
-              };
-
-              // Find correct modDir for template JS files
-              // Templates export JS to: templates/popup/<slug>/js/ or templates/block/<slug>/js/
-              let popupModDir = mod;
-              const templateName = inlinePopup._template as string;
-              if (templateName) {
-                for (let d = mod; d !== path.dirname(d); d = path.dirname(d)) {
-                  if (fs.existsSync(path.join(d, 'templates'))) {
-                    const slugName = templateName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-                    // Try: templates/popup/<slug>/ (has js/ subdir with files)
-                    for (const tplType of ['popup', 'block']) {
-                      const candidate = path.join(d, 'templates', tplType, slugName);
-                      if (fs.existsSync(path.join(candidate, 'js'))) {
-                        popupModDir = candidate;
-                        break;
-                      }
-                      // Legacy: templates/popup/<slug>_js/ (old format)
-                      const legacyCandidate = path.join(d, 'templates', tplType, `${slugName}_js`);
-                      if (fs.existsSync(legacyCandidate)) {
-                        // Create js/ symlink for compatibility
-                        const jsSubDir = path.join(legacyCandidate, 'js');
-                        if (!fs.existsSync(jsSubDir)) {
-                          // Copy files to js/ subdir
-                          fs.mkdirSync(jsSubDir, { recursive: true });
-                          for (const f of fs.readdirSync(legacyCandidate)) {
-                            if (f.endsWith('.js')) {
-                              fs.copyFileSync(path.join(legacyCandidate, f), path.join(jsSubDir, f));
-                            }
-                          }
-                        }
-                        popupModDir = legacyCandidate;
-                        break;
-                      }
-                    }
-                    break;
-                  }
-                }
-              }
-
-              // Deploy as popup (tabbed or simple)
-              const popupTabs = inlinePopup.tabs as Record<string, unknown>[];
-              const popupBlocks = inlinePopup.blocks as Record<string, unknown>[];
-
-              if (popupTabs?.length) {
-                // Multi-tab popup → use deployPopup
-                const { deployPopup: deployPopupFn } = await import('./popup-deployer');
-                await deployPopupFn(nb, fieldUid, `${fp}.popup`, {
-                  target: '',
-                  mode: (inlinePopup.mode || ps?.mode || 'drawer') as 'drawer' | 'dialog',
-                  coll: popupColl,
-                  tabs: popupTabs.map(t => ({
-                    title: t.title as string,
-                    blocks: (t.blocks || []) as any[],
-                  })),
-                }, popupModDir, false, '', log);
-              } else if (popupBlocks?.length) {
-                // Simple popup
-                try {
-                  await deploySurfaceFn(nb, fieldUid,
-                    { blocks: popupBlocks as any[], coll: popupColl } as any,
-                    popupModDir, false, {}, log, childPopupCtx);
-                } catch { /* skip */ }
-              }
-
-              update.popupSettings = {
-                openView: {
-                  collectionName: popupColl, dataSourceKey: 'main',
-                  mode: (inlinePopup.mode || ps?.mode || 'drawer') as string,
-                  size: (inlinePopup.size || ps?.size || 'medium') as string,
-                  pageModelClass: 'ChildPageModel', uid: fieldUid,
-                  filterByTk: (ps?.filterByTk || '{{ ctx.record.id }}') as string,
-                },
-              };
-              log(`      ~ clickToOpen: ${fp} (inline popup: ${popupTabs?.length || 0} tabs, ${popupBlocks?.length || 0} blocks)`);
-              await nb.updateModel(fieldUid, update);
-              continue;
-            } else {
-              // No inline content — check if popup-deployer already created content
-              let fieldHasFullPopup = false;
-              try {
-                const fieldCheck = await nb.get({ uid: fieldUid });
-                const existingPage = fieldCheck.tree.subModels?.page;
-                if (existingPage && !Array.isArray(existingPage)) {
-                  const existingTabs = (existingPage as any).subModels?.tabs;
-                  const tabArr = Array.isArray(existingTabs) ? existingTabs : existingTabs ? [existingTabs] : [];
-                  let blockCount = 0;
-                  for (const t of tabArr as any[]) {
-                    const items = t.subModels?.grid?.subModels?.items;
-                    blockCount += Array.isArray(items) ? items.length : 0;
-                  }
-                  fieldHasFullPopup = blockCount > 1; // more than default 1 block
-                }
-              } catch { /* skip */ }
-
-              if (fieldHasFullPopup) {
-                update.popupSettings = {
-                  openView: {
-                    collectionName: popupColl, dataSourceKey: 'main',
-                    mode: ps?.mode || 'drawer', size: ps?.size || 'medium',
-                    pageModelClass: 'ChildPageModel', uid: fieldUid,
-                    filterByTk: ps?.filterByTk || '{{ ctx.record.id }}',
-                  },
-                };
-                log(`      ~ clickToOpen: ${fp} (popup already deployed)`);
-                await nb.updateModel(fieldUid, update);
-                continue;
-              }
-
-              // Fall through to template/default deploy
-            }
-
-            const isCircular = popupContext.seenColls.has(popupColl);
-            const atMaxDepth = popupContext.depth >= popupContext.maxDepth;
-
-            if (isCircular || atMaxDepth) {
-              // Circular reference or max depth → simple details (no recursion)
-              log(`      ~ clickToOpen: ${fp} (depth=${popupContext.depth}, ${isCircular ? 'circular: ' + popupColl : 'max depth'})`);
-              try {
-                const meta = await nb.collections.fieldMeta(popupColl);
-                const defaultFields = Object.keys(meta)
-                  .filter(k => !['id', 'createdById', 'updatedById'].includes(k))
-                  .slice(0, 8)
-                  .map(k => ({ fieldPath: k }));
-                await nb.surfaces.compose(fieldUid, [{
-                  key: 'details', type: 'details',
-                  resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
-                  fields: defaultFields,
-                }], 'replace');
-              } catch { /* skip */ }
-              update.popupSettings = {
-                openView: {
-                  collectionName: popupColl, dataSourceKey: 'main',
-                  mode: ps.mode || 'drawer', size: ps.size || 'medium',
-                  pageModelClass: 'ChildPageModel', uid: fieldUid,
-                  filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
-                },
-              };
-            } else {
-              // Copy mode: read template content → deploy full blocks with JS/layout
-              const tplContent = await loadTemplateContent(nb, modDir, ps.popupTemplateUid as string, popupColl);
-              const childPopupCtx = {
-                depth: popupContext.depth + 1,
-                maxDepth: popupContext.maxDepth,
-                seenColls: new Set([...popupContext.seenColls, coll]),
-              };
-
-              if (tplContent.length) {
-                // Use deploySurface to compose + fill (JS, field_layout, event flows)
-                const { deploySurface: deploySurfaceFn } = await import('./surface-deployer');
-                try {
-                  // Find template's JS dir (walk up to templates/)
-                  let tplDir = mod;
-                  for (let d = mod; d !== path.dirname(d); d = path.dirname(d)) {
-                    if (fs.existsSync(path.join(d, 'templates'))) { tplDir = d; break; }
-                  }
-
-                  await deploySurfaceFn(
-                    nb, fieldUid,
-                    { blocks: tplContent as any[], coll: popupColl } as any,
-                    tplDir, false, {}, log, childPopupCtx,
-                  );
-                } catch { /* skip */ }
-                log(`      ~ clickToOpen: ${fp} (copy: ${tplContent.length} blocks, depth=${popupContext.depth})`);
-              } else {
-                // No template content: compose default details
-                try {
-                  const meta = await nb.collections.fieldMeta(popupColl);
-                  const defaultFields = Object.keys(meta)
-                    .filter(k => !['id', 'createdById', 'updatedById'].includes(k))
-                    .slice(0, 10)
-                    .map(k => ({ fieldPath: k }));
-                  await nb.surfaces.compose(fieldUid, [{
-                    key: 'details', type: 'details',
-                    resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
-                    fields: defaultFields,
-                  }], 'replace');
-                } catch { /* skip */ }
-                log(`      ~ clickToOpen: ${fp} (default details)`);
-              }
-              update.popupSettings = {
-                openView: {
-                  collectionName: popupColl, dataSourceKey: 'main',
-                  mode: ps.mode || 'drawer', size: ps.size || 'medium',
-                  pageModelClass: 'ChildPageModel', uid: fieldUid,
-                  filterByTk: ps.filterByTk || '{{ ctx.record.id }}',
-                },
-              };
-            }
-          }
-          await nb.updateModel(fieldUid, update);
-          log(`      ~ clickToOpen: ${fp}`);
-        }
-      } catch { /* skip */ }
-    }
-  }
+  // ── clickToOpen on table fields ──
+  await deployClickToOpen(nb, bs, coll, fieldStates, mod, allBlocksState, popupContext, log);
 
   // ── FilterForm configuration (connect filter to table) ──
   if (btype === 'filterForm' && pageGridUid) {
@@ -311,621 +192,40 @@ export async function fillBlock(
   }
 
   // ── Chart config ──
-  if (btype === 'chart' && bs.chart_config) {
-    const cfgPath = path.join(mod, bs.chart_config);
-    if (fs.existsSync(cfgPath)) {
-      let config: Record<string, unknown>;
-
-      if (bs.chart_config.endsWith('.yaml') || bs.chart_config.endsWith('.yml')) {
-        const spec = loadYaml<Record<string, string>>(cfgPath);
-        let sql = spec.sql || '';
-        if (spec.sql_file) {
-          const sf = path.join(mod, spec.sql_file);
-          if (fs.existsSync(sf)) sql = fs.readFileSync(sf, 'utf8');
-        }
-        let renderJs = spec.render || '';
-        if (spec.render_file) {
-          const rf = path.join(mod, spec.render_file);
-          if (fs.existsSync(rf)) renderJs = fs.readFileSync(rf, 'utf8');
-        }
-        config = {
-          query: { mode: 'sql', sql },
-          chart: { option: { mode: 'custom', raw: renderJs } },
-        };
-      } else {
-        config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
-      }
-
-      await nb.updateModel(blockUid, { chartSettings: { configure: config } });
-
-      const sql = (config.query as Record<string, unknown>)?.sql as string;
-      if (sql) {
-        // Save SQL template
-        await nb.http.post(`${nb.baseUrl}/api/flowSql:save`, {
-          type: 'selectRows', uid: blockUid,
-          dataSourceKey: 'main', sql, bind: {},
-        });
-
-        // Try to run — report errors
-        try {
-          const clean = sql
-            .replace(/\{%\s*if\s+[^%]*%\}.*?\{%\s*endif\s*%\}/gs, '')
-            .split('\n').filter(l => !l.includes('{{') && !l.includes('{%')).join('\n');
-          const resp = await nb.http.post(`${nb.baseUrl}/api/flowSql:run`, {
-            type: 'selectRows', uid: blockUid,
-            dataSourceKey: 'main', sql: clean, bind: {},
-          });
-          if (resp.status >= 400 || resp.data?.errors?.length) {
-            const errMsg = resp.data?.errors?.[0]?.message || '';
-            log(`    ✗ chart SQL error (${bs.chart_config}): ${errMsg}`);
-          } else {
-            log(`      + chart: ${bs.chart_config} (SQL verified ✓)`);
-          }
-        } catch (e) {
-          log(`      + chart: ${bs.chart_config}`);
-        }
-      }
-    }
-  }
+  await deployChart(nb, blockUid, bs, mod, log);
 
   // ── Non-compose actions (legacy save_model) ──
-  const allActions = [...(bs.actions || []), ...(bs.recordActions || [])];
-  for (const aspec of allActions) {
-    const atype = typeof aspec === 'string' ? aspec : (aspec as Record<string, unknown>).type as string;
-    const amodel = NON_COMPOSE_ACTION_MAP[atype];
-    if (!amodel) continue;
+  await deployNonComposeActions(nb, blockUid, bs, blockState, mod, log);
 
-    let actionSp = typeof aspec === 'object' ? (aspec as Record<string, unknown>).stepParams as Record<string, unknown> || {} : {};
-    let actionProps = typeof aspec === 'object' ? (aspec as Record<string, unknown>).props as Record<string, unknown> || {} : {};
-
-    // AI button shorthand: { type: ai, employee: viz, tasks_file: ./ai/tasks.yaml }
-    if (atype === 'ai' && typeof aspec === 'object') {
-      const spec = aspec as Record<string, unknown>;
-      if (spec.employee && !Object.keys(actionSp).length) {
-        const { sp, props } = buildAiButton(spec, blockUid, modDir);
-        actionSp = sp;
-        actionProps = props;
-      }
-    }
-
-    // Check if already in state
-    const existingActions = blockState.actions || {};
-    const existingRec = blockState.record_actions || {};
-    if (atype in existingActions || atype in existingRec) {
-      if (Object.keys(actionSp).length || Object.keys(actionProps).length) {
-        const existingUid = (existingActions[atype]?.uid || existingRec[atype]?.uid) || '';
-        if (existingUid) {
-          const update: Record<string, unknown> = { uid: existingUid };
-          if (Object.keys(actionSp).length) update.stepParams = actionSp;
-          if (Object.keys(actionProps).length) update.props = actionProps;
-          await nb.models.save(update);
+  // ── JS Items (inside detail/form grid, or list.item.grid) ──
+  let itemGridUid = gridUid;
+  if (['list', 'gridCard'].includes(btype) && !gridUid) {
+    // List/GridCard: items live in block.subModels.item.subModels.grid
+    try {
+      const blockData = await nb.get({ uid: blockUid });
+      const listItem = blockData.tree.subModels?.item;
+      if (listItem && !Array.isArray(listItem)) {
+        const listGrid = (listItem as { subModels?: Record<string, unknown> }).subModels?.grid;
+        if (listGrid && !Array.isArray(listGrid)) {
+          itemGridUid = (listGrid as { uid: string }).uid;
         }
       }
-      continue;
-    }
-
-    // Determine subKey
-    const isRecordAction = (bs.recordActions || []).includes(aspec);
-    const desiredSubKey = isRecordAction ? 'recordActions' : 'actions';
-
-    // Create
-    const newUid = generateUid();
-    await nb.models.save({
-      uid: newUid, use: amodel,
-      parentId: blockUid, subKey: desiredSubKey, subType: 'array',
-      sortIndex: 0, stepParams: actionSp, props: actionProps, flowRegistry: {},
-    });
-    const stateKey = isRecordAction ? 'record_actions' : 'actions';
-    if (!blockState[stateKey]) blockState[stateKey] = {};
-    blockState[stateKey]![atype] = { uid: newUid };
+    } catch { /* skip */ }
   }
-
-  // ── JS Items (inside detail/form grid) ──
-  const jsItems = bs.js_items || [];
-  if (jsItems.length && gridUid) {
-    for (const jsSpec of jsItems) {
-      if (!jsSpec.file) continue;
-      const jsPath = path.join(mod, jsSpec.file);
-      if (!fs.existsSync(jsPath)) continue;
-
-      let code = fs.readFileSync(jsPath, 'utf8');
-      code = ensureJsHeader(code, { desc: jsSpec.desc, jsType: 'JSItemModel', coll });
-      code = replaceJsUids(code, allBlocksState);
-
-      const existing = blockState.js_items?.[jsSpec.key];
-      if (existing?.uid) {
-        await nb.updateModel(existing.uid, {
-          jsSettings: { runJs: { code, version: 'v1' } },
-        });
-      } else {
-        const newUid = generateUid();
-        await nb.models.save({
-          uid: newUid, use: 'JSItemModel',
-          parentId: gridUid, subKey: 'items', subType: 'array',
-          sortIndex: 0, flowRegistry: {},
-          stepParams: { jsSettings: { runJs: { code, version: 'v1' } } },
-        });
-        if (!blockState.js_items) blockState.js_items = {};
-        blockState.js_items[jsSpec.key] = { uid: newUid };
-      }
-      log(`      ~ JS item: ${jsSpec.desc || jsSpec.key}`);
-    }
-
-  }
+  await deployJsItems(nb, itemGridUid, bs, coll, mod, blockState, allBlocksState, log);
 
   // ── JS Columns (table) ──
-  const jsCols = bs.js_columns || [];
-  if (jsCols.length && btype === 'table') {
-    for (const jsSpec of jsCols) {
-      if (!jsSpec.file) continue;
-      const jsPath = path.join(mod, jsSpec.file);
-      if (!fs.existsSync(jsPath)) continue;
-
-      let code = fs.readFileSync(jsPath, 'utf8');
-      code = ensureJsHeader(code, { desc: jsSpec.desc, jsType: 'JSColumnModel', coll });
-
-      const existing = blockState.js_columns?.[jsSpec.key];
-      if (existing?.uid) {
-        await nb.updateModel(existing.uid, {
-          jsSettings: { runJs: { code, version: 'v1' } },
-        });
-      } else {
-        const newUid = generateUid();
-        await nb.models.save({
-          uid: newUid, use: 'JSColumnModel',
-          parentId: blockUid, subKey: 'columns', subType: 'array',
-          sortIndex: 0, flowRegistry: {},
-          stepParams: {
-            jsSettings: { runJs: { code, version: 'v1' } },
-            fieldSettings: { init: { fieldPath: jsSpec.field } },
-          },
-        });
-        if (!blockState.js_columns) blockState.js_columns = {};
-        blockState.js_columns[jsSpec.key] = { uid: newUid };
-      }
-      log(`      ~ JS col: ${jsSpec.desc || jsSpec.key}`);
-    }
-  }
+  await deployJsColumns(nb, blockUid, bs, coll, mod, blockState, allBlocksState, log);
 
   // ── Dividers (in field_layout) ──
-  const fieldLayout = bs.field_layout || [];
-  if (fieldLayout.length && gridUid) {
-    for (const row of fieldLayout) {
-      if (typeof row === 'string' && row.startsWith('---')) {
-        const label = row.replace(/^-+\s*/, '').replace(/\s*-+$/, '').trim();
-        if (label) {
-          await nb.models.addDivider(gridUid, label);
-          log(`      + divider: ${label}`);
-        }
-      }
-    }
-  }
+  await deployDividers(nb, gridUid, bs.field_layout || [], log);
 
   // ── Event flows ──
-  const eventFlows = bs.event_flows || [];
-  if (eventFlows.length) {
-    const flowRegistry: Record<string, unknown> = {};
-    for (const ef of eventFlows) {
-      if (!ef.file) continue;
-      const efPath = path.join(mod, ef.file);
-      if (!fs.existsSync(efPath)) continue;
-      const code = fs.readFileSync(efPath, 'utf8');
-      const flowKey = ef.flow_key || `custom_${Object.keys(flowRegistry).length}`;
-      const stepKey = ef.step_key || 'runJs';
-      flowRegistry[flowKey] = {
-        key: flowKey,
-        on: ef.event || 'formValuesChange',
-        title: ef.desc || flowKey,
-        steps: {
-          [stepKey]: {
-            key: stepKey, use: 'runjs', sort: 1, flowKey,
-            runJs: { code },
-          },
-        },
-      };
-    }
-    if (Object.keys(flowRegistry).length) {
-      try {
-        await nb.models.save({ uid: blockUid, flowRegistry });
-      } catch {
-        await nb.http.post(`${nb.baseUrl}/api/flowModels:update?filterByTk=${blockUid}`, {
-          options: { flowRegistry },
-        });
-      }
-    }
-  }
+  await deployEventFlows(nb, blockUid, bs, mod, log);
 
   // ── Field layout (apply after all content created) ──
-  if (fieldLayout.length && gridUid) {
-    await applyFieldLayout(nb, gridUid, fieldLayout);
-  }
+  await applyFieldLayout(nb, gridUid, bs.field_layout || [], log);
 
   // ── Sync grid items order to match spec declaration order ──
-  // Builds desired order from: js_items first (if declared before fields), then fields, then remaining
-  if (gridUid && ['filterForm', 'createForm', 'editForm', 'details'].includes(btype)) {
-    await syncGridItemsOrder(nb, gridUid, bs);
-  }
-}
-
-/**
- * Apply field_layout covering ALL grid children.
- */
-async function applyFieldLayout(
-  nb: NocoBaseClient,
-  gridUid: string,
-  fieldLayout: unknown[],
-): Promise<void> {
-  try {
-    const live = await nb.get({ uid: gridUid });
-    const items = live.tree.subModels?.items;
-    const itemArr = (Array.isArray(items) ? items : []) as { uid: string; use?: string; stepParams?: Record<string, unknown> }[];
-    if (!itemArr.length) return;
-
-    // Build uid map
-    const uidMap = new Map<string, string>();
-    const allUids = new Set<string>();
-    for (const d of itemArr) {
-      allUids.add(d.uid);
-      const fp = (d.stepParams?.fieldSettings as Record<string, unknown>)?.init as Record<string, unknown>;
-      const fieldPath = fp?.fieldPath as string;
-      const label = ((d.stepParams?.markdownItemSetting as Record<string, unknown>)?.title as Record<string, unknown>)?.label as string;
-      if (fieldPath) uidMap.set(fieldPath, d.uid);
-      else if (label) uidMap.set(label, d.uid);
-      else if (d.use?.includes('JSItem')) uidMap.set('_js_', d.uid);
-    }
-
-    const rows: Record<string, string[][]> = {};
-    const sizes: Record<string, number[]> = {};
-    let ri = 0;
-    const covered = new Set<string>();
-
-    for (const row of fieldLayout) {
-      const rk = `r${ri}`;
-      if (typeof row === 'string') {
-        if (row.startsWith('---')) {
-          const label = row.replace(/^-+\s*/, '').replace(/\s*-+$/, '').trim();
-          const u = uidMap.get(label);
-          if (u && !covered.has(u)) {
-            rows[rk] = [[u]]; sizes[rk] = [24];
-            covered.add(u); ri++;
-          }
-        }
-      } else if (Array.isArray(row)) {
-        const cols: string[][] = [];
-        for (const item of row) {
-          const name = typeof item === 'string' ? item
-            : (typeof item === 'object' && item ? Object.keys(item)[0] : null);
-          if (name) {
-            const u = uidMap.get(name);
-            if (u && !covered.has(u)) {
-              cols.push([u]); covered.add(u);
-            }
-          }
-        }
-        if (cols.length) {
-          rows[rk] = cols;
-          sizes[rk] = cols.map(() => Math.floor(24 / cols.length));
-          ri++;
-        }
-      }
-    }
-
-    // Append uncovered (safety net)
-    for (const u of allUids) {
-      if (!covered.has(u)) {
-        const rk = `r${ri}`;
-        rows[rk] = [[u]]; sizes[rk] = [24]; ri++;
-      }
-    }
-
-    if (Object.keys(rows).length) {
-      await nb.surfaces.setLayout(gridUid, rows, sizes);
-    }
-  } catch { /* best-effort */ }
-}
-
-/**
- * Load template content blocks from local templates/ dir or live API.
- */
-async function loadTemplateContent(
-  nb: NocoBaseClient,
-  modDir: string,
-  popupTemplateUid: string | undefined,
-  collectionName: string,
-): Promise<Record<string, unknown>[]> {
-  if (!popupTemplateUid) return [];
-
-  // Try local templates/_index.yaml first
-  const mod = path.resolve(modDir);
-  // Walk up to find templates/ (might be in project root, not page dir)
-  for (let dir = mod; dir !== path.dirname(dir); dir = path.dirname(dir)) {
-    const indexFile = path.join(dir, 'templates', '_index.yaml');
-    if (fs.existsSync(indexFile)) {
-      try {
-        const index = loadYaml<Record<string, unknown>[]>(indexFile);
-        const entry = index.find(t => t.uid === popupTemplateUid);
-        if (entry?.file) {
-          const tplFile = path.join(dir, 'templates', entry.file as string);
-          if (fs.existsSync(tplFile)) {
-            const tplSpec = loadYaml<Record<string, unknown>>(tplFile);
-            const content = tplSpec.content as Record<string, unknown>;
-            if (content?.blocks) return content.blocks as Record<string, unknown>[];
-            if (content?.tabs) {
-              // Multi-tab: return first tab's blocks
-              const tabs = content.tabs as Record<string, unknown>[];
-              return (tabs[0]?.blocks || []) as Record<string, unknown>[];
-            }
-          }
-        }
-      } catch { /* skip */ }
-      break;
-    }
-  }
-
-  // Fallback: read from live API
-  try {
-    const tplResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, {
-      params: { filter: { uid: popupTemplateUid }, pageSize: 1 },
-    });
-    const tplData = tplResp.data?.data?.[0];
-    if (tplData?.targetUid) {
-      const d = await nb.get({ uid: tplData.targetUid });
-      const page = d.tree.subModels?.page;
-      if (page && !Array.isArray(page)) {
-        const tabs = (page as unknown as Record<string, unknown>).subModels as Record<string, unknown>;
-        const tabList = tabs?.tabs;
-        const tabArr = (Array.isArray(tabList) ? tabList : tabList ? [tabList] : []) as Record<string, unknown>[];
-        if (tabArr.length) {
-          const grid = (tabArr[0].subModels as Record<string, unknown>)?.grid as Record<string, unknown>;
-          const items = (grid?.subModels as Record<string, unknown>)?.items;
-          if (Array.isArray(items)) {
-            // Convert live items to compose-compatible spec
-            return items.map(item => {
-              const use = (item as Record<string, unknown>).use as string || '';
-              const sp = (item as Record<string, unknown>).stepParams as Record<string, unknown> || {};
-              const resColl = ((sp.resourceSettings as Record<string, unknown>)?.init as Record<string, unknown>)?.collectionName as string;
-              return {
-                key: 'details',
-                type: use.includes('Edit') ? 'editForm' : use.includes('Create') ? 'createForm' : 'details',
-                coll: resColl || collectionName,
-                resource_binding: { filterByTk: '{{ctx.view.inputArgs.filterByTk}}' },
-              };
-            });
-          }
-        }
-      }
-    }
-  } catch { /* skip */ }
-
-  return [];
-}
-
-/**
- * Sync grid items order to match the spec's declaration order.
- *
- * In YAML, the order of js_items, fields, dividers determines display order.
- * This reads live grid items, builds desired order from spec, then moveNode.
- */
-async function syncGridItemsOrder(
-  nb: NocoBaseClient,
-  gridUid: string,
-  bs: BlockSpec,
-): Promise<void> {
-  try {
-    const live = await nb.get({ uid: gridUid });
-    const rawItems = live.tree.subModels?.items;
-    const items = (Array.isArray(rawItems) ? rawItems : []) as { uid: string; use?: string; stepParams?: Record<string, unknown> }[];
-    if (items.length < 2) return;
-
-    // Build UID lookup: fieldPath → uid, jsItem → uid, divider label → uid
-    const uidByFieldPath = new Map<string, string>();
-    const uidByUse = new Map<string, string[]>();
-    for (const item of items) {
-      const fp = (item.stepParams?.fieldSettings as Record<string, unknown>)
-        ?.init as Record<string, unknown>;
-      const fieldPath = fp?.fieldPath as string;
-      if (fieldPath) uidByFieldPath.set(fieldPath, item.uid);
-
-      const use = item.use || '';
-      const group = uidByUse.get(use) || [];
-      group.push(item.uid);
-      uidByUse.set(use, group);
-    }
-
-    // Build desired order from spec: walk through js_items and fields in declaration order
-    const desiredUids: string[] = [];
-
-    // js_items first (they appear before fields in the spec)
-    const jsItemUids = uidByUse.get('JSItemModel') || [];
-
-    // Check spec: are js_items declared before fields? (YAML key order)
-    // In the BlockSpec, js_items comes after fields in the interface,
-    // but in the actual YAML, the order depends on how it was written.
-    // We use a simple heuristic: if js_items exist, put them first.
-    // This matches NocoBase's typical pattern (filter stats above search input).
-    desiredUids.push(...jsItemUids);
-
-    // Then fields in spec order
-    const specFields = (bs.fields || []).map(f =>
-      typeof f === 'string' ? f : (f.field || f.fieldPath || ''),
-    ).filter(Boolean);
-    for (const fp of specFields) {
-      const uid = uidByFieldPath.get(fp);
-      if (uid && !desiredUids.includes(uid)) desiredUids.push(uid);
-    }
-
-    // Append any remaining items not yet covered (dividers, etc.)
-    for (const item of items) {
-      if (!desiredUids.includes(item.uid)) desiredUids.push(item.uid);
-    }
-
-    // Apply order via moveNode
-    if (desiredUids.length > 1) {
-      for (let i = 1; i < desiredUids.length; i++) {
-        await nb.surfaces.moveNode(desiredUids[i], desiredUids[i - 1], 'after');
-      }
-    }
-  } catch { /* best effort */ }
-}
-
-/**
- * Build AI button stepParams + props from shorthand DSL.
- * Shorthand: { type: ai, employee: viz, tasks_file: ./ai/tasks.yaml }
- */
-function buildAiButton(
-  spec: Record<string, unknown>,
-  blockUid: string,
-  modDir: string,
-): { sp: Record<string, unknown>; props: Record<string, unknown> } {
-  const employee = (spec.employee as string) || '';
-  const tasksFile = (spec.tasks_file as string) || '';
-
-  let tasksSpec: Record<string, unknown>[] = [];
-  if (tasksFile) {
-    const tf = path.join(modDir, tasksFile);
-    if (fs.existsSync(tf)) {
-      const td = loadYaml<Record<string, unknown>>(tf);
-      tasksSpec = (td.tasks as Record<string, unknown>[]) || [];
-    }
-  }
-
-  const builtTasks: Record<string, unknown>[] = [];
-  for (const t of tasksSpec) {
-    let systemText = (t.system as string) || '';
-    if (!systemText && t.system_file) {
-      const sf = path.join(modDir, t.system_file as string);
-      if (fs.existsSync(sf)) systemText = fs.readFileSync(sf, 'utf8');
-    }
-    builtTasks.push({
-      title: t.title || '',
-      autoSend: t.autoSend ?? true,
-      message: {
-        user: t.user || '',
-        system: systemText,
-        workContext: [{ type: 'flow-model', uid: blockUid }],
-        skillSettings: {},
-      },
-    });
-  }
-
-  return {
-    sp: { shortcutSettings: { editTasks: { tasks: builtTasks } } },
-    props: {
-      aiEmployee: { username: employee },
-      context: { workContext: [{ type: 'flow-model', uid: blockUid }] },
-      auto: false,
-    },
-  };
-}
-
-/**
- * Configure filterForm — connect filter fields to target table/reference blocks.
- * Sets filterFormItemSettings on each field + filterManager on page-level grid.
- */
-async function configureFilter(
-  nb: NocoBaseClient,
-  bs: BlockSpec,
-  blockUid: string,
-  blockState: BlockState,
-  coll: string,
-  allBlocksState: Record<string, BlockState>,
-  pageGridUid: string,
-  log: (msg: string) => void,
-): Promise<void> {
-  // Find target table/reference UIDs
-  const targetUids: string[] = [];
-  for (const [, binfo] of Object.entries(allBlocksState)) {
-    if (binfo.type === 'table' || binfo.type === 'reference') {
-      if (binfo.uid) targetUids.push(binfo.uid);
-    }
-  }
-  const defaultTarget = targetUids[0] || '';
-
-  // 1. Set label + defaultTargetUid on each FilterFormItem
-  const fieldStates = blockState.fields || {};
-  for (const f of bs.fields || []) {
-    if (typeof f !== 'object') continue;
-    const fp = f.field || f.fieldPath || '';
-    const label = f.label || '';
-    if (!fp) continue;
-
-    const wrapperUid = fieldStates[fp]?.wrapper;
-    if (!wrapperUid) continue;
-
-    const settings: Record<string, unknown> = {};
-    if (defaultTarget) {
-      settings.init = {
-        filterField: { name: fp, title: label || fp, interface: 'input', type: 'string' },
-        defaultTargetUid: defaultTarget,
-      };
-    }
-    if (label) {
-      settings.label = { label };
-      settings.showLabel = { showLabel: true };
-    }
-
-    if (Object.keys(settings).length) {
-      try {
-        await nb.updateModel(wrapperUid, { filterFormItemSettings: settings });
-        log(`      filter ${fp}: ${label || fp}`);
-      } catch { /* skip */ }
-    }
-  }
-
-  // 2. Set filterManager on page-level BlockGridModel
-  if (!pageGridUid) return;
-
-  try {
-    const data = await nb.get({ uid: blockUid });
-    const grid = data.tree.subModels?.grid;
-    const gridItems = (grid && !Array.isArray(grid))
-      ? ((grid as unknown as Record<string, unknown>).subModels as Record<string, unknown>)?.items
-      : [];
-    const items = (Array.isArray(gridItems) ? gridItems : []) as Record<string, unknown>[];
-
-    const fmEntries: Record<string, unknown>[] = [];
-    for (const f of bs.fields || []) {
-      if (typeof f !== 'object' || !f.filterPaths?.length) continue;
-      const fp = f.field || '';
-      if (!fp) continue;
-
-      // Find FilterFormItem UID in live grid
-      for (const item of items) {
-        const itemFp = ((item.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
-          ?.init as Record<string, unknown>;
-        if ((itemFp?.fieldPath as string) === fp) {
-          for (const tid of targetUids) {
-            fmEntries.push({
-              filterId: item.uid,
-              targetId: tid,
-              filterPaths: f.filterPaths,
-            });
-          }
-          log(`      filter ${fp} → ${JSON.stringify(f.filterPaths)} (${targetUids.length} targets)`);
-          break;
-        }
-      }
-    }
-
-    if (fmEntries.length) {
-      // Save filterManager on page-level grid
-      const pgResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, {
-        params: { filterByTk: pageGridUid },
-      });
-      const pgData = pgResp.data?.data || {};
-      await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
-        uid: pageGridUid,
-        use: pgData.use || 'BlockGridModel',
-        parentId: pgData.parentId || '',
-        subKey: 'grid',
-        subType: 'object',
-        sortIndex: 0,
-        stepParams: pgData.stepParams || {},
-        flowRegistry: pgData.flowRegistry || {},
-        filterManager: fmEntries,
-      });
-    }
-  } catch (e) {
-    log(`      ! filterManager: ${e instanceof Error ? e.message : e}`);
-  }
+  await syncGridItemsOrder(nb, gridUid, bs, log);
 }

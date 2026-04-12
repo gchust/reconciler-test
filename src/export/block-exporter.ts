@@ -8,6 +8,7 @@ import type { FlowModelNode } from '../types/api';
 import { slugify } from '../utils/slugify';
 import { dumpYaml } from '../utils/yaml';
 import { extractJsDesc } from '../utils/js-utils';
+import { actionKey as genActionKey } from '../utils/action-key';
 
 function ensureDir(filePath: string) {
   const dir = path.dirname(filePath);
@@ -32,6 +33,7 @@ export const TYPE_MAP: Record<string, string> = {
   MarkdownBlockModel: 'markdown',
   CommentsBlockModel: 'comments',
   RecordHistoryBlockModel: 'recordHistory',
+  MailMessagesBlockModel: 'mailMessages',
   IframeBlockModel: 'iframe',
   ReferenceBlockModel: 'reference',
 };
@@ -184,25 +186,57 @@ export function exportBlock(
 
   // ── Table fields + columns ──
   if (btype === 'table') {
-    const { fields, jsCols, fieldPopups } = exportTableContents(item, jsDir, prefix, key);
+    const { fields, jsCols, fieldPopups, hasActionsColumn, actColActions, actColPopups } = exportTableContents(item, jsDir, prefix, key);
     if (fields.length) spec.fields = fields;
     if (jsCols.length) spec.js_columns = jsCols;
-    popupRefs.push(...fieldPopups);
+    // actCol record actions (edit/view/updateRecord buttons inside TableActionsColumn)
+    if (actColActions.length) {
+      spec.recordActions = actColActions;
+    }
+    popupRefs.push(...fieldPopups, ...actColPopups);
   }
 
   // ── Form/detail fields ──
   if (['createForm', 'editForm', 'details', 'filterForm'].includes(btype)) {
-    const { fields, jsItems, fieldLayout, fieldPopups } = exportFormContents(item, jsDir, prefix, key);
+    const { fields, jsItems, fieldLayout, fieldPopups, templateRef } = exportFormContents(item, jsDir, prefix, key);
     if (fields.length) spec.fields = fields;
     if (jsItems.length) spec.js_items = jsItems;
     if (fieldLayout.length) spec.field_layout = fieldLayout;
+    if (templateRef) spec.templateRef = templateRef;
     popupRefs.push(...fieldPopups);
+  }
+
+  // ── List/GridCard item fields (list.subModels.item.subModels.grid) ──
+  if (['list', 'gridCard'].includes(btype)) {
+    const listItem = item.subModels?.item;
+    if (listItem && !Array.isArray(listItem)) {
+      // Treat the ListItemModel's grid like a form grid
+      const fakeItem = { ...listItem, subModels: { ...listItem.subModels } } as FlowModelNode;
+      // ListItemModel has grid in subModels.grid (same as form blocks)
+      const { fields, jsItems, fieldLayout, fieldPopups } = exportFormContents(fakeItem, jsDir, prefix, key);
+      if (fields.length) spec.fields = fields;
+      if (jsItems.length) spec.js_items = jsItems;
+      if (fieldLayout.length) spec.field_layout = fieldLayout;
+      popupRefs.push(...fieldPopups);
+    }
   }
 
   // ── Actions ──
   const { actions, recordActions, actionPopups } = exportActions(item, key, jsDir, prefix);
   if (actions.length) spec.actions = actions;
-  if (recordActions.length) spec.recordActions = recordActions;
+  // Merge block-level recordActions with actCol recordActions (from table export)
+  // Deduplicate: if actCol already has a type with config, skip the simplified block-level version
+  const existingRecActs = (spec.recordActions as unknown[]) || [];
+  const actColTypes = new Set(existingRecActs
+    .filter(a => typeof a === 'object' && a !== null)
+    .map(a => (a as Record<string, unknown>).type as string));
+  const deduped = recordActions.filter(a => {
+    // Keep block-level action only if actCol doesn't already have a configured version
+    const atype = typeof a === 'string' ? a : (a as Record<string, unknown>).type as string;
+    return !actColTypes.has(atype);
+  });
+  const mergedRecActs = [...existingRecActs, ...deduped];
+  if (mergedRecActs.length) spec.recordActions = mergedRecActs;
   popupRefs.push(...actionPopups);
 
   // State
@@ -218,12 +252,53 @@ function exportTableContents(
   jsDir: string | null,
   prefix: string,
   blockKey: string,
-): { fields: unknown[]; jsCols: unknown[]; fieldPopups: PopupRef[] } {
+): { fields: unknown[]; jsCols: unknown[]; fieldPopups: PopupRef[]; hasActionsColumn: boolean; actColActions: unknown[]; actColPopups: PopupRef[] } {
   const cols = item.subModels?.columns;
   const colArr = (Array.isArray(cols) ? cols : []) as FlowModelNode[];
   const fields: unknown[] = [];
   const jsCols: unknown[] = [];
   const fieldPopups: PopupRef[] = [];
+
+  // Extract actCol buttons (edit/view/delete/updateRecord in TableActionsColumn)
+  let hasActionsColumn = false;
+  const actColActions: unknown[] = [];
+  const actColPopups: PopupRef[] = [];
+  for (const col of colArr) {
+    if (!col.use?.includes('TableActionsColumn')) continue;
+    hasActionsColumn = true;
+    const actColItems = col.subModels?.actions;
+    const actArr = (Array.isArray(actColItems) ? actColItems : []) as FlowModelNode[];
+    const actColUsedKeys = new Set<string>();
+    for (const act of actArr) {
+      const atype = ACTION_TYPE_MAP[act.use || ''];
+      if (!atype) continue;
+      const sp = (act.stepParams || {}) as Record<string, unknown>;
+      const props = (act as unknown as Record<string, unknown>).props as Record<string, unknown>;
+      const hasConfig = Object.keys(sp).length > 0 || (props && Object.keys(props).length > 0);
+      if (hasConfig) {
+        const actionSpec: Record<string, unknown> = { type: atype };
+        if (Object.keys(sp).length) actionSpec.stepParams = sp;
+        if (props && Object.keys(props).length) actionSpec.props = props;
+        // Generate semantic key
+        const key = genActionKey(actionSpec);
+        const uniqueKey = actColUsedKeys.has(key) ? (() => { let i = 2; while (actColUsedKeys.has(`${key}_${i}`)) i++; return `${key}_${i}`; })() : key;
+        actColUsedKeys.add(uniqueKey);
+        actionSpec.key = uniqueKey;
+        actColActions.push(actionSpec);
+      } else {
+        actColUsedKeys.add(atype);
+        actColActions.push(atype);
+      }
+      // Check for popup on action
+      const actKey = actColUsedKeys.size > 0 ? [...actColUsedKeys].pop()! : atype;
+      if (act.subModels?.page) {
+        actColPopups.push({
+          field: actKey, field_uid: act.uid, block_key: blockKey,
+          target: `$SELF.${blockKey}.recordActions.${actKey}`,
+        });
+      }
+    }
+  }
 
   for (const col of colArr) {
     if (col.use?.includes('TableActionsColumn')) continue;
@@ -304,7 +379,7 @@ function exportTableContents(
     }
   }
 
-  return { fields, jsCols, fieldPopups };
+  return { fields, jsCols, fieldPopups, hasActionsColumn, actColActions, actColPopups };
 }
 
 // ── Form/detail contents ──
@@ -314,11 +389,25 @@ function exportFormContents(
   jsDir: string | null,
   prefix: string,
   blockKey: string,
-): { fields: unknown[]; jsItems: unknown[]; fieldLayout: unknown[]; fieldPopups: PopupRef[] } {
+): { fields: unknown[]; jsItems: unknown[]; fieldLayout: unknown[]; fieldPopups: PopupRef[]; templateRef?: Record<string, unknown> } {
   const grid = item.subModels?.grid;
   if (!grid || Array.isArray(grid)) return { fields: [], jsItems: [], fieldLayout: [], fieldPopups: [] };
 
   const gridNode = grid as FlowModelNode;
+
+  // Check for ReferenceFormGridModel — fields are proxied from template
+  let templateRef: Record<string, unknown> | undefined;
+  const refSettings = (gridNode.stepParams as Record<string, unknown>)?.referenceSettings as Record<string, unknown>;
+  const useTemplate = refSettings?.useTemplate as Record<string, unknown>;
+  if (useTemplate?.targetUid && gridNode.use === 'ReferenceFormGridModel') {
+    templateRef = {
+      templateUid: useTemplate.templateUid,
+      templateName: useTemplate.templateName,
+      targetUid: useTemplate.targetUid,
+      mode: useTemplate.mode || 'reference',
+    };
+  }
+
   const rawItems = gridNode.subModels?.items;
   const items = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
   const fields: unknown[] = [];
@@ -387,7 +476,7 @@ function exportFormContents(
   // Extract field_layout from gridSettings.rows
   const fieldLayout = extractGridLayout(gridNode, uidToName);
 
-  return { fields, jsItems, fieldLayout, fieldPopups };
+  return { fields, jsItems, fieldLayout, fieldPopups, templateRef };
 }
 
 /**
@@ -480,6 +569,7 @@ const ACTION_TYPE_MAP: Record<string, string> = {
   ExpandCollapseActionModel: 'expandCollapse',
   PopupCollectionActionModel: 'popup',
   UpdateRecordActionModel: 'updateRecord',
+  AddChildActionModel: 'addChild',
   RecordHistoryExpandActionModel: 'historyExpand',
   RecordHistoryCollapseActionModel: 'historyCollapse',
 };
@@ -510,7 +600,7 @@ function exportActions(
         const sp = (act.stepParams || {}) as Record<string, unknown>;
         const tasks = ((sp.shortcutSettings as Record<string, unknown>)?.editTasks as Record<string, unknown>)?.tasks;
 
-        const actionSpec: Record<string, unknown> = { type: 'ai', employee };
+        const actionSpec: Record<string, unknown> = { type: 'ai', employee, key: `ai_${slugify(employee)}` };
 
         // Extract tasks to file if jsDir available
         if (tasks && Array.isArray(tasks) && jsDir) {
@@ -544,6 +634,7 @@ function exportActions(
         if (act.stepParams && Object.keys(act.stepParams).length) {
           actionSpec.stepParams = act.stepParams;
         }
+        actionSpec.key = genActionKey(actionSpec);
         target.push(actionSpec);
       } else {
         // For actions with stepParams (popup buttons, updateRecord, etc.)
@@ -551,10 +642,11 @@ function exportActions(
         const props = (act as unknown as Record<string, unknown>).props as Record<string, unknown>;
         const hasConfig = Object.keys(sp).length > 0 || (props && Object.keys(props).length > 0);
 
-        if (hasConfig && ['popup', 'updateRecord', 'duplicate'].includes(atype)) {
+        if (hasConfig && ['popup', 'updateRecord', 'duplicate', 'addChild'].includes(atype)) {
           const actionSpec: Record<string, unknown> = { type: atype };
           if (Object.keys(sp).length) actionSpec.stepParams = sp;
           if (props && Object.keys(props).length) actionSpec.props = props;
+          actionSpec.key = genActionKey(actionSpec);
           target.push(actionSpec);
         } else {
           target.push(atype);
@@ -563,11 +655,16 @@ function exportActions(
 
       // Check for popup (ChildPage under action)
       if (act.subModels?.page) {
+        // Use the semantic key for the target ref
+        const lastPushed = target[target.length - 1];
+        const refKey = typeof lastPushed === 'object' && lastPushed
+          ? ((lastPushed as Record<string, unknown>).key as string) || atype
+          : atype;
         actionPopups.push({
-          field: atype,
+          field: refKey,
           field_uid: act.uid,
           block_key: blockKey,
-          target: `$SELF.${blockKey}.${subKey === 'recordActions' ? 'record_actions' : 'actions'}.${atype}`,
+          target: `$SELF.${blockKey}.${subKey === 'recordActions' ? 'recordActions' : 'actions'}.${refKey}`,
         });
       }
     }

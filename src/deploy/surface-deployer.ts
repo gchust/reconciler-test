@@ -60,7 +60,7 @@ export async function deploySurface(
           }
         }
       }
-    } catch { continue; }
+    } catch { continue; /* try next grid getter */ }
   }
 
   // Check if all blocks already exist in state
@@ -69,47 +69,44 @@ export async function deploySurface(
   );
 
   if (allExist) {
-    if (force) {
-      log(`    ~ ${Object.keys(existing).length} blocks exist (update in-place)`);
-      for (const bs of blocksSpec) {
-        const key = bs.key || bs.type;
-        if (!blocksState[key]?.uid) continue;
-        const blockUid = blocksState[key].uid;
-        const blockGrid = blocksState[key].grid_uid || '';
+    // All blocks exist — sync content to match spec
+    log(`    = ${Object.keys(existing).length} blocks exist (sync)`);
+    for (const bs of blocksSpec) {
+      const key = bs.key || bs.type;
+      if (!blocksState[key]?.uid) continue;
+      const blockUid = blocksState[key].uid;
+      const blockGrid = blocksState[key].grid_uid || '';
 
-        // Check for missing fields and add them
-        if (['table', 'filterForm', 'createForm', 'editForm', 'details'].includes(bs.type)) {
-          const specFields = (bs.fields || [])
-            .map(f => typeof f === 'string' ? f : (f.field || f.fieldPath || ''))
-            .filter(fp => fp && !fp.startsWith('['));
+      // Add missing fields
+      if (['table', 'filterForm', 'createForm', 'editForm', 'details'].includes(bs.type)) {
+        const specFields = (bs.fields || [])
+          .map(f => typeof f === 'string' ? f : (f.field || f.fieldPath || ''))
+          .filter(fp => fp && !fp.startsWith('['));
 
-          const existingFields = new Set(Object.keys(blocksState[key].fields || {}));
-          for (const fp of specFields) {
-            if (!existingFields.has(fp)) {
-              try {
-                const result = await nb.surfaces.addField(blockUid, fp);
-                if (!blocksState[key].fields) blocksState[key].fields = {};
-                blocksState[key].fields![fp] = {
-                  wrapper: result.wrapperUid || result.uid || '',
-                  field: result.fieldUid || '',
-                };
-                log(`      + field: ${fp}`);
-              } catch (e) {
-                log(`      ! field ${fp}: ${e instanceof Error ? e.message : e}`);
-              }
+        const existingFields = new Set(Object.keys(blocksState[key].fields || {}));
+        for (const fp of specFields) {
+          if (!existingFields.has(fp)) {
+            try {
+              const result = await nb.surfaces.addField(blockUid, fp);
+              if (!blocksState[key].fields) blocksState[key].fields = {};
+              blocksState[key].fields![fp] = {
+                wrapper: result.wrapperUid || result.uid || '',
+                field: result.fieldUid || '',
+              };
+              log(`      + field: ${fp}`);
+            } catch (e) {
+              log(`      ! field ${fp}: ${e instanceof Error ? e.message : e}`);
             }
-          }
-
-          // Reorder table columns
-          if (bs.type === 'table' && specFields.length) {
-            await reorderTableColumns(nb, blockUid, specFields);
           }
         }
 
-        await fillBlock(nb, blockUid, blockGrid, bs, coll, modDir, blocksState[key], blocksState, gridUid, log, popupContext);
+        if (bs.type === 'table' && specFields.length) {
+          await reorderTableColumns(nb, blockUid, specFields);
+        }
       }
-    } else {
-      log(`    = ${Object.keys(existing).length} blocks exist (skip)`);
+
+      // Update content (JS, charts, title, actions, settings)
+      await fillBlock(nb, blockUid, blockGrid, bs, coll, modDir, blocksState[key], blocksState, gridUid, log, popupContext);
     }
 
     // Always apply layout
@@ -126,11 +123,11 @@ export async function deploySurface(
     return blocksState;
   }
 
-  // ── Step 1: Compose empty block shells ──
+  // ── Step 1: Compose missing block shells ──
   const composeBlocks: Record<string, unknown>[] = [];
   for (const bs of blocksSpec) {
     const key = bs.key || bs.type;
-    if (key in existing && !force) continue;
+    if (key in existing) continue;  // already exists — skip compose (force handles via fillBlock)
     const cb = toComposeBlock(bs, coll);
     if (cb) composeBlocks.push(cb);
   }

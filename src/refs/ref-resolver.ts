@@ -66,6 +66,19 @@ export class RefResolver {
           }
         }
 
+        // Search in popup blocks: $page.details.actions.edit
+        // → pages.page.popups.*.blocks.details.actions.edit
+        for (const key of this.index.keys()) {
+          if (key.startsWith(`${pageName}.popups.`) && key.includes('.blocks.')) {
+            const blocksIdx = key.indexOf('.blocks.');
+            const tail = key.slice(blocksIdx + 8);
+            if (tail === rest || tail.startsWith(rest + '.')) {
+              const popupPath = `${key.slice(0, blocksIdx + 8)}${rest}`;
+              if (this.index.has(popupPath)) return this.index.get(popupPath);
+            }
+          }
+        }
+
         // Fuzzy: "table" matches "table_0", "table_1", etc.
         const restDot = rest.indexOf('.');
         if (restDot > 0) {

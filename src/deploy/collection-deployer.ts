@@ -3,6 +3,7 @@
  */
 import type { NocoBaseClient } from '../client';
 import type { CollectionDef, FieldDef } from '../types/spec';
+import { bestEffort } from '../utils/error-utils';
 
 /**
  * Ensure a collection exists with all specified fields.
@@ -26,12 +27,12 @@ export async function ensureCollection(
       f => f.interface === 'input' && !f.name.includes('_id'),
     );
     if (titleField) {
-      try {
-        await nb.http.post(`${nb.baseUrl}/api/collections:update`, {
+      await bestEffort('setTitleField', () =>
+        nb.http.post(`${nb.baseUrl}/api/collections:update`, {
           filterByTk: name,
           values: { titleField: titleField.name },
-        });
-      } catch { /* best effort */ }
+        }),
+      );
     }
   }
 

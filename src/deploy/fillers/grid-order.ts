@@ -1,0 +1,70 @@
+/**
+ * Sync grid items order to match the spec's declaration order.
+ *
+ * In YAML, the order of js_items, fields, dividers determines display order.
+ * This reads live grid items, builds desired order from spec, then moveNode.
+ */
+import type { NocoBaseClient } from '../../client';
+import type { BlockSpec } from '../../types/spec';
+import { bestEffort } from '../../utils/error-utils';
+import type { LogFn } from './types';
+
+export async function syncGridItemsOrder(
+  nb: NocoBaseClient,
+  gridUid: string,
+  bs: BlockSpec,
+  log?: LogFn,
+): Promise<void> {
+  if (!gridUid) return;
+  if (!['filterForm', 'createForm', 'editForm', 'details'].includes(bs.type)) return;
+
+  await bestEffort('syncGridItemsOrder', async () => {
+    const live = await nb.get({ uid: gridUid });
+    const rawItems = live.tree.subModels?.items;
+    const items = (Array.isArray(rawItems) ? rawItems : []) as { uid: string; use?: string; stepParams?: Record<string, unknown> }[];
+    if (items.length < 2) return;
+
+    // Build UID lookup: fieldPath → uid, jsItem → uid, divider label → uid
+    const uidByFieldPath = new Map<string, string>();
+    const uidByUse = new Map<string, string[]>();
+    for (const item of items) {
+      const fp = (item.stepParams?.fieldSettings as Record<string, unknown>)
+        ?.init as Record<string, unknown>;
+      const fieldPath = fp?.fieldPath as string;
+      if (fieldPath) uidByFieldPath.set(fieldPath, item.uid);
+
+      const use = item.use || '';
+      const group = uidByUse.get(use) || [];
+      group.push(item.uid);
+      uidByUse.set(use, group);
+    }
+
+    // Build desired order from spec: walk through js_items and fields in declaration order
+    const desiredUids: string[] = [];
+
+    // js_items first (they appear before fields in the spec)
+    const jsItemUids = uidByUse.get('JSItemModel') || [];
+    desiredUids.push(...jsItemUids);
+
+    // Then fields in spec order
+    const specFields = (bs.fields || []).map(f =>
+      typeof f === 'string' ? f : (f.field || f.fieldPath || ''),
+    ).filter(Boolean);
+    for (const fp of specFields) {
+      const uid = uidByFieldPath.get(fp);
+      if (uid && !desiredUids.includes(uid)) desiredUids.push(uid);
+    }
+
+    // Append any remaining items not yet covered (dividers, etc.)
+    for (const item of items) {
+      if (!desiredUids.includes(item.uid)) desiredUids.push(item.uid);
+    }
+
+    // Apply order via moveNode
+    if (desiredUids.length > 1) {
+      for (let i = 1; i < desiredUids.length; i++) {
+        await nb.surfaces.moveNode(desiredUids[i], desiredUids[i - 1], 'after');
+      }
+    }
+  }, log);
+}
