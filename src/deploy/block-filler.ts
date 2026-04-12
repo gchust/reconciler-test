@@ -90,22 +90,15 @@ export async function fillBlock(
               },
             };
 
-            // Step 2: Compose a default details block into the popup
+            // Step 2: Compose a default details block into the field
+            // This creates a ChildPage under field.subModels.page
+            // NocoBase reads popupSettings.uid → finds field → uses field.subModels.page
             try {
               await nb.surfaces.compose(fieldUid, [{
                 key: 'details',
                 type: 'details',
                 resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
               }], 'replace');
-
-              // Update popupSettings.uid to point to the ChildPage (not the field)
-              const refreshed = await nb.get({ uid: fieldUid });
-              const childPage = refreshed.tree.subModels?.page;
-              if (childPage && !Array.isArray(childPage)) {
-                (update.popupSettings as Record<string, unknown>).openView =
-                  { ...(update.popupSettings as Record<string, unknown>).openView as Record<string, unknown>,
-                    uid: (childPage as { uid: string }).uid };
-              }
             } catch { /* popup might already have content */ }
           }
           await nb.updateModel(fieldUid, update);
