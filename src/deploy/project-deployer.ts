@@ -783,6 +783,48 @@ async function deployPagePopups(
     }
   }
 
+  // Enrich popup block state with live actions/fields (for Pass 2 ref resolution)
+  for (const [popupKey, popupState] of Object.entries(pageState.popups || {})) {
+    const pBlocks = (popupState as unknown as Record<string, unknown>).blocks as Record<string, BlockState> | undefined;
+    if (!pBlocks) continue;
+    for (const [bk, bv] of Object.entries(pBlocks)) {
+      if (bv.actions && Object.keys(bv.actions).length) continue;
+      // Read live block to get actions
+      try {
+        const blockData = await nb.get({ uid: bv.uid });
+        const subModels = blockData.tree.subModels || {};
+        for (const actKey of ['actions', 'recordActions'] as const) {
+          const acts = (subModels as Record<string, unknown>)[actKey];
+          const actArr = (Array.isArray(acts) ? acts : []) as Record<string, unknown>[];
+          if (actArr.length) {
+            const stateKey = actKey === 'recordActions' ? 'record_actions' : 'actions';
+            if (!(bv as any)[stateKey]) (bv as any)[stateKey] = {};
+            for (const a of actArr) {
+              const aUid = a.uid as string || '';
+              const aUse = a.use as string || '';
+              const aType = aUse.replace('ActionModel', '').replace('Action', '');
+              const aKey = aType.charAt(0).toLowerCase() + aType.slice(1);
+              if (aUid) (bv as any)[stateKey][aKey] = { uid: aUid };
+            }
+          }
+        }
+        // Also extract fields
+        const cols = (subModels as Record<string, unknown>).columns;
+        const colArr = (Array.isArray(cols) ? cols : []) as Record<string, unknown>[];
+        if (colArr.length && !bv.fields) {
+          bv.fields = {};
+          for (const col of colArr) {
+            const fp = ((col.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
+              ?.init as Record<string, unknown>;
+            const fieldPath = (fp?.fieldPath || '') as string;
+            if (fieldPath) bv.fields[fieldPath] = { wrapper: col.uid as string || '', field: '' };
+          }
+        }
+      } catch { /* skip */ }
+    }
+  }
+  state.pages[pageKey] = pageState;
+
   // Pass 2: nested refs (targets inside popup blocks)
   if (deferred.length) {
     const resolver2 = new RefResolver(state);
