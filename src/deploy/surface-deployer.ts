@@ -229,7 +229,7 @@ export async function deploySurface(
 
       // Resource settings (with full associationName + sourceId for popup blocks)
       const resource: Record<string, unknown> = {};
-      if (blockColl && blockColl !== bs.type) {
+      if (blockColl) {
         resource.collectionName = blockColl;
         resource.dataSourceKey = 'main';
       }
