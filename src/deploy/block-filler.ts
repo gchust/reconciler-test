@@ -142,22 +142,15 @@ export async function fillBlock(
           log(`      - action column removed (spec has none)`);
         }
       } else if (actCol) {
-        // Has recordActions → clean compose-default buttons (edit/view/delete)
-        // that aren't in spec, keep only spec-declared types
-        const specTypes = new Set(
-          (bs.recordActions || []).map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string),
-        );
+        // Has recordActions → remove ALL existing actCol buttons first.
+        // deployNonComposeActions will re-create spec-declared ones with correct config.
         const actColActs = actCol.subModels?.actions;
         const actColArr = (Array.isArray(actColActs) ? actColActs : []) as { uid: string; use?: string }[];
-        const DEFAULT_RECORD_ACTIONS: Record<string, string> = {
-          EditActionModel: 'edit', ViewActionModel: 'view', DeleteActionModel: 'delete',
-        };
-        for (const a of actColArr) {
-          const defaultType = DEFAULT_RECORD_ACTIONS[a.use || ''];
-          if (defaultType && !specTypes.has(defaultType)) {
+        if (actColArr.length) {
+          for (const a of actColArr) {
             await nb.surfaces.removeNode(a.uid);
-            log(`      - removed auto-created ${defaultType} button`);
           }
+          log(`      - cleared ${actColArr.length} auto-created actCol buttons`);
         }
       }
 
