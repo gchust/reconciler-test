@@ -46,6 +46,19 @@ export async function deployNonComposeActions(
     } catch { /* skip */ }
   }
 
+  // Read live actions to detect existing ones (created by compose/blueprint)
+  const liveActionsByUse = new Map<string, string>(); // use → uid
+  try {
+    const blockData = await nb.get({ uid: blockUid });
+    for (const subKey of ['actions', 'recordActions'] as const) {
+      const raw = blockData.tree.subModels?.[subKey];
+      const arr = (Array.isArray(raw) ? raw : []) as { uid: string; use: string }[];
+      for (const a of arr) {
+        if (a.use && a.uid) liveActionsByUse.set(a.use, a.uid);
+      }
+    }
+  } catch { /* skip */ }
+
   const allActions = [...(bs.actions || []), ...(bs.recordActions || [])];
   const usedStateKeys = new Set<string>();
 
@@ -85,6 +98,21 @@ export async function deployNonComposeActions(
         if (Object.keys(actionProps).length) update.props = actionProps;
         await nb.models.save(update);
       }
+      continue;
+    }
+
+    // Check live tree for existing action with same model type (dedup compose/blueprint)
+    const existingLiveUid = liveActionsByUse.get(amodel);
+    if (existingLiveUid) {
+      // Update existing action with spec config
+      if (Object.keys(actionSp).length || Object.keys(actionProps).length) {
+        const update: Record<string, unknown> = { uid: existingLiveUid };
+        if (Object.keys(actionSp).length) update.stepParams = actionSp;
+        if (Object.keys(actionProps).length) update.props = actionProps;
+        await nb.models.save(update);
+      }
+      existingGroup[stateActionKey] = { uid: existingLiveUid };
+      liveActionsByUse.delete(amodel); // consumed — don't reuse for next same-type action
       continue;
     }
 
