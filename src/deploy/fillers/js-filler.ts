@@ -81,19 +81,25 @@ export async function deployJsColumns(
 
     const existing = blockState.js_columns?.[jsSpec.key];
     if (existing?.uid) {
-      await nb.updateModel(existing.uid, {
+      const colUpdate: Record<string, unknown> = {
         jsSettings: { runJs: { code, version: 'v1' } },
-      });
+      };
+      if (jsSpec.title) colUpdate.tableColumnSettings = { title: { title: jsSpec.title } };
+      await nb.updateModel(existing.uid, colUpdate);
     } else {
       const newUid = generateUid();
+      const colStepParams: Record<string, unknown> = {
+        jsSettings: { runJs: { code, version: 'v1' } },
+        fieldSettings: { init: { fieldPath: jsSpec.field } },
+      };
+      if (jsSpec.title) {
+        colStepParams.tableColumnSettings = { title: { title: jsSpec.title } };
+      }
       await nb.models.save({
         uid: newUid, use: 'JSColumnModel',
         parentId: blockUid, subKey: 'columns', subType: 'array',
         sortIndex: 0, flowRegistry: {},
-        stepParams: {
-          jsSettings: { runJs: { code, version: 'v1' } },
-          fieldSettings: { init: { fieldPath: jsSpec.field } },
-        },
+        stepParams: colStepParams,
       });
       if (!blockState.js_columns) blockState.js_columns = {};
       blockState.js_columns[jsSpec.key] = { uid: newUid };

@@ -70,6 +70,7 @@ export interface JsColumnSpec {
   key: string;
   field: string;
   file: string;
+  title?: string;
   desc?: string;
 }
 
