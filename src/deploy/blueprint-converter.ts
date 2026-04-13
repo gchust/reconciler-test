@@ -19,6 +19,7 @@ import * as path from 'node:path';
 import type { BlockSpec, FieldSpec, PopupSpec, LayoutRow } from '../types/spec';
 import type { PageInfo } from './page-discovery';
 import { loadYaml } from '../utils/yaml';
+import { slugify } from '../utils/slugify';
 
 // ── Blueprint document types (matching NocoBase public-types.ts) ──
 
@@ -92,24 +93,66 @@ export function pageToBlueprint(
   const mode = opts.mode || 'create';
   const blocks = page.layout.blocks || [];
 
-  // Build assets from JS files and charts in page directory
-  const assets = buildAssets(page.dir, blocks);
+  const tabs = page.layout.tabs;
+  const isMultiTab = tabs && tabs.length > 1;
 
-  // Build tab blocks
-  const tabBlocks = blocks.map(bs => blockSpecToBlueprint(bs, page.dir));
+  // Collect all blocks across tabs for asset building
+  const allBlocks = isMultiTab
+    ? tabs.flatMap(t => t.blocks || [])
+    : blocks;
 
-  // Build layout
-  const layout = convertLayout(page.layout.layout, blocks);
+  // Resolve tab directories for asset file paths
+  const tabDirs = isMultiTab
+    ? tabs.map(t => {
+        const tabSlug = slugify(t.title || '');
+        const tabDir = path.join(page.dir, `tab_${tabSlug}`);
+        return fs.existsSync(tabDir) ? tabDir : page.dir;
+      })
+    : [page.dir];
+
+  // Build assets from all tabs
+  let assets: ReturnType<typeof buildAssets> = { scripts: {}, charts: {} };
+  for (let ti = 0; ti < (isMultiTab ? tabs.length : 1); ti++) {
+    const tabBlks = isMultiTab ? (tabs[ti].blocks || []) : blocks;
+    const dir = tabDirs[ti] || page.dir;
+    const tabKey = isMultiTab ? `tab${ti}` : 'main';
+    const tabAssets = buildAssets(dir, tabBlks, tabKey);
+    Object.assign(assets.scripts!, tabAssets.scripts || {});
+    Object.assign(assets.charts!, tabAssets.charts || {});
+  }
+
+  // Build blueprint tabs
+  const blueprintTabs: BlueprintTab[] = [];
+
+  if (isMultiTab) {
+    for (let ti = 0; ti < tabs.length; ti++) {
+      const tab = tabs[ti];
+      const tabKey = `tab${ti}`;
+      const dir = tabDirs[ti] || page.dir;
+      const tabBlks = (tab.blocks || []).map(bs => blockSpecToBlueprint(bs, dir, tabKey));
+      const tabLayout = convertLayout(tab.layout as LayoutRow[] | undefined, tab.blocks || [], tabKey);
+      blueprintTabs.push({
+        key: tabKey,
+        title: tab.title,
+        blocks: tabBlks,
+        ...(tabLayout ? { layout: tabLayout } : {}),
+      });
+    }
+  } else {
+    const tabBlks = blocks.map(bs => blockSpecToBlueprint(bs, page.dir, 'main'));
+    const layout = convertLayout(page.layout.layout, blocks, 'main');
+    blueprintTabs.push({
+      key: 'main',
+      title: page.title,
+      blocks: tabBlks,
+      ...(layout ? { layout } : {}),
+    });
+  }
 
   const doc: BlueprintDocument = {
     version: '1',
     mode,
-    tabs: [{
-      key: 'main',
-      title: page.title,
-      blocks: tabBlocks,
-      ...(layout ? { layout } : {}),
-    }],
+    tabs: blueprintTabs,
     ...(Object.keys(assets.scripts || {}).length || Object.keys(assets.charts || {}).length
       ? { assets }
       : {}),
@@ -127,7 +170,11 @@ export function pageToBlueprint(
   }
 
   // Page settings
-  doc.page = { title: page.title, icon: page.icon };
+  doc.page = {
+    title: page.title,
+    icon: page.icon,
+    ...(isMultiTab ? { enableTabs: true } : {}),
+  };
 
   // Replace mode target
   if (mode === 'replace' && opts.pageSchemaUid) {
@@ -145,7 +192,7 @@ export function pageToBlueprint(
 /**
  * Convert a BlockSpec to a Blueprint block.
  */
-function blockSpecToBlueprint(bs: BlockSpec, pageDir: string): BlueprintBlock {
+function blockSpecToBlueprint(bs: BlockSpec, pageDir: string, tabKey = 'main'): BlueprintBlock {
   const block: BlueprintBlock = {
     key: bs.key || bs.type,
   };
@@ -231,13 +278,13 @@ function blockSpecToBlueprint(bs: BlockSpec, pageDir: string): BlueprintBlock {
   if (bs.type === 'jsBlock' && bs.file) {
     const jsPath = path.resolve(pageDir, bs.file);
     if (fs.existsSync(jsPath)) {
-      block.script = `main.${bs.key || bs.type}`;  // asset key
+      block.script = `${tabKey}.${bs.key || bs.type}`;
     }
   }
 
   // Chart: chart asset reference
   if (bs.type === 'chart' && bs.chart_config) {
-    block.chart = `main.${bs.key || bs.type}`;  // asset key
+    block.chart = `${tabKey}.${bs.key || bs.type}`;
   }
 
   // DataScope → settings (direct FilterGroup format: {logic, items})
@@ -297,12 +344,13 @@ function convertField(f: FieldSpec): string | Record<string, unknown> | null {
 function buildAssets(
   pageDir: string,
   blocks: BlockSpec[],
+  tabKey = 'main',
 ): { scripts?: Record<string, Record<string, unknown>>; charts?: Record<string, Record<string, unknown>> } {
   const scripts: Record<string, Record<string, unknown>> = {};
   const charts: Record<string, Record<string, unknown>> = {};
 
   for (const bs of blocks) {
-    const key = `main.${bs.key || bs.type}`;
+    const key = `${tabKey}.${bs.key || bs.type}`;
 
     // JS blocks — script asset format: { code, version }
     if (bs.type === 'jsBlock' && bs.file) {
@@ -360,6 +408,7 @@ function buildAssets(
 function convertLayout(
   layoutSpec: LayoutRow[] | undefined,
   blocks: BlockSpec[],
+  tabKey = 'main',
 ): { rows: (string | { key: string; span?: number })[][] } | undefined {
   if (!layoutSpec?.length) return undefined;
 
@@ -394,7 +443,7 @@ function convertLayout(
     }
   }
 
-  const resolveKey = (k: string) => `main.${keyRemap.get(k) || k}`;
+  const resolveKey = (k: string) => `${tabKey}.${keyRemap.get(k) || k}`;
 
   const rows: (string | { key: string; span?: number })[][] = [];
   for (const row of layoutSpec) {

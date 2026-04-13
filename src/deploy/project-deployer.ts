@@ -257,9 +257,16 @@ export async function deployProject(
   const targetGroup = opts.group || routes.find(r => r.type === 'group')?.title || '';
   if (targetGroup) {
     try {
+      // Save routes.yaml before re-export (re-export overwrites it with target group routes)
+      const routesBackup = fs.readFileSync(routesFile, 'utf8');
+
       const { exportProject } = await import('../export');
       log('\n  ── Re-export for diff ──');
       await exportProject(nb, { outDir: root, group: targetGroup });
+
+      // Restore original routes.yaml (source structure, not target)
+      fs.writeFileSync(routesFile, routesBackup);
+
       const diff = gitDiff(root, log);
       if (diff) {
         log(`\n  ── Deploy diff (${diff.files} files changed) ──`);
@@ -271,6 +278,95 @@ export async function deployProject(
       log(`  ! Re-export failed: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
     }
   }
+}
+
+// ── Block state extraction from live tree ──
+
+const MODEL_MAP: Record<string, string> = {
+  table: 'TableBlockModel', filterForm: 'FilterFormBlockModel',
+  createForm: 'CreateFormModel', editForm: 'EditFormModel',
+  details: 'DetailsBlockModel', list: 'ListBlockModel',
+  gridCard: 'GridCardBlockModel', jsBlock: 'JSBlockModel',
+  chart: 'ChartBlockModel', markdown: 'MarkdownBlockModel',
+  iframe: 'IframeBlockModel',
+};
+
+function extractBlockState(
+  liveTab: Record<string, unknown>,
+  specBlocks: BlockSpec[],
+): Record<string, BlockState> {
+  const existing: Record<string, BlockState> = {};
+  const tabSub = liveTab.subModels as Record<string, unknown> | undefined;
+  const tabGrid = tabSub?.grid as Record<string, unknown> | undefined;
+  const gridSub = tabGrid?.subModels as Record<string, unknown> | undefined;
+  const items = gridSub?.items;
+  const itemArr = (Array.isArray(items) ? items : []) as Record<string, unknown>[];
+  const candidates = [...specBlocks];
+
+  for (const item of itemArr) {
+    const uid = item.uid as string || '';
+    const use = item.use as string || '';
+    if (!uid) continue;
+
+    const matched = candidates.find(b =>
+      use === MODEL_MAP[b.type] || use.toLowerCase().includes(b.type.toLowerCase()),
+    );
+    if (!matched) continue;
+
+    const key = matched.key || matched.type;
+    if (existing[key]) continue;
+
+    const entry: BlockState = { uid, type: matched.type, grid_uid: (tabGrid?.uid as string) || '' };
+    const itemSub = item.subModels as Record<string, unknown> | undefined;
+
+    // Extract fields (table columns or form grid items)
+    const columns = itemSub?.columns;
+    const colArr = (Array.isArray(columns) ? columns : []) as Record<string, unknown>[];
+    if (colArr.length) {
+      entry.fields = {};
+      for (const col of colArr) {
+        const fp = ((col.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
+          ?.init as Record<string, unknown>;
+        const fieldPath = (fp?.fieldPath || '') as string;
+        if (fieldPath) entry.fields[fieldPath] = { wrapper: col.uid as string || '', field: '' };
+      }
+    }
+    const blockGrid = itemSub?.grid as Record<string, unknown> | undefined;
+    const bgItems = (blockGrid?.subModels as Record<string, unknown> | undefined)?.items;
+    const bgArr = (Array.isArray(bgItems) ? bgItems : []) as Record<string, unknown>[];
+    if (bgArr.length && !entry.fields) {
+      entry.fields = {};
+      for (const gi of bgArr) {
+        const fp = ((gi.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
+          ?.init as Record<string, unknown>;
+        const fieldPath = (fp?.fieldPath || '') as string;
+        if (fieldPath) entry.fields[fieldPath] = { wrapper: gi.uid as string || '', field: '' };
+      }
+    }
+
+    // Extract actions
+    for (const actKey of ['actions', 'recordActions'] as const) {
+      const acts = itemSub?.[actKey];
+      const actArr = (Array.isArray(acts) ? acts : []) as Record<string, unknown>[];
+      if (actArr.length) {
+        const stateKey = actKey === 'recordActions' ? 'record_actions' : 'actions';
+        if (!(entry as any)[stateKey]) (entry as any)[stateKey] = {};
+        for (const a of actArr) {
+          const aUid = a.uid as string || '';
+          const aUse = a.use as string || '';
+          const aType = aUse.replace('ActionModel', '').replace('Action', '');
+          const aKey = aType.charAt(0).toLowerCase() + aType.slice(1);
+          if (aUid) (entry as any)[stateKey][aKey] = { uid: aUid };
+        }
+      }
+    }
+
+    existing[key] = entry;
+    const idx = candidates.indexOf(matched);
+    if (idx >= 0) candidates.splice(idx, 1);
+  }
+
+  return existing;
 }
 
 // ── Git helpers ──
@@ -628,125 +724,59 @@ async function deployPageBlueprint(
 
     log(`  ${isReplace ? '~' : '+'} page (blueprint): ${pageInfo.title}`);
 
-    // Read back page structure to build state + run fillBlock for polish
-    // (clean auto-created action columns, add non-standard actions, titles, linkage rules)
+    // Read back page structure + run deploySurface sync for each tab
     if (pageSchemaUid) {
       const pageData = await nb.get({ pageSchemaUid });
       const tree = pageData.tree;
-      const tabs = tree.subModels?.tabs;
-      const tabArr = Array.isArray(tabs) ? tabs : tabs ? [tabs] : [];
+      const liveTabs = tree.subModels?.tabs;
+      const liveTabArr = Array.isArray(liveTabs) ? liveTabs : liveTabs ? [liveTabs] : [];
 
-      if (tabArr.length) {
-        const firstTab = tabArr[0] as unknown as Record<string, unknown>;
-        const tabUid = firstTab.uid as string || '';
+      const specTabs = pageInfo.layout.tabs;
+      const isMultiTab = specTabs && specTabs.length > 1;
 
-        // Extract block UIDs from live page tree so deploySurface sees them as "existing"
-        const existingBlocks: Record<string, BlockState> = {};
-        const tabSub = firstTab.subModels as Record<string, unknown> | undefined;
-        const tabGrid = tabSub?.grid as Record<string, unknown> | undefined;
-        const gridSub = tabGrid?.subModels as Record<string, unknown> | undefined;
-        const gridItems = gridSub?.items;
-        const itemArr = (Array.isArray(gridItems) ? gridItems : []) as Record<string, unknown>[];
-        const specBlocks = [...(pageInfo.layout.blocks || [])];
+      const firstTabUid = liveTabArr.length
+        ? (liveTabArr[0] as unknown as Record<string, unknown>).uid as string || ''
+        : '';
 
-        for (const item of itemArr) {
-          const uid = item.uid as string || '';
-          const use = item.use as string || '';
-          if (!uid) continue;
+      state.pages[pageKey] = {
+        route_id: (target.routeId || 0) as number,
+        page_uid: pageUid || pageSchemaUid,
+        tab_uid: firstTabUid,
+        blocks: {},
+      };
 
-          // Match to spec block by model name
-          const matched = specBlocks.find(b => {
-            const modelMap: Record<string, string> = {
-              table: 'TableBlockModel', filterForm: 'FilterFormBlockModel',
-              createForm: 'CreateFormModel', editForm: 'EditFormModel',
-              details: 'DetailsBlockModel', list: 'ListBlockModel',
-              gridCard: 'GridCardBlockModel', jsBlock: 'JSBlockModel',
-              chart: 'ChartBlockModel', markdown: 'MarkdownBlockModel',
-              iframe: 'IframeBlockModel',
-            };
-            return use === modelMap[b.type] || use.toLowerCase().includes(b.type.toLowerCase());
-          });
+      // Process each tab
+      const tabCount = isMultiTab ? specTabs.length : 1;
+      for (let ti = 0; ti < tabCount && ti < liveTabArr.length; ti++) {
+        const liveTab = liveTabArr[ti] as unknown as Record<string, unknown>;
+        const tabUid = liveTab.uid as string || '';
+        const tabSpec = isMultiTab
+          ? { blocks: specTabs[ti].blocks, layout: specTabs[ti].layout } as any
+          : pageInfo.layout;
+        const tabDir = isMultiTab
+          ? (() => {
+              const tslug = slugify(specTabs[ti].title || '');
+              const td = path.join(pageInfo.dir, `tab_${tslug}`);
+              return fs.existsSync(td) ? td : pageInfo.dir;
+            })()
+          : pageInfo.dir;
 
-          if (matched) {
-            const key = matched.key || matched.type;
-            if (!existingBlocks[key]) {
-              const entry: BlockState = { uid, type: matched.type, grid_uid: (tabGrid?.uid as string) || '' };
+        // Extract existing block UIDs from live tab
+        const existingBlocks = extractBlockState(liveTab, tabSpec.blocks || []);
 
-              // For table/form blocks, extract existing field UIDs so deploySurface won't re-add them
-              const itemSub = item.subModels as Record<string, unknown> | undefined;
-              const columns = itemSub?.columns;
-              const colArr = (Array.isArray(columns) ? columns : []) as Record<string, unknown>[];
-              if (colArr.length) {
-                entry.fields = {};
-                for (const col of colArr) {
-                  const colSp = col.stepParams as Record<string, unknown> | undefined;
-                  const fieldInit = (colSp?.fieldSettings as Record<string, unknown>)?.init as Record<string, unknown> | undefined;
-                  const fp = (fieldInit?.fieldPath || '') as string;
-                  if (fp) {
-                    entry.fields[fp] = { wrapper: col.uid as string || '', field: '' };
-                  }
-                }
-              }
-
-              // Also check grid items (for form/details/filterForm blocks)
-              const blockGrid = itemSub?.grid as Record<string, unknown> | undefined;
-              const blockGridItems = (blockGrid?.subModels as Record<string, unknown> | undefined)?.items;
-              const bgItemArr = (Array.isArray(blockGridItems) ? blockGridItems : []) as Record<string, unknown>[];
-              if (bgItemArr.length && !entry.fields) {
-                entry.fields = {};
-                for (const gi of bgItemArr) {
-                  const giSp = gi.stepParams as Record<string, unknown> | undefined;
-                  const fp = ((giSp?.fieldSettings as Record<string, unknown>)?.init as Record<string, unknown>)?.fieldPath as string || '';
-                  if (fp) {
-                    entry.fields[fp] = { wrapper: gi.uid as string || '', field: '' };
-                  }
-                }
-              }
-
-              // Extract existing actions so fillBlock won't re-add them
-              const itemSub2 = item.subModels as Record<string, unknown> | undefined;
-              for (const actKey of ['actions', 'recordActions'] as const) {
-                const acts = itemSub2?.[actKey];
-                const actArr = (Array.isArray(acts) ? acts : []) as Record<string, unknown>[];
-                if (actArr.length) {
-                  const stateKey = actKey === 'recordActions' ? 'record_actions' : 'actions';
-                  if (!(entry as any)[stateKey]) (entry as any)[stateKey] = {};
-                  for (const a of actArr) {
-                    const aUid = a.uid as string || '';
-                    const aUse = a.use as string || '';
-                    // Derive action type from model name
-                    const aType = aUse.replace('ActionModel', '').replace('Action', '');
-                    const aKey = aType.charAt(0).toLowerCase() + aType.slice(1);
-                    if (aUid) (entry as any)[stateKey][aKey] = { uid: aUid };
-                  }
-                }
-              }
-
-              existingBlocks[key] = entry;
-              const idx = specBlocks.indexOf(matched);
-              if (idx >= 0) specBlocks.splice(idx, 1);
-            }
-          }
-        }
-
-        // deploySurface in sync mode — blocks exist, only fillBlock for polish
         const blocksState = await deploySurface(
-          nb, tabUid, pageInfo.layout, pageInfo.dir, false, existingBlocks, log,
+          nb, tabUid, tabSpec, tabDir, false, existingBlocks, log,
         );
 
-        state.pages[pageKey] = {
-          route_id: (target.routeId || 0) as number,
-          page_uid: pageUid || pageSchemaUid,
-          tab_uid: tabUid,
-          blocks: blocksState,
-        };
-      } else {
-        state.pages[pageKey] = {
-          route_id: (target.routeId || 0) as number,
-          page_uid: pageUid || pageSchemaUid,
-          tab_uid: '',
-          blocks: {},
-        };
+        if (ti === 0) {
+          state.pages[pageKey].blocks = blocksState;
+        } else {
+          if (!state.pages[pageKey].tab_states) state.pages[pageKey].tab_states = {};
+          (state.pages[pageKey].tab_states as Record<string, unknown>)[slugify(specTabs![ti].title || '')] = {
+            tab_uid: tabUid,
+            blocks: blocksState,
+          };
+        }
       }
     }
   } catch (e) {
