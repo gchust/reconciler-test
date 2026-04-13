@@ -322,8 +322,8 @@ async function deploySingleWorkflow(
   // Fetch existing nodes if updating
   let existingNodes: ApiFlowNode[] = [];
   if (existing) {
-    const nodesResp = await nb.http.get(`${nb.baseUrl}/api/flow_nodes:list`, {
-      params: { filter: { workflowId }, sort: ['id'], paginate: false },
+    const nodesResp = await nb.http.get(`${nb.baseUrl}/api/workflows/${workflowId}/nodes:list`, {
+      params: { sort: ['id'], paginate: false },
     });
     existingNodes = (nodesResp.data?.data ?? []) as ApiFlowNode[];
   }

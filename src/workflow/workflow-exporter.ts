@@ -272,9 +272,8 @@ async function exportSingleWorkflow(
   log: (msg: string) => void,
 ): Promise<{ slug: string; state: WorkflowState } | null> {
   // Fetch nodes
-  const nodeResp = await nb.http.get(`${nb.baseUrl}/api/flow_nodes:list`, {
+  const nodeResp = await nb.http.get(`${nb.baseUrl}/api/workflows/${wf.id}/nodes:list`, {
     params: {
-      filter: { workflowId: wf.id },
       sort: ['id'],
       paginate: false,
     },
