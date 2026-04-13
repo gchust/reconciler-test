@@ -61,57 +61,19 @@ export async function fillBlock(
     }
   }
 
-  // ── Template reference (ReferenceFormGridModel) ──
-  // If form was exported with templateRef, convert grid to reference mode.
-  // ReferenceFormGridModel proxies fields from template — local items must be removed first.
+  // ── Template reference ──
+  // Compose with template param creates ReferenceBlockModel + flowModelTemplateUsages entry.
+  // That's the correct pattern — no further grid conversion needed.
+  // Only log for visibility.
   const templateRef = bs.templateRef;
   if (templateRef?.targetUid && ['createForm', 'editForm'].includes(btype)) {
     try {
       const formData = await nb.get({ uid: blockUid });
-      const formGrid = formData.tree.subModels?.grid;
-      if (formGrid && !Array.isArray(formGrid)) {
-        const formGridUid = (formGrid as { uid: string }).uid;
-        const currentUse = (formGrid as { use?: string }).use;
-
-        // Always clean local items (they conflict with reference proxy)
-        const gridItems = (formGrid as { subModels?: Record<string, unknown> }).subModels?.items;
-        const itemArr = (Array.isArray(gridItems) ? gridItems : []) as { uid: string }[];
-        if (itemArr.length) {
-          for (const item of itemArr) {
-            try { await nb.surfaces.removeNode(item.uid); } catch { /* skip */ }
-          }
-          log(`      ~ templateRef: cleared ${itemArr.length} local items`);
-        }
-
-        // Ensure ReferenceFormGridModel has stepParams.referenceSettings
-        // (compose creates it via template param but doesn't set stepParams — front-end needs it)
-        const refStepParams = {
-          referenceSettings: {
-            useTemplate: {
-              templateUid: templateRef.templateUid,
-              templateName: templateRef.templateName,
-              targetUid: templateRef.targetUid,
-              mode: templateRef.mode || 'reference',
-            },
-          },
-        };
-        if (currentUse !== 'ReferenceFormGridModel') {
-          await nb.models.save({
-            uid: formGridUid,
-            use: 'ReferenceFormGridModel',
-            parentId: blockUid,
-            subKey: 'grid',
-            subType: 'object',
-            sortIndex: 0,
-            stepParams: refStepParams,
-            flowRegistry: {},
-          });
-          log(`      ~ templateRef: ${templateRef.templateName} (converted to reference)`);
-        } else {
-          // Already ReferenceFormGridModel but may lack stepParams (compose doesn't set them)
-          await nb.updateModel(formGridUid, refStepParams);
-          log(`      ~ templateRef: ${templateRef.templateName} (updated stepParams)`);
-        }
+      const blockUse = (formData.tree as { use?: string }).use || '';
+      if (blockUse === 'ReferenceBlockModel') {
+        log(`      = templateRef: ${templateRef.templateName || templateRef.templateUid} (reference block)`);
+      } else {
+        log(`      = templateRef: ${templateRef.templateName || templateRef.templateUid} (block is ${blockUse}, skipped)`);
       }
     } catch (e) {
       log(`      ! templateRef: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
