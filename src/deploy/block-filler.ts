@@ -72,15 +72,17 @@ export async function fillBlock(
         const formGridUid = (formGrid as { uid: string }).uid;
         const currentUse = (formGrid as { use?: string }).use;
 
-        // Only convert if not already a ReferenceFormGridModel
-        if (currentUse !== 'ReferenceFormGridModel') {
-          // Remove compose-created local field items (they conflict with reference proxy)
-          const gridItems = (formGrid as { subModels?: Record<string, unknown> }).subModels?.items;
-          const itemArr = (Array.isArray(gridItems) ? gridItems : []) as { uid: string }[];
+        // Always clean local items (they conflict with reference proxy)
+        const gridItems = (formGrid as { subModels?: Record<string, unknown> }).subModels?.items;
+        const itemArr = (Array.isArray(gridItems) ? gridItems : []) as { uid: string }[];
+        if (itemArr.length) {
           for (const item of itemArr) {
             try { await nb.surfaces.removeNode(item.uid); } catch { /* skip */ }
           }
+          log(`      ~ templateRef: cleared ${itemArr.length} local items`);
+        }
 
+        if (currentUse !== 'ReferenceFormGridModel') {
           // Convert to ReferenceFormGridModel
           await nb.models.save({
             uid: formGridUid,
