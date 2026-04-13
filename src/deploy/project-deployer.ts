@@ -189,7 +189,11 @@ export async function deployProject(
       if (bs.type !== 'table') continue;
       const blockUid = pageState?.blocks?.[bs.key]?.uid;
       const specFields = (bs.fields || []).map(f => typeof f === 'string' ? f : f.field || '').filter(Boolean);
-      if (blockUid && specFields.length) await reorderTableColumns(nb, blockUid, specFields);
+      if (blockUid && specFields.length) {
+        const jsKeys = (bs.js_columns || []).map((j: any) => j.key as string);
+        const colOrder = (bs as any).column_order as string[] | undefined;
+        await reorderTableColumns(nb, blockUid, specFields, jsKeys, colOrder);
+      }
     }
   }
 
