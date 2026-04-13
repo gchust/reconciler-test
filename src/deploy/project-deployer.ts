@@ -117,14 +117,13 @@ export async function deployProject(
 
   if (opts.planOnly) {
     // Generate _refs.yaml in plan mode too
-    const { saveYaml: sy } = await import('../utils/yaml');
     const nodes = (graph as any).nodes as Map<string, any>;
     for (const [id, n] of nodes) {
       if (n.type !== 'page') continue;
       const refs = graph.pageRefs(id);
       const pageDir = path.join(root, n.meta?.dir || `pages/${n.name}`);
       if (fs.existsSync(pageDir)) {
-        sy(path.join(pageDir, '_refs.yaml'), {
+        saveYaml(path.join(pageDir, '_refs.yaml'), {
           _generated: true, _readonly: 'Auto-generated. Edits will be overwritten.',
           ...refs,
         });
@@ -216,56 +215,14 @@ export async function deployProject(
   }
 
   // Auto-sync: re-export deployed group to keep local files in sync with live state.
-  // For copy mode (Main → CRM Copy), this syncs back from CRM Copy, so spec reflects
-  // the actual deployed state. Source template (Main) is unaffected.
-  // Sync: only update routes.yaml (state.yaml already saved above).
-  // Full re-export (exportProject) would overwrite source spec files (popup content,
-  // JS files, field_layouts) with potentially incomplete CRM Copy data.
-  // Use explicit `export-project` CLI command for full sync when needed.
   const deployedGroupTitle = routes.find(r => r.type === 'group')?.title;
   if (deployedGroupTitle) {
-    try {
-      nb.routes.clearCache();
-      const liveRoutes = await nb.routes.list();
-      const { buildRoutesTree } = await import('./page-discovery').then(() => {
-        // Just re-export routes.yaml from live data
-        return { buildRoutesTree: null };
-      });
-      // Minimal sync: re-export only routes.yaml
-      const { dumpYaml: dy } = await import('../utils/yaml');
-      const routeTree = liveRoutes
-        .filter(r => {
-          if (r.type === 'group' && r.title === deployedGroupTitle) return true;
-          if (r.type === 'flowPage' && !r.parentId) return true; // top-level pages
-          return false;
-        })
-        .filter(r => r.type !== 'tabs')
-        .map(r => {
-          const entry: Record<string, unknown> = { title: r.title, type: r.type };
-          if (r.icon) entry.icon = r.icon;
-          const children = (r.children || [])
-            .filter(c => c.type !== 'tabs')
-            .map(c => {
-              const ce: Record<string, unknown> = { title: c.title, type: c.type };
-              if (c.icon) ce.icon = c.icon;
-              const sub = (c.children || []).filter(s => s.type !== 'tabs').map(s => ({ title: s.title, type: s.type }));
-              if (sub.length) ce.children = sub;
-              return ce;
-            });
-          if (children.length) entry.children = children;
-          return entry;
-        });
-      fs.writeFileSync(path.join(root, 'routes.yaml'), dy(routeTree));
-      log('\n  ✓ routes.yaml synced');
-    } catch (e) {
-      log(`\n  ! routes sync: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-    }
+    await syncRoutesYaml(nb, root, deployedGroupTitle, log);
   }
 
   // Rebuild graph + _refs.yaml after sync
   try {
     const freshGraph = buildGraph(root);
-    const { saveYaml: sy } = await import('../utils/yaml');
     const gNodes = (freshGraph as any).nodes as Map<string, any>;
     let refsCount = 0;
     for (const [, n] of gNodes) {
@@ -273,14 +230,14 @@ export async function deployProject(
       const refs = freshGraph.pageRefs(n.id || '');
       const pageDir = path.join(root, n.meta?.dir || `pages/${n.name}`);
       if (fs.existsSync(pageDir)) {
-        sy(path.join(pageDir, '_refs.yaml'), {
+        saveYaml(path.join(pageDir, '_refs.yaml'), {
           _generated: true, _readonly: 'Auto-generated. Edits will be overwritten.',
           ...refs,
         });
         refsCount++;
       }
     }
-    sy(path.join(root, '_graph.yaml'), { stats: freshGraph.stats(), ...freshGraph.toJSON() });
+    saveYaml(path.join(root, '_graph.yaml'), { stats: freshGraph.stats(), ...freshGraph.toJSON() });
     log(`  ✓ Graph: ${freshGraph.stats().nodes} nodes, ${refsCount} _refs.yaml`);
   } catch (e) {
     log(`  ! Graph rebuild: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
@@ -374,35 +331,7 @@ async function deployOnePage(
     // Create + deploy additional tabs — check existing first
     if (!pageState.tab_states) pageState.tab_states = {};
 
-    // Enable tabs: must update BOTH route AND RootPageModel.props
-    try {
-      // 1. Route
-      await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`,
-        { enableTabs: true },
-        { params: { 'filter[id]': pageState.route_id } },
-      );
-      // 2. RootPageModel — both props AND stepParams.pageSettings.general
-      if (pageState.page_uid) {
-        const fmResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, {
-          params: { filterByTk: pageState.page_uid },
-        });
-        const fm = fmResp.data?.data || {};
-        // props.enableTabs
-        await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
-          uid: pageState.page_uid,
-          props: { ...(fm.props || {}), enableTabs: true },
-        });
-        // stepParams.pageSettings.general.enableTabs
-        const ps = fm.stepParams?.pageSettings?.general || {};
-        if (!ps.enableTabs) {
-          await nb.updateModel(pageState.page_uid, {
-            pageSettings: { general: { ...ps, enableTabs: true } },
-          });
-        }
-      }
-    } catch (e) {
-      log(`    ! enableTabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-    }
+    await enablePageTabs(nb, pageState.route_id!, pageState.page_uid!, log);
 
     // Sync first tab: title, icon, hidden=true (default tab is hidden in enableTabs mode)
     const firstTabTitle = tabs[0].title || '';
@@ -557,4 +486,86 @@ async function deployOnePage(
   state.pages[pageKey] = pageState;
 }
 
+/**
+ * Re-export routes.yaml from live NocoBase state after deploy.
+ *
+ * For copy mode (Main -> CRM Copy), this syncs back from CRM Copy so spec
+ * reflects the actual deployed state. Source template (Main) is unaffected.
+ * Only routes.yaml is updated; use explicit `export-project` for full sync.
+ */
+async function syncRoutesYaml(
+  nb: NocoBaseClient,
+  root: string,
+  groupTitle: string,
+  log: (msg: string) => void,
+): Promise<void> {
+  try {
+    nb.routes.clearCache();
+    const liveRoutes = await nb.routes.list();
+    const routeTree = liveRoutes
+      .filter(r => {
+        if (r.type === 'group' && r.title === groupTitle) return true;
+        if (r.type === 'flowPage' && !r.parentId) return true; // top-level pages
+        return false;
+      })
+      .filter(r => r.type !== 'tabs')
+      .map(r => {
+        const entry: Record<string, unknown> = { title: r.title, type: r.type };
+        if (r.icon) entry.icon = r.icon;
+        const children = (r.children || [])
+          .filter(c => c.type !== 'tabs')
+          .map(c => {
+            const ce: Record<string, unknown> = { title: c.title, type: c.type };
+            if (c.icon) ce.icon = c.icon;
+            const sub = (c.children || []).filter(s => s.type !== 'tabs').map(s => ({ title: s.title, type: s.type }));
+            if (sub.length) ce.children = sub;
+            return ce;
+          });
+        if (children.length) entry.children = children;
+        return entry;
+      });
+    fs.writeFileSync(path.join(root, 'routes.yaml'), dumpYaml(routeTree));
+    log('\n  routes.yaml synced');
+  } catch (e) {
+    log(`\n  ! routes sync: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
+}
 
+/**
+ * Enable multi-tab mode on a page: update both the route and the RootPageModel.
+ */
+async function enablePageTabs(
+  nb: NocoBaseClient,
+  routeId: number,
+  pageUid: string,
+  log: (msg: string) => void,
+): Promise<void> {
+  try {
+    // 1. Route
+    await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`,
+      { enableTabs: true },
+      { params: { 'filter[id]': routeId } },
+    );
+    // 2. RootPageModel — both props AND stepParams.pageSettings.general
+    if (pageUid) {
+      const fmResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, {
+        params: { filterByTk: pageUid },
+      });
+      const fm = fmResp.data?.data || {};
+      // props.enableTabs
+      await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+        uid: pageUid,
+        props: { ...(fm.props || {}), enableTabs: true },
+      });
+      // stepParams.pageSettings.general.enableTabs
+      const ps = fm.stepParams?.pageSettings?.general || {};
+      if (!ps.enableTabs) {
+        await nb.updateModel(pageUid, {
+          pageSettings: { general: { ...ps, enableTabs: true } },
+        });
+      }
+    }
+  } catch (e) {
+    log(`    ! enableTabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
+}
