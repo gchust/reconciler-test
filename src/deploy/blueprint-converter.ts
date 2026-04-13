@@ -205,7 +205,10 @@ function blockSpecToBlueprint(bs: BlockSpec, pageDir: string, tabKey = 'main'): 
     jsBlock: 'jsBlock', chart: 'chart',
     markdown: 'markdown', iframe: 'iframe',
   };
-  if (TYPE_MAP[bs.type]) {
+  if (bs.type === 'reference') {
+    // Reference block: type comes from template, blueprint infers it
+    // Only set template, don't set type
+  } else if (TYPE_MAP[bs.type]) {
     block.type = TYPE_MAP[bs.type];
   }
 
@@ -215,12 +218,15 @@ function blockSpecToBlueprint(bs: BlockSpec, pageDir: string, tabKey = 'main'): 
   // Title
   if (bs.title) block.title = bs.title;
 
-  // Template reference
+  // Template reference (from templateRef or reference block type)
   if (bs.templateRef) {
     block.template = {
       uid: bs.templateRef.templateUid,
       mode: bs.templateRef.mode || 'reference',
     };
+  } else if (bs.type === 'reference') {
+    // Reference block without templateRef — skip (will fallback to legacy)
+    return block;
   }
 
   // Fields — filter out custom/unsupported fields

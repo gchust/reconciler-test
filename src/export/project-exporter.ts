@@ -235,7 +235,34 @@ async function exportSingleTab(
 
     const spec = { ...exported.spec };
     delete spec._popups;
-    // templateRef kept in spec for deploy to recreate reference mode
+
+    // ReferenceBlockModel: look up templateUid from flowModelTemplateUsages
+    if (spec.type === 'reference' && items[i].uid) {
+      try {
+        const usageResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplateUsages:list`, {
+          params: { 'filter[modelUid]': items[i].uid, paginate: 'false' },
+        });
+        const usages = usageResp.data.data || [];
+        if (usages.length) {
+          const templateUid = usages[0].templateUid;
+          // Look up template details
+          try {
+            const tmplResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:get`, {
+              params: { filterByTk: templateUid },
+            });
+            const tmpl = tmplResp.data.data;
+            spec.templateRef = {
+              templateUid,
+              templateName: tmpl?.name || '',
+              targetUid: tmpl?.targetUid || '',
+              mode: 'reference',
+            };
+          } catch {
+            spec.templateRef = { templateUid, mode: 'reference' };
+          }
+        }
+      } catch { /* best effort */ }
+    }
 
     // Move event flow files from js/ to events/
     const eventFlows = spec.event_flows as Record<string, unknown>[];
