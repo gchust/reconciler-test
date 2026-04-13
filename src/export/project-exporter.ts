@@ -643,25 +643,67 @@ async function exportGridBlocks(
   }
 
   // Supplement popupTemplateUid from flowModels:get (flowSurfaces:get strips it)
-  for (const b of blocks) {
-    const br = b as Record<string, unknown>;
+  // Also detect popup template fields that flowSurfaces tree missed
+  for (let bi = 0; bi < blocks.length; bi++) {
+    const br = blocks[bi] as Record<string, unknown>;
     if (br.type !== 'table') continue;
+    const item = items[bi];
+    if (!item) continue;
+    const cols = item.subModels?.columns;
+    const colArr = (Array.isArray(cols) ? cols : []) as FlowModelNode[];
     const fields = br.fields as unknown[];
     if (!Array.isArray(fields)) continue;
-    for (const f of fields) {
-      if (typeof f !== 'object' || !(f as Record<string, unknown>).clickToOpen) continue;
-      const ps = (f as Record<string, unknown>).popupSettings as Record<string, unknown>;
-      if (!ps || ps.popupTemplateUid) continue;
-      // Find the field uid from popup refs
-      const fp = (f as Record<string, unknown>).field as string;
-      const ref = popupRefs.find(r => r.field === fp);
-      if (!ref?.field_uid) continue;
+
+    for (const col of colArr) {
+      const fp = ((col.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)
+        ?.init as Record<string, unknown>;
+      const fieldPath = (fp?.fieldPath || '') as string;
+      if (!fieldPath) continue;
+
+      const fieldModel = col.subModels?.field;
+      if (!fieldModel || Array.isArray(fieldModel)) continue;
+      const fieldUid = (fieldModel as FlowModelNode).uid;
+      if (!fieldUid) continue;
+
+      // Check flowModels:get for popupTemplateUid
       try {
-        const raw = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: ref.field_uid } });
-        const rawOpenView = raw.data.data?.stepParams?.popupSettings?.openView
-          || (raw.data.data?.options?.stepParams || raw.data.data?.options)?.popupSettings?.openView;
-        if (rawOpenView?.popupTemplateUid) {
-          ps.popupTemplateUid = rawOpenView.popupTemplateUid;
+        const raw = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: fieldUid } });
+        const rawSp = raw.data.data?.stepParams || raw.data.data?.options?.stepParams;
+        const rawOpenView = rawSp?.popupSettings?.openView;
+        if (!rawOpenView?.popupTemplateUid) continue;
+
+        // Find or create field spec with clickToOpen + popupTemplateUid
+        let fieldSpec = fields.find(f => typeof f === 'object' && (f as Record<string, unknown>).field === fieldPath) as Record<string, unknown> | undefined;
+        if (!fieldSpec) {
+          // Field exists in spec as bare string — upgrade to object
+          const idx = fields.indexOf(fieldPath);
+          if (idx >= 0) {
+            fieldSpec = { field: fieldPath, clickToOpen: true };
+            fields[idx] = fieldSpec;
+          } else {
+            fieldSpec = { field: fieldPath, clickToOpen: true };
+            fields.push(fieldSpec);
+          }
+        }
+        if (!fieldSpec.popupSettings) {
+          fieldSpec.clickToOpen = true;
+          fieldSpec.popupSettings = {
+            collectionName: rawOpenView.collectionName || '',
+            mode: rawOpenView.mode || 'drawer',
+            size: rawOpenView.size || 'medium',
+            filterByTk: rawOpenView.filterByTk || '{{ ctx.record.id }}',
+          };
+        }
+        (fieldSpec.popupSettings as Record<string, unknown>).popupTemplateUid = rawOpenView.popupTemplateUid;
+
+        // Add popup ref if not already present
+        if (!popupRefs.some(r => r.field_uid === fieldUid)) {
+          popupRefs.push({
+            field: fieldPath,
+            field_uid: fieldUid,
+            block_key: blockUidToKey.get(item.uid) || '',
+            target: `$SELF.${blockUidToKey.get(item.uid) || 'table'}.fields.${fieldPath}`,
+          });
         }
       } catch { /* skip */ }
     }
