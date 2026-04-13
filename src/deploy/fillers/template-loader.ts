@@ -1,5 +1,6 @@
 /**
- * Load template content blocks from local templates/ dir or live API.
+ * @deprecated No longer used — popup templates are kept as references, not expanded.
+ * Retained for potential future use.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
