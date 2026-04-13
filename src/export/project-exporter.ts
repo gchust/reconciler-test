@@ -481,7 +481,9 @@ async function exportSingleTab(
   // Layout
   const layout = exportLayout(gridNode, blockUidToKey);
   const layoutSpec: Record<string, unknown> = { blocks };
-  if (layout.length) layoutSpec.layout = layout;
+  // Skip trivial layout (single block, single row) — only export when layout adds info
+  const isTrivialLayout = layout.length === 1 && Array.isArray(layout[0]) && (layout[0] as unknown[]).length === 1;
+  if (layout.length && !isTrivialLayout) layoutSpec.layout = layout;
   fs.writeFileSync(path.join(outDir, 'layout.yaml'), dumpYaml(layoutSpec));
 
   // Popups
@@ -591,7 +593,8 @@ async function exportPopupsToDir(
         if (tabGrid && !Array.isArray(tabGrid)) {
           const { blocks, popupRefs: nested, layout: popupLayout } = await exportGridBlocks(nb, tabGrid as FlowModelNode, jsDir, `${prefix}_${ref.field}`);
           popupSpec.blocks = blocks;
-          if (popupLayout?.length) popupSpec.layout = popupLayout;
+          const isTrivial = popupLayout?.length === 1 && Array.isArray(popupLayout[0]) && (popupLayout[0] as unknown[]).length === 1;
+          if (popupLayout?.length && !isTrivial) popupSpec.layout = popupLayout;
           nestedPopupRefs.push(...nested);
         }
       } else {

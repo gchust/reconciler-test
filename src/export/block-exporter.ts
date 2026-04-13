@@ -102,7 +102,7 @@ export function exportBlock(
   const resSettings = sp.resourceSettings as Record<string, unknown>;
   const resInit = (resSettings?.init || {}) as Record<string, unknown>;
   const coll = resInit.collectionName as string || '';
-  if (coll) {
+  if (coll && btype !== 'reference') {
     spec.coll = coll;
   } else if (btype === 'filterForm') {
     // Infer coll from field's collectionName (filterForm may not have own resource)

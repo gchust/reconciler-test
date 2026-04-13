@@ -59,8 +59,8 @@ export function stripAutoHeader(code: string): string {
     .filter(l => l && !l.startsWith('@'));
 
   if (lines.length === 0) {
-    // Pure auto-generated header — strip it
-    return code.slice(match[0].length);
+    // Pure auto-generated header — strip it + trim leading blank lines
+    return code.slice(match[0].length).replace(/^\n+/, '');
   }
   return code;
 }
