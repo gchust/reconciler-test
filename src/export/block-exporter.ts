@@ -762,7 +762,9 @@ function exportActions(
         const props = (act as unknown as Record<string, unknown>).props as Record<string, unknown>;
         const hasConfig = Object.keys(sp).length > 0 || (props && Object.keys(props).length > 0);
 
-        if (hasConfig && ['popup', 'updateRecord', 'duplicate', 'addChild'].includes(atype)) {
+        // Actions with config: export stepParams. Only simple actions go as bare strings.
+        const SIMPLE_ACTIONS = new Set(['filter', 'refresh', 'addNew', 'delete', 'bulkDelete', 'submit', 'reset', 'collapse', 'edit', 'view', 'expandCollapse', 'historyExpand', 'historyCollapse']);
+        if (hasConfig && !SIMPLE_ACTIONS.has(atype)) {
           const actionSpec: Record<string, unknown> = { type: atype };
           if (Object.keys(sp).length) actionSpec.stepParams = sp;
           if (props && Object.keys(props).length) actionSpec.props = props;
