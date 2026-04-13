@@ -47,8 +47,15 @@ export function replaceJsUids(
 
 /**
  * Extract description from JS code header comment.
+ * Skips auto-generated annotations (@type, @collection, @fields).
  */
 export function extractJsDesc(code: string): string {
-  const match = code.match(/\/\*\*\s*\n\s*\*\s*(.+)/);
-  return match?.[1]?.trim() || '';
+  const headerMatch = code.match(/\/\*\*([\s\S]*?)\*\//);
+  if (!headerMatch) return '';
+
+  const lines = headerMatch[1].split('\n')
+    .map(l => l.replace(/^\s*\*\s?/, '').trim())
+    .filter(l => l && !l.startsWith('@'));
+
+  return lines[0] || '';
 }
