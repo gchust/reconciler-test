@@ -86,12 +86,6 @@ See `/tmp/crm-roundtrip/README.md` for the full deploy → export → diff verif
 - `desktopRoutes:set` for ACL routes: send flat array `[id1, id2]`, not `{values: [...]}`
 - Details/List/GridCard are "record action containers" → use `addRecordAction`, not `addAction`
 
-## Pending Tasks
+## CRM Roundtrip Test
 
-| # | Task | Impact |
-|---|------|--------|
-| #11 | Opportunities/Orders blueprint failure (block missing type) | 2 pages |
-| #8 | Nested popup state readback | Leads 7 + Customers 3 popups |
-| #9 | FilterForm JS items + custom fields | Analytics + Leads + Customers |
-| #7 | Chart block order consistency | 4 pages roundtrip |
-| #10 | Overview layout large diff | Overview page |
+See `/tmp/crm-roundtrip/README.md` for deploy → export → diff commands.
