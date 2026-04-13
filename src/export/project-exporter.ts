@@ -642,6 +642,31 @@ async function exportGridBlocks(
     blockUidToKey.set(items[i].uid, exported.key);
   }
 
+  // Supplement popupTemplateUid from flowModels:get (flowSurfaces:get strips it)
+  for (const b of blocks) {
+    const br = b as Record<string, unknown>;
+    if (br.type !== 'table') continue;
+    const fields = br.fields as unknown[];
+    if (!Array.isArray(fields)) continue;
+    for (const f of fields) {
+      if (typeof f !== 'object' || !(f as Record<string, unknown>).clickToOpen) continue;
+      const ps = (f as Record<string, unknown>).popupSettings as Record<string, unknown>;
+      if (!ps || ps.popupTemplateUid) continue;
+      // Find the field uid from popup refs
+      const fp = (f as Record<string, unknown>).field as string;
+      const ref = popupRefs.find(r => r.field === fp);
+      if (!ref?.field_uid) continue;
+      try {
+        const raw = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: ref.field_uid } });
+        const rawOpenView = raw.data.data?.stepParams?.popupSettings?.openView
+          || (raw.data.data?.options?.stepParams || raw.data.data?.options)?.popupSettings?.openView;
+        if (rawOpenView?.popupTemplateUid) {
+          ps.popupTemplateUid = rawOpenView.popupTemplateUid;
+        }
+      } catch { /* skip */ }
+    }
+  }
+
   // Check for ReferenceFormGridModel with missing templateRef (stepParams empty)
   // Look up templateUsages for form grid UIDs
   for (let bi = 0; bi < blocks.length; bi++) {
