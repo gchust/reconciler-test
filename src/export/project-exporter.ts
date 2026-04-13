@@ -321,11 +321,11 @@ async function exportSingleTab(
     const blockUid = [...blockUidToKey.entries()].find(([, k]) => k === blockKey)?.[0];
     const item = items.find(it => it.uid === blockUid);
     if (!item) continue;
-    const cols = (Array.isArray(item.subModels?.columns) ? item.subModels.columns : []) as FlowModelNode[];
+    const tblCols = (Array.isArray(item.subModels?.columns) ? item.subModels.columns : []) as FlowModelNode[];
     const fields = (b as Record<string, unknown>).fields as unknown[];
     if (!Array.isArray(fields)) continue;
 
-    for (const col of cols) {
+    for (const col of tblCols) {
       const fp = ((col.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)?.init as Record<string, unknown>;
       const fieldPath = (fp?.fieldPath || '') as string;
       if (!fieldPath) continue;
@@ -356,57 +356,7 @@ async function exportSingleTab(
     }
   }
 
-  // Inline popup content into clickToOpen fields
-  // Read template content and embed directly in field spec
-  for (const b of blocks) {
-    const br = b as Record<string, unknown>;
-    const fields = br.fields as unknown[];
-    if (!Array.isArray(fields)) continue;
-    for (let fi = 0; fi < fields.length; fi++) {
-      const f = fields[fi];
-      if (typeof f !== 'object' || !(f as Record<string, unknown>).clickToOpen) continue;
-      const ps = (f as Record<string, unknown>).popupSettings as Record<string, unknown>;
-      const templateUid = ps?.popupTemplateUid as string;
-      if (!templateUid) continue;
-
-      // Find template in our exported templates
-      const tplIndexFile = path.join(path.dirname(path.dirname(outDir)), 'templates', '_index.yaml');
-      // Walk up to find templates/_index.yaml
-      let tplIndex: Record<string, unknown>[] = [];
-      for (let d = outDir; d !== path.dirname(d); d = path.dirname(d)) {
-        const idx = path.join(d, 'templates', '_index.yaml');
-        if (fs.existsSync(idx)) {
-          tplIndex = loadYaml<Record<string, unknown>[]>(idx) || [];
-          break;
-        }
-      }
-      const tplEntry = tplIndex.find(t => t.uid === templateUid);
-      if (!tplEntry?.file) continue;
-
-      // Read template content
-      let tplDir = outDir;
-      for (let d = outDir; d !== path.dirname(d); d = path.dirname(d)) {
-        if (fs.existsSync(path.join(d, 'templates'))) { tplDir = d; break; }
-      }
-      const tplFile = path.join(tplDir, 'templates', tplEntry.file as string);
-      if (!fs.existsSync(tplFile)) continue;
-
-      const tplSpec = loadYaml<Record<string, unknown>>(tplFile);
-      const content = tplSpec.content as Record<string, unknown>;
-      if (!content) continue;
-
-      // Inline popup content into the field spec
-      const fieldSpec = f as Record<string, unknown>;
-      fieldSpec.popup = {
-        _template: tplSpec.name || templateUid,
-        mode: ps.mode || 'drawer',
-        size: ps.size || 'medium',
-        ...content,  // blocks or tabs with full detail
-      };
-      // Remove raw popupSettings (replaced by inline popup)
-      delete fieldSpec.popupSettings;
-    }
-  }
+  // Fields with popupTemplateUid: keep as reference (don't inline template content)
 
   // Enrich filterForm fields with filterManager data (filterPaths, label)
   // filterManager lives on the PAGE-LEVEL grid, not filterForm's own grid
