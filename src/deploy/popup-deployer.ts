@@ -166,26 +166,14 @@ async function deployTabbedPopup(
   log(`  + popup [${targetRef}]: ${tabsSpec.length} tabs`);
   const allBlocks: Record<string, BlockState> = {};
 
-  // ── Step 1: Deploy first tab content to targetUid ──
-  // Composing to targetUid triggers NocoBase to auto-create ChildPage + first tab.
-  // We MUST do this before trying addPopupTab, or popupPageUid will be empty.
-  const firstTabSpec = tabsSpec[0];
-  const firstTabBlocks = await deploySurface(
-    nb, targetUid, { ...firstTabSpec, coll } as any, modDir, false, {}, log,
-  );
-  Object.assign(allBlocks, firstTabBlocks);
-  log(`    tab '${firstTabSpec.title || 'Tab0'}': ${Object.keys(firstTabBlocks).length} blocks`);
-
-  if (tabsSpec.length <= 1) return allBlocks;
-
-  // ── Step 2: Read ChildPage to get popupPageUid + existing tabs ──
-  // ChildPage may be on target directly (.page) or on its field child (.field.page)
+  // ── Step 1: Find ChildPage + first tab UID ──
+  // ChildPage may be on target (.page) or on target.field (.field.page) for table columns
   let existingTabs: { uid: string }[] = [];
   let popupPageUid = '';
+  let firstTabUid = '';
   try {
     const data = await nb.get({ uid: targetUid });
     let pp = data.tree.subModels?.page;
-    // If no ChildPage on target, check field subModel (for table column wrappers)
     if ((!pp || Array.isArray(pp)) && data.tree.subModels?.field) {
       const field = data.tree.subModels.field;
       if (field && !Array.isArray(field)) {
@@ -197,14 +185,58 @@ async function deployTabbedPopup(
       const subs = (pp as unknown as Record<string, unknown>).subModels as Record<string, unknown>;
       const tl = subs?.tabs;
       existingTabs = (Array.isArray(tl) ? tl : tl ? [tl] : []) as { uid: string }[];
+      if (existingTabs.length) {
+        firstTabUid = existingTabs[0].uid || '';
+      }
     }
   } catch (e) {
     log(`    ! read popup tabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
   }
 
+  // If no ChildPage exists yet, compose to targetUid to trigger creation
   if (!popupPageUid) {
-    log(`    ! popup [${targetRef}]: ChildPage not found after first tab compose — cannot create additional tabs`);
-    return allBlocks;
+    const firstTabSpec = tabsSpec[0];
+    const firstTabBlocks = await deploySurface(
+      nb, targetUid, { ...firstTabSpec, coll } as any, modDir, false, {}, log,
+    );
+    Object.assign(allBlocks, firstTabBlocks);
+    log(`    tab '${firstTabSpec.title || 'Tab0'}': ${Object.keys(firstTabBlocks).length} blocks`);
+
+    if (tabsSpec.length <= 1) return allBlocks;
+
+    // Re-read ChildPage after compose
+    try {
+      const data = await nb.get({ uid: targetUid });
+      let pp = data.tree.subModels?.page;
+      if ((!pp || Array.isArray(pp)) && data.tree.subModels?.field) {
+        const field = data.tree.subModels.field;
+        if (field && !Array.isArray(field)) {
+          pp = ((field as unknown as Record<string, unknown>).subModels as Record<string, unknown>)?.page as typeof pp;
+        }
+      }
+      if (pp && !Array.isArray(pp)) {
+        popupPageUid = (pp as unknown as Record<string, unknown>).uid as string || '';
+        const subs = (pp as unknown as Record<string, unknown>).subModels as Record<string, unknown>;
+        const tl = subs?.tabs;
+        existingTabs = (Array.isArray(tl) ? tl : tl ? [tl] : []) as { uid: string }[];
+      }
+    } catch { /* skip */ }
+
+    if (!popupPageUid) {
+      log(`    ! popup [${targetRef}]: ChildPage not found — cannot create additional tabs`);
+      return allBlocks;
+    }
+  } else {
+    // ChildPage already exists — compose first tab to its tab UID (not targetUid)
+    const composeTarget = firstTabUid || targetUid;
+    const firstTabSpec = tabsSpec[0];
+    const firstTabBlocks = await deploySurface(
+      nb, composeTarget, { ...firstTabSpec, coll } as any, modDir, false, {}, log,
+    );
+    Object.assign(allBlocks, firstTabBlocks);
+    log(`    tab '${firstTabSpec.title || 'Tab0'}': ${Object.keys(firstTabBlocks).length} blocks`);
+
+    if (tabsSpec.length <= 1) return allBlocks;
   }
 
   // ── Step 3: Deploy remaining tabs via addPopupTab ──
