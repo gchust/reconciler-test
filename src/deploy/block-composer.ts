@@ -44,6 +44,17 @@ export function toComposeBlock(
   const btype = bs.type;
   const key = bs.key || btype;
 
+  // Reference blocks with templateRef → use compose template mode
+  if (btype === 'reference' && bs.templateRef?.templateUid) {
+    return {
+      key,
+      template: {
+        uid: bs.templateRef.templateUid,
+        mode: bs.templateRef.mode || 'reference',
+      },
+    };
+  }
+
   if (!COMPOSE_TYPES.has(btype)) return null;
 
   // Popup association blocks (sourceId with template var) can't use compose binding
@@ -100,9 +111,17 @@ export function toComposeBlock(
     block.resource = { collectionName: blockColl, dataSourceKey: 'main' };
   }
 
+  // ── Template reference for forms (ReferenceFormGridModel) ──
+  const hasTemplateRef = !!bs.templateRef?.templateUid;
+  if (hasTemplateRef && ['createForm', 'editForm'].includes(btype)) {
+    block.template = {
+      uid: bs.templateRef!.templateUid,
+      mode: bs.templateRef!.mode || 'reference',
+    };
+  }
+
   // ── Fields ──
-  // Skip fields for forms with templateRef — they'll use ReferenceFormGridModel instead
-  const hasTemplateRef = !!bs.templateRef?.targetUid;
+  // Skip fields for forms with templateRef — they use ReferenceFormGridModel instead
   const includeFields = !hasTemplateRef && (
     ['table', 'createForm', 'editForm', 'details', 'filterForm'].includes(btype)
   );
