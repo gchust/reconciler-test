@@ -223,6 +223,19 @@ export async function deploySurface(
       if (bs.dataScope) stepParams.tableSettings = { dataScope: { filter: bs.dataScope } };
       if (bs.title) stepParams.cardSettings = { titleDescription: { title: bs.title } };
 
+      // Reference block: set useTemplate pointing to the template
+      const ref = (bs as unknown as Record<string, unknown>)._reference as Record<string, unknown>;
+      if (bs.type === 'reference' && ref?.targetUid) {
+        stepParams.referenceSettings = {
+          useTemplate: {
+            templateUid: ref.templateUid,
+            templateName: ref.templateName,
+            targetUid: ref.targetUid,
+            mode: ref.mode || 'reference',
+          },
+        };
+      }
+
       await nb.models.save({
         uid: newUid,
         use: modelName,

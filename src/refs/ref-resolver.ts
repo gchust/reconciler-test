@@ -36,7 +36,9 @@ export class RefResolver {
    * Auto-inserts 'blocks.' if needed, supports fuzzy matching (table → table_0).
    */
   resolve(ref: string): unknown {
-    const path = ref.replace(/^\$/, '').trim();
+    const path = ref.replace(/^\$/, '').trim()
+      // Normalize camelCase to snake_case for state keys
+      .replace(/recordActions/g, 'record_actions');
 
     // Direct match
     if (this.index.has(path)) return this.index.get(path);
