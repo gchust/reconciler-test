@@ -316,8 +316,11 @@ function extractBlockState(
     const key = matched.key || matched.type;
     if (existing[key]) continue;
 
-    const entry: BlockState = { uid, type: matched.type, grid_uid: (tabGrid?.uid as string) || '' };
     const itemSub = item.subModels as Record<string, unknown> | undefined;
+    // Block's own grid (for form/details/filterForm internal items), not the page grid
+    const blockOwnGrid = itemSub?.grid as Record<string, unknown> | undefined;
+    const blockGridUid = (blockOwnGrid?.uid as string) || '';
+    const entry: BlockState = { uid, type: matched.type, grid_uid: blockGridUid };
 
     // Extract fields (table columns or form grid items)
     const columns = itemSub?.columns;
