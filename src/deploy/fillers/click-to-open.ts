@@ -66,11 +66,21 @@ export async function deployClickToOpen(
             const fieldData = fieldResp.data.data;
             if (fieldData) {
               const sp = fieldData.stepParams || {};
+              // Look up template targetUid
+              let templateTargetUid = '';
+              try {
+                const tmplResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:get`, {
+                  params: { filterByTk: ps.popupTemplateUid },
+                });
+                templateTargetUid = tmplResp.data.data?.targetUid || '';
+              } catch { /* skip */ }
               sp.popupSettings = { openView: {
                 collectionName: popupColl, dataSourceKey: 'main',
                 mode: (ps.mode || 'drawer') as string, size: (ps.size || 'large') as string,
                 popupTemplateUid: ps.popupTemplateUid,
-                filterByTk: (ps.filterByTk || '{{ ctx.record.id }}') as string,
+                ...(templateTargetUid ? { uid: templateTargetUid } : {}),
+                popupTemplateHasFilterByTk: false,
+                popupTemplateHasSourceId: false,
               }};
               sp.displayFieldSettings = { clickToOpen: { clickToOpen: true } };
               await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
