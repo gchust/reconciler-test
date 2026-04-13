@@ -104,13 +104,12 @@ export async function deployNonComposeActions(
     // Check live tree for existing action with same model type (dedup compose/blueprint)
     const existingLiveUid = liveActionsByUse.get(amodel);
     if (existingLiveUid) {
-      // Update existing action with spec config
-      if (Object.keys(actionSp).length || Object.keys(actionProps).length) {
-        const update: Record<string, unknown> = { uid: existingLiveUid };
-        if (Object.keys(actionSp).length) update.stepParams = actionSp;
-        if (Object.keys(actionProps).length) update.props = actionProps;
-        await nb.models.save(update);
-      }
+      // Update existing action with spec config, clear stale props from blueprint defaults
+      const update: Record<string, unknown> = { uid: existingLiveUid };
+      if (Object.keys(actionSp).length) update.stepParams = actionSp;
+      // Always set props — clear blueprint defaults (e.g. {type:"link",title:"Link"}) when spec has none
+      update.props = Object.keys(actionProps).length ? actionProps : {};
+      await nb.models.save(update);
       existingGroup[stateActionKey] = { uid: existingLiveUid };
       liveActionsByUse.delete(amodel); // consumed — don't reuse for next same-type action
       continue;
