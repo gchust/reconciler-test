@@ -314,6 +314,48 @@ async function exportSingleTab(
     delete (b as Record<string, unknown>)._reference;
   }
 
+  // Supplement popupTemplateUid from flowModels:get (flowSurfaces:get strips it)
+  for (const b of blocks) {
+    if ((b as Record<string, unknown>).type !== 'table') continue;
+    const blockKey = (b as Record<string, unknown>).key as string;
+    const blockUid = [...blockUidToKey.entries()].find(([, k]) => k === blockKey)?.[0];
+    const item = items.find(it => it.uid === blockUid);
+    if (!item) continue;
+    const cols = (Array.isArray(item.subModels?.columns) ? item.subModels.columns : []) as FlowModelNode[];
+    const fields = (b as Record<string, unknown>).fields as unknown[];
+    if (!Array.isArray(fields)) continue;
+
+    for (const col of cols) {
+      const fp = ((col.stepParams as Record<string, unknown>)?.fieldSettings as Record<string, unknown>)?.init as Record<string, unknown>;
+      const fieldPath = (fp?.fieldPath || '') as string;
+      if (!fieldPath) continue;
+      const fieldModel = col.subModels?.field;
+      if (!fieldModel || Array.isArray(fieldModel)) continue;
+      const fieldUid = (fieldModel as FlowModelNode).uid;
+      if (!fieldUid) continue;
+      try {
+        const raw = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: fieldUid } });
+        const rawOv = raw.data.data?.stepParams?.popupSettings?.openView;
+        if (!rawOv?.popupTemplateUid) continue;
+        let fieldSpec = fields.find(f => typeof f === 'object' && (f as Record<string, unknown>).field === fieldPath) as Record<string, unknown> | undefined;
+        if (!fieldSpec) {
+          const idx = fields.indexOf(fieldPath);
+          if (idx >= 0) { fieldSpec = { field: fieldPath, clickToOpen: true }; fields[idx] = fieldSpec; }
+          else continue;
+        }
+        if (!fieldSpec.popupSettings) {
+          fieldSpec.clickToOpen = true;
+          fieldSpec.popupSettings = { collectionName: rawOv.collectionName || '', mode: rawOv.mode || 'drawer', size: rawOv.size || 'medium', filterByTk: rawOv.filterByTk || '{{ ctx.record.id }}' };
+        }
+        (fieldSpec.popupSettings as Record<string, unknown>).popupTemplateUid = rawOv.popupTemplateUid;
+        // Add popup ref
+        if (!allPopupRefs.some(r => r.field_uid === fieldUid)) {
+          allPopupRefs.push({ field: fieldPath, field_uid: fieldUid, block_key: blockKey, target: `$SELF.${blockKey}.fields.${fieldPath}` });
+        }
+      } catch { /* skip */ }
+    }
+  }
+
   // Inline popup content into clickToOpen fields
   // Read template content and embed directly in field spec
   for (const b of blocks) {
