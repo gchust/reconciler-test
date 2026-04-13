@@ -556,7 +556,20 @@ function exportFormContents(
   }
 
   // Extract field_layout from gridSettings.rows
-  const fieldLayout = extractGridLayout(gridNode, uidToName);
+  let fieldLayout = extractGridLayout(gridNode, uidToName);
+
+  // If no gridSettings.rows, generate field_layout from items order
+  // (ensures all forms export with explicit grid layout for consistent deploy)
+  if (!fieldLayout.length && uidToName.size > 0) {
+    const rawItems = gridNode.subModels?.items;
+    const orderedItems = (Array.isArray(rawItems) ? rawItems : []) as FlowModelNode[];
+    for (const oi of orderedItems) {
+      const name = uidToName.get(oi.uid);
+      if (name) {
+        fieldLayout.push([name]); // each item as single full-width row
+      }
+    }
+  }
 
   return { fields, jsItems, fieldLayout, fieldPopups, templateRef };
 }
