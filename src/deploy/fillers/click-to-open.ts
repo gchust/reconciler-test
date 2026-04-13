@@ -58,6 +58,34 @@ export async function deployClickToOpen(
       if (ps || inlinePopup) {
         const popupColl = ((ps?.collectionName || inlinePopup?.collectionName || coll) as string) || coll;
 
+        // ── Path 0: Popup template reference (popupTemplateUid) ──
+        if (ps?.popupTemplateUid) {
+          // Must use flowModels:save — configure API strips popupTemplateUid
+          try {
+            const fieldResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: fieldUid } });
+            const fieldData = fieldResp.data.data;
+            if (fieldData) {
+              const sp = fieldData.stepParams || {};
+              sp.popupSettings = { openView: {
+                collectionName: popupColl, dataSourceKey: 'main',
+                mode: (ps.mode || 'drawer') as string, size: (ps.size || 'large') as string,
+                popupTemplateUid: ps.popupTemplateUid,
+                filterByTk: (ps.filterByTk || '{{ ctx.record.id }}') as string,
+              }};
+              sp.displayFieldSettings = { clickToOpen: { clickToOpen: true } };
+              await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+                uid: fieldUid, use: fieldData.use, parentId: fieldData.parentId,
+                subKey: fieldData.subKey, subType: fieldData.subType,
+                stepParams: sp, sortIndex: fieldData.sortIndex || 0, flowRegistry: fieldData.flowRegistry || {},
+              });
+              log(`      ~ clickToOpen: ${fp} (popup template: ${ps.popupTemplateUid})`);
+            }
+          } catch (e) {
+            log(`      ! clickToOpen ${fp} popupTemplate: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+          }
+          continue;
+        }
+
         // ── Path 1: Inline popup content (highest priority) ──
         if (inlinePopup && (inlinePopup.blocks || inlinePopup.tabs)) {
           await deployInlinePopup(nb, fieldUid, fp, inlinePopup, ps, popupColl, coll, mod, popupContext, log);
