@@ -30,6 +30,28 @@ export async function deployPopup(
   const coll = popupSpec.coll || '';
   const tabsSpec = popupSpec.tabs;
 
+  // If popup uses a template reference, just set it — no compose needed
+  const popupTemplate = (popupSpec as unknown as Record<string, unknown>).popupTemplate as { uid: string; name?: string } | undefined;
+  if (popupTemplate?.uid) {
+    log(`  = popup [${targetRef}] (template: ${popupTemplate.name || popupTemplate.uid})`);
+    try {
+      await nb.updateModel(targetUid, {
+        popupSettings: {
+          openView: {
+            popupTemplateUid: popupTemplate.uid,
+            mode,
+          },
+        },
+        displayFieldSettings: {
+          clickToOpen: { clickToOpen: true },
+        },
+      });
+    } catch (e) {
+      log(`    ! popup template set: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+    }
+    return {};
+  }
+
   // Check if popup already has content
   try {
     const data = await nb.get({ uid: targetUid });

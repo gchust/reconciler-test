@@ -543,21 +543,15 @@ async function exportPopupsToDir(
               const tplSpec = loadYaml<Record<string, unknown>>(tplFile);
               const content = tplSpec.content as Record<string, unknown>;
               if (content) {
-                // Copy template JS files to page's js dir and rewrite paths
-                // Template JS files are in <slug>/js/ next to the YAML, or <slug>_js/
-                const tplSlug = path.basename(tplFile, '.yaml');
-                const tplBaseDir = fs.existsSync(path.join(path.dirname(tplFile), tplSlug, 'js'))
-                  ? path.join(path.dirname(tplFile), tplSlug)
-                  : path.dirname(tplFile);
-                copyTemplateJsFiles(tplBaseDir, jsDir, content);
-
+                // Keep as template reference — don't expand content
                 const popupSpec: Record<string, unknown> = {
                   target: ref.target || ref.field,
                   mode: (openView?.mode as string) || 'drawer',
+                  popupTemplate: {
+                    uid: popupTemplateUid,
+                    name: (tplEntry as Record<string, unknown>).name || '',
+                  },
                 };
-                if (content.blocks) popupSpec.blocks = content.blocks;
-                if (content.tabs) popupSpec.tabs = content.tabs;
-                if (content.layout) popupSpec.layout = content.layout;
                 const fname = ref.block_key
                   ? `${ref.block_key}.${ref.field}.yaml`
                   : `${ref.field}.yaml`;
