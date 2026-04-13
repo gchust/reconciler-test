@@ -60,10 +60,10 @@ export async function applyFieldLayout(
     // Merge JS + markdown mappings
     for (const [k, v] of jsDescToUid) uidMap.set(k, v);
     for (const [k, v] of mdKeyToUid) uidMap.set(k, v);
-    // Fallback: [JS] (no desc) → first unmatched JSItem
-    const unmatchedJs = itemArr.filter(d => d.use?.includes('JSItem') && ![...uidMap.values()].includes(d.uid));
-    if (unmatchedJs.length && !uidMap.has('[JS]')) {
-      uidMap.set('[JS]', unmatchedJs[0].uid);
+    // [JS] fallback → first JSItem (for field_layout entries that use [JS] without desc)
+    const firstJs = itemArr.find(d => d.use?.includes('JSItem'));
+    if (firstJs && !uidMap.has('[JS]')) {
+      uidMap.set('[JS]', firstJs.uid);
     }
 
     const rows: Record<string, string[][]> = {};
