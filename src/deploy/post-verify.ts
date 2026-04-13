@@ -177,7 +177,14 @@ export async function postVerify(
 async function checkPopupContent(nb: NocoBaseClient, uid: string): Promise<boolean> {
   try {
     const data = await nb.get({ uid });
-    const page = data.tree.subModels?.page;
+    // Check direct .page and .field.page paths (table column fields use field.page)
+    let page = data.tree.subModels?.page;
+    if (!page || Array.isArray(page)) {
+      const field = data.tree.subModels?.field;
+      if (field && !Array.isArray(field)) {
+        page = (field as unknown as Record<string, unknown>).subModels?.page as typeof page;
+      }
+    }
     if (!page || Array.isArray(page)) return false;
     const tabs = (page as unknown as Record<string, unknown>).subModels as Record<string, unknown>;
     const tabList = tabs?.tabs;
