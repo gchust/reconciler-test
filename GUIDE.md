@@ -248,44 +248,20 @@ forms:
   nb_xxx_orders: templates/block/form_orders.yaml      # 所有 order 新建表单用这个模板
 ```
 
-### 事件流（表单自动计算）
+### 联动规则（推荐 — 字段显隐/必填/赋值）
 
-当表单值变化时自动计算：
+**优先使用联动规则**处理表单交互逻辑。联动规则可以：
+- 根据条件显示/隐藏字段
+- 根据条件设置字段必填/非必填
+- 根据条件给字段赋值
+- 条件组合（$and / $or）
+
+在 NocoBase UI 中配置联动规则，导出时自动保存在 YAML 中，部署时自动还原。
 
 ```yaml
-# 在 block spec 里声明
-event_flows:
-  - event:
-      eventName: formValuesChange
-    file: ./events/calc_total.js
-```
-
-```javascript
-// events/calc_total.js
-// 触发条件：表单任意字段变化
-(async () => {
-  const values = ctx.form?.values || {};
-  const quantity = parseFloat(values.quantity) || 0;
-  const price = parseFloat(values.unit_price) || 0;
-  const total = quantity * price;
-
-  // 设置字段值
-  ctx.form.setFieldState('total_amount', state => {
-    state.value = total;
-  });
-})();
-```
-
-### 联动规则（字段显隐/必填）
-
-联动规则在 NocoBase UI 中配置，导出时自动保存在 YAML 中。
-部署时自动还原。**不需要手写**——在 UI 中设置后导出即可。
-
-如需在 YAML 中查看/调试已有联动规则：
-```yaml
-# 导出后会出现在 block spec 里
+# 导出后会出现在 block spec 里（不需要手写，UI 配置后导出即可）
 fieldLinkageRules:
-  - title: Hide fields when status is draft
+  - title: Hide approval fields when draft
     condition:
       logic: $and
       items:
@@ -298,6 +274,44 @@ fieldLinkageRules:
           value:
             fields: [approved_by, approved_at]
             state: hidden
+```
+
+### 事件流（最后手段 — 复杂计算逻辑）
+
+**只有当联动规则无法满足需求时**才使用事件流。典型场景：
+- 多行子表单合计（遍历子表格计算总金额）
+- 调用 API 查询数据（价格阶梯匹配、汇率换算）
+- 复杂的级联计算（小计 → 折扣 → 税额 → 总额）
+
+> 事件流是 JS 代码，普通用户难以维护。能用联动规则解决的，不要用事件流。
+
+```yaml
+event_flows:
+  - event:
+      eventName: formValuesChange
+    file: ./events/calc_total.js
+```
+
+```javascript
+// events/calc_total.js — 报价单金额自动计算（联动规则做不到的场景）
+(async () => {
+  const values = ctx.form?.values || {};
+  const items = values.items || [];
+
+  // 遍历子表格计算小计
+  const subtotal = items.reduce((sum, item) => {
+    return sum + (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+  }, 0);
+
+  // 级联计算
+  const discount = subtotal * (parseFloat(values.discount_rate) || 0);
+  const tax = (subtotal - discount) * (parseFloat(values.tax_rate) || 0);
+  const total = subtotal - discount + tax;
+
+  ctx.form.setFieldState('subtotal', s => { s.value = subtotal; });
+  ctx.form.setFieldState('discount_amount', s => { s.value = discount; });
+  ctx.form.setFieldState('total_amount', s => { s.value = total; });
+})();
 ```
 
 ### Popup 模板
