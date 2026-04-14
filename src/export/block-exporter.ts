@@ -9,6 +9,11 @@ import { slugify } from '../utils/slugify';
 import { dumpYaml } from '../utils/yaml';
 import { extractJsDesc, stripAutoHeader } from '../utils/js-utils';
 import { actionKey as genActionKey } from '../utils/action-key';
+import {
+  MODEL_TO_BLOCK_TYPE as TYPE_MAP,
+  MODEL_TO_ACTION_TYPE as ACTION_TYPE_MAP,
+  SIMPLE_ACTION_TYPES,
+} from '../utils/block-types';
 
 function ensureDir(filePath: string) {
   const dir = path.dirname(filePath);
@@ -20,23 +25,7 @@ function safeWrite(filePath: string, content: string) {
   fs.writeFileSync(filePath, content);
 }
 
-export const TYPE_MAP: Record<string, string> = {
-  TableBlockModel: 'table',
-  FilterFormBlockModel: 'filterForm',
-  CreateFormModel: 'createForm',
-  EditFormModel: 'editForm',
-  DetailsBlockModel: 'details',
-  ListBlockModel: 'list',
-  JSBlockModel: 'jsBlock',
-  GridCardBlockModel: 'gridCard',
-  ChartBlockModel: 'chart',
-  MarkdownBlockModel: 'markdown',
-  CommentsBlockModel: 'comments',
-  RecordHistoryBlockModel: 'recordHistory',
-  MailMessagesBlockModel: 'mailMessages',
-  IframeBlockModel: 'iframe',
-  ReferenceBlockModel: 'reference',
-};
+export { TYPE_MAP };
 
 export interface PopupRef {
   field: string;
@@ -666,34 +655,7 @@ function extractGridLayout(
 }
 
 // ── Actions ──
-
-const ACTION_TYPE_MAP: Record<string, string> = {
-  FilterActionModel: 'filter',
-  RefreshActionModel: 'refresh',
-  AddNewActionModel: 'addNew',
-  DeleteActionModel: 'delete',
-  BulkDeleteActionModel: 'bulkDelete',
-  SubmitActionModel: 'submit',
-  FormSubmitActionModel: 'submit',
-  ResetActionModel: 'reset',
-  FilterFormSubmitActionModel: 'submit',
-  FilterFormResetActionModel: 'reset',
-  FilterFormCollapseActionModel: 'collapse',
-  EditActionModel: 'edit',
-  ViewActionModel: 'view',
-  DuplicateActionModel: 'duplicate',
-  ExportActionModel: 'export',
-  ImportActionModel: 'import',
-  LinkActionModel: 'link',
-  CollectionTriggerWorkflowActionModel: 'workflowTrigger',
-  AIEmployeeButtonModel: 'ai',
-  ExpandCollapseActionModel: 'expandCollapse',
-  PopupCollectionActionModel: 'popup',
-  UpdateRecordActionModel: 'updateRecord',
-  AddChildActionModel: 'addChild',
-  RecordHistoryExpandActionModel: 'historyExpand',
-  RecordHistoryCollapseActionModel: 'historyCollapse',
-};
+// ACTION_TYPE_MAP is imported from utils/block-types (MODEL_TO_ACTION_TYPE)
 
 function exportActions(
   item: FlowModelNode,
@@ -764,8 +726,7 @@ function exportActions(
         const hasConfig = Object.keys(sp).length > 0 || (props && Object.keys(props).length > 0);
 
         // Actions with config: export stepParams. Only simple actions go as bare strings.
-        const SIMPLE_ACTIONS = new Set(['filter', 'refresh', 'addNew', 'delete', 'bulkDelete', 'submit', 'reset', 'collapse', 'edit', 'view', 'expandCollapse', 'historyExpand', 'historyCollapse']);
-        if (hasConfig && !SIMPLE_ACTIONS.has(atype)) {
+        if (hasConfig && !SIMPLE_ACTION_TYPES.has(atype)) {
           const actionSpec: Record<string, unknown> = { type: atype };
           if (Object.keys(sp).length) actionSpec.stepParams = sp;
           if (props && Object.keys(props).length) actionSpec.props = props;

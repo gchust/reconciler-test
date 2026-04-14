@@ -34,6 +34,7 @@ import { verifySqlFromPages } from './sql-verifier';
 import { discoverPages, type RouteEntry, type PageInfo } from './page-discovery';
 import { RefResolver } from '../refs';
 import { pageToBlueprint } from './blueprint-converter';
+import { BLOCK_TYPE_TO_MODEL } from '../utils/block-types';
 
 export async function deployProject(
   projectDir: string,
@@ -313,15 +314,6 @@ export async function deployProject(
 
 // ── Block state extraction from live tree ──
 
-const MODEL_MAP: Record<string, string> = {
-  table: 'TableBlockModel', filterForm: 'FilterFormBlockModel',
-  createForm: 'CreateFormModel', editForm: 'EditFormModel',
-  details: 'DetailsBlockModel', list: 'ListBlockModel',
-  gridCard: 'GridCardBlockModel', jsBlock: 'JSBlockModel',
-  chart: 'ChartBlockModel', markdown: 'MarkdownBlockModel',
-  iframe: 'IframeBlockModel',
-};
-
 function extractBlockState(
   liveTab: Record<string, unknown>,
   specBlocks: BlockSpec[],
@@ -340,7 +332,7 @@ function extractBlockState(
     if (!uid) continue;
 
     const matched = candidates.find(b =>
-      use === MODEL_MAP[b.type] || use.toLowerCase().includes(b.type.toLowerCase()),
+      use === BLOCK_TYPE_TO_MODEL[b.type] || use.toLowerCase().includes(b.type.toLowerCase()),
     );
     if (!matched) continue;
 

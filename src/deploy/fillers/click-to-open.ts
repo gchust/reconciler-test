@@ -73,7 +73,7 @@ export async function deployClickToOpen(
                   params: { filterByTk: ps.popupTemplateUid },
                 });
                 templateTargetUid = tmplResp.data.data?.targetUid || '';
-              } catch { /* skip */ }
+              } catch (e) { log(`      ! clickToOpen ${fp} template lookup: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
               sp.popupSettings = { openView: {
                 collectionName: popupColl, dataSourceKey: 'main',
                 mode: (ps.mode || 'drawer') as string, size: (ps.size || 'large') as string,
@@ -247,7 +247,9 @@ async function deployDefaultDetails(
       resource: { collectionName: popupColl, dataSourceKey: 'main', binding: 'currentRecord' },
       fields: defaultFields,
     }], 'replace');
-  } catch { /* default details is best-effort */ }
+  } catch (e) { /* default details is best-effort — log only in debug */
+    if (process.env.NB_DEBUG) console.debug(`  [debug] deployDefaultDetails ${popupColl}: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
 }
 
 function makePopupSettings(

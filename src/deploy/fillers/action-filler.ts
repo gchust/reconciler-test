@@ -12,19 +12,7 @@ import type { LogFn } from './types';
 import { generateUid } from '../../utils/uid';
 import { buildAiButton } from './ai-button';
 import { actionKey as genActionKey, deduplicateKey } from '../../utils/action-key';
-
-const NON_COMPOSE_ACTION_MAP: Record<string, string> = {
-  duplicate: 'DuplicateActionModel',
-  export: 'ExportActionModel',
-  import: 'ImportActionModel',
-  link: 'LinkActionModel',
-  workflowTrigger: 'CollectionTriggerWorkflowActionModel',
-  ai: 'AIEmployeeButtonModel',
-  expandCollapse: 'ExpandCollapseActionModel',
-  popup: 'PopupCollectionActionModel',
-  updateRecord: 'UpdateRecordActionModel',
-  addChild: 'AddChildActionModel',
-};
+import { NON_COMPOSE_ACTION_TYPE_TO_MODEL as NON_COMPOSE_ACTION_MAP } from '../../utils/block-types';
 
 export async function deployNonComposeActions(
   nb: NocoBaseClient,

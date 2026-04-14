@@ -12,7 +12,7 @@ import { toComposeBlock } from './block-composer';
 import { fillBlock } from './block-filler';
 import { reorderTableColumns } from './column-reorder';
 import { slugify } from '../utils/slugify';
-import { BLOCK_TYPES } from '../utils/block-types';
+import { BLOCK_TYPE_TO_MODEL as BLOCK_TYPES, COMPOSE_ACTION_TYPES } from '../utils/block-types';
 
 // Layout engine (imported separately)
 import { parseLayoutSpec, applyLayout } from '../layout/layout-engine';
@@ -62,7 +62,7 @@ export async function deploySurface(
           }
         }
       }
-    } catch { continue; /* try next grid getter */ }
+    } catch (e) { log(`    . grid lookup: ${e instanceof Error ? e.message.slice(0, 60) : e}`); continue; }
   }
 
   // Check if all blocks already exist in state
@@ -218,7 +218,7 @@ export async function deploySurface(
         existingModelTypes.add((gi as { use?: string }).use || '');
       }
     }
-  } catch { /* skip */ }
+  } catch (e) { log(`    . grid scan: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
 
   for (const bs of blocksSpec) {
     const key = bs.key || bs.type;
@@ -290,16 +290,15 @@ export async function deploySurface(
         if (innerGrid && !Array.isArray(innerGrid)) {
           blocksState[key].grid_uid = (innerGrid as { uid: string }).uid;
         }
-      } catch { /* skip */ }
+      } catch (e) { log(`      . grid readback ${key}: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
 
       // Add compose-type actions (filter/refresh/addNew etc.) via API
-      const COMPOSE_ACTIONS_SET = new Set(['filter', 'refresh', 'addNew', 'delete', 'bulkDelete', 'submit', 'reset']);
       for (const aspec of bs.actions || []) {
         const atype = typeof aspec === 'string' ? aspec : (aspec as Record<string, unknown>).type as string;
-        if (COMPOSE_ACTIONS_SET.has(atype)) {
+        if (COMPOSE_ACTION_TYPES.has(atype)) {
           try {
             await nb.surfaces.addAction(newUid, atype);
-          } catch { /* skip — might not be supported for this block type */ }
+          } catch (e) { log(`      . addAction ${atype}: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
         }
       }
 
@@ -401,5 +400,5 @@ async function applyColumnSettings(
         await nb.updateModel(col.uid, { tableColumnSettings: patch });
       }
     }
-  } catch { /* best effort */ }
+  } catch (e) { /* best effort — column settings are non-critical */ }
 }

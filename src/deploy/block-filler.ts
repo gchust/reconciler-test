@@ -83,7 +83,7 @@ export async function fillBlock(
             const gridItems = (formGrid as { subModels?: Record<string, unknown> }).subModels?.items;
             const itemArr = (Array.isArray(gridItems) ? gridItems : []) as { uid: string }[];
             for (const item of itemArr) {
-              try { await nb.surfaces.removeNode(item.uid); } catch { /* skip */ }
+              try { await nb.surfaces.removeNode(item.uid); } catch (e) { log(`      ! templateRef removeNode: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
             }
             if (itemArr.length) log(`      ~ templateRef: cleared ${itemArr.length} local items`);
           }
@@ -171,7 +171,7 @@ export async function fillBlock(
           log(`      - removed auto-created block ${atype}`);
         }
       }
-    } catch { /* best effort */ }
+    } catch (e) { log(`      ! action cleanup: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
   }
 
   // ── Fix display models ──
@@ -197,7 +197,7 @@ export async function fillBlock(
           if (cfName) liveCustomNames.add(cfName);
         }
       }
-    } catch { /* skip */ }
+    } catch (e) { log(`      . filterForm grid read: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
 
     for (const f of bs.fields || []) {
       if (typeof f !== 'object' || (f as unknown as Record<string, unknown>).type !== 'custom') continue;
@@ -282,8 +282,9 @@ export async function fillBlock(
         ? await nb.surfaces.addRecordAction(blockUid, atype) as Record<string, unknown>
         : await nb.surfaces.addAction(blockUid, atype) as Record<string, unknown>;
       uid = (result?.uid as string) || '';
-    } catch {
+    } catch (e) {
       // Fallback: save_model
+      log(`      . action ${atype} compose failed, trying save_model: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
       try {
         const { generateUid } = await import('../utils/uid');
         uid = generateUid();
@@ -294,7 +295,7 @@ export async function fillBlock(
           subType: 'array',
           sortIndex: 0, stepParams: {}, flowRegistry: {},
         });
-      } catch { uid = ''; }
+      } catch (e2) { log(`      ! action ${atype} save_model fallback: ${e2 instanceof Error ? e2.message.slice(0, 60) : e2}`); uid = ''; }
     }
     if (uid) {
       if (!blockState.actions) blockState.actions = {};
@@ -318,7 +319,7 @@ export async function fillBlock(
           itemGridUid = (listGrid as { uid: string }).uid;
         }
       }
-    } catch { /* skip */ }
+    } catch (e) { log(`      . list/gridCard grid read: ${e instanceof Error ? e.message.slice(0, 60) : e}`); }
   }
   await deployJsItems(nb, itemGridUid, bs, coll, mod, blockState, allBlocksState, log);
 

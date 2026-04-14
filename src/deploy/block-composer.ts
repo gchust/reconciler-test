@@ -10,20 +10,11 @@
  * - edit/view NOT in COMPOSE_ACTIONS — only created via save_model when spec declares them
  */
 import type { BlockSpec, FieldSpec, LayoutRow } from '../types/spec';
-
-const COMPOSE_TYPES = new Set([
-  'table', 'filterForm', 'createForm', 'editForm', 'details',
-  'list', 'gridCard', 'jsBlock', 'chart', 'markdown', 'iframe',
-]);
-
-const LEGACY_TYPES = new Set(['comments', 'recordHistory', 'mailMessages', 'reference']);
-
-const COMPOSE_ACTIONS = new Set([
-  'filter', 'refresh', 'addNew', 'delete', 'bulkDelete',
-  'submit', 'reset',
-  // edit/view NOT here — only created if spec explicitly declares them,
-  // handled by block-filler via save_model (not compose)
-]);
+import {
+  COMPOSE_BLOCK_TYPES as COMPOSE_TYPES,
+  LEGACY_BLOCK_TYPES as LEGACY_TYPES,
+  COMPOSE_ACTION_TYPES as COMPOSE_ACTIONS,
+} from '../utils/block-types';
 
 // Don't filter system fields — if spec declares them, compose should include them.
 // Original build mode adds them automatically, but copy mode needs explicit fields.
