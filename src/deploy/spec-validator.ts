@@ -151,18 +151,24 @@ function validateBlock(bs: BlockSpec, pageTitle: string, popups: PopupSpec[], is
       }
     }
 
-    // ── Rule 2: filterForm should have JS action button group ──
+    // ── Rule 2: filterForm MUST have JS stats button group on FIRST row ──
     const jsItems = (bs as Record<string, unknown>).js_items as unknown[];
     if (!Array.isArray(jsItems) || !jsItems.length) {
-      issues.push({ level: 'warn', page: pageTitle, block: key, message: 'filterForm has no JS stats button group — consider adding js_items for quick filter stats' });
+      issues.push({ level: 'error', page: pageTitle, block: key, message: 'filterForm MUST have js_items stats button group — add js_items with [JS:...] on the first row of field_layout' });
     } else if (bs.field_layout?.length) {
-      // JS items exist — check that JS is on the first row of field_layout
       const firstRow = bs.field_layout[0];
       const firstRowHasJs = Array.isArray(firstRow)
         ? firstRow.some(item => typeof item === 'string' && item.startsWith('[JS:'))
         : (typeof firstRow === 'string' && firstRow.startsWith('[JS:'));
       if (!firstRowHasJs) {
-        issues.push({ level: 'warn', page: pageTitle, block: key, message: 'filterForm has js_items but JS is not on the first row of field_layout — move [JS:...] to the first row for CRM pattern' });
+        issues.push({ level: 'error', page: pageTitle, block: key, message: 'filterForm js_items MUST be on the FIRST row of field_layout (独占一行) — move [JS:...] to first row' });
+      }
+      // Also check JS is alone on its row (独占一行, not sharing with other fields)
+      if (firstRowHasJs && Array.isArray(firstRow)) {
+        const nonJsItems = firstRow.filter(item => typeof item !== 'string' || !item.startsWith('[JS:'));
+        if (nonJsItems.length > 0) {
+          issues.push({ level: 'error', page: pageTitle, block: key, message: 'filterForm JS button group must occupy its own row (独占一行) — do not mix with other fields' });
+        }
       }
     }
 
