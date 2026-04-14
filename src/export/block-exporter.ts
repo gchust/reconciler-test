@@ -384,6 +384,14 @@ export function exportBlock(
       } else {
         spec.dataScope = ds.filter;
       }
+    } else if (ds && !ds.filter && ds.logic) {
+      // dataScope is directly {logic, items} without .filter wrapper
+      const simplified = simplifyDataScope(ds);
+      if (simplified) {
+        spec.filter = simplified;
+      } else {
+        spec.dataScope = ds;
+      }
     }
     const ps = tableSettings.pageSize as Record<string, unknown>;
     const pageSize = typeof ps === 'object' ? ps?.pageSize : ps;
