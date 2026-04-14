@@ -16,6 +16,34 @@ import * as path from 'node:path';
 import { loadYaml } from '../utils/yaml';
 import { slugify } from '../utils/slugify';
 
+// ── Defaults ──
+
+export interface ProjectDefaults {
+  popups?: Record<string, string>;  // collectionName → template file path
+  forms?: Record<string, string>;   // collectionName → template file path
+}
+
+/** Load defaults.yaml from project root (cached per root). */
+const defaultsCache = new Map<string, ProjectDefaults>();
+function loadDefaults(projectRoot: string): ProjectDefaults {
+  if (defaultsCache.has(projectRoot)) return defaultsCache.get(projectRoot)!;
+  // Walk up to find defaults.yaml
+  let dir = projectRoot;
+  for (let i = 0; i < 10; i++) {
+    const f = path.join(dir, 'defaults.yaml');
+    if (fs.existsSync(f)) {
+      const d = loadYaml<ProjectDefaults>(f);
+      defaultsCache.set(projectRoot, d || {});
+      return d || {};
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  defaultsCache.set(projectRoot, {});
+  return {};
+}
+
 // ── Public API ──
 
 /** Expand all sugar in a page spec. */
@@ -24,10 +52,11 @@ export function expandPageSugar(
   projectRoot: string,
 ): Record<string, unknown> {
   const result = { ...spec };
+  const defaults = loadDefaults(projectRoot);
 
   // Expand blocks
   if (Array.isArray(result.blocks)) {
-    result.blocks = expandBlockList(result.blocks, projectRoot, result.coll as string | undefined);
+    result.blocks = expandBlockList(result.blocks, projectRoot, result.coll as string | undefined, defaults);
   }
 
   // Expand tabs
@@ -35,7 +64,7 @@ export function expandPageSugar(
     result.tabs = (result.tabs as Record<string, unknown>[]).map(tab => {
       const t = { ...tab };
       if (Array.isArray(t.blocks)) {
-        t.blocks = expandBlockList(t.blocks, projectRoot, (t.coll || result.coll) as string | undefined);
+        t.blocks = expandBlockList(t.blocks, projectRoot, (t.coll || result.coll) as string | undefined, defaults);
       }
       // Expand popups inside tabs
       if (Array.isArray(t.popups)) {
@@ -57,9 +86,11 @@ export function expandPopupSugar(
 ): Record<string, unknown> {
   const result = { ...spec };
 
+  const defaults = loadDefaults(projectRoot);
+
   // Expand blocks
   if (Array.isArray(result.blocks)) {
-    result.blocks = expandBlockList(result.blocks, projectRoot, result.coll as string | undefined);
+    result.blocks = expandBlockList(result.blocks, projectRoot, result.coll as string | undefined, defaults);
   }
 
   // Expand tabs
@@ -67,7 +98,7 @@ export function expandPopupSugar(
     result.tabs = (result.tabs as Record<string, unknown>[]).map(tab => {
       const t = { ...tab };
       if (Array.isArray(t.blocks)) {
-        t.blocks = expandBlockList(t.blocks, projectRoot, (t.coll || result.coll) as string | undefined);
+        t.blocks = expandBlockList(t.blocks, projectRoot, (t.coll || result.coll) as string | undefined, defaults);
       }
       return t;
     });
@@ -82,19 +113,100 @@ function expandBlockList(
   blocks: unknown[],
   projectRoot: string,
   parentColl?: string,
+  defaults?: ProjectDefaults,
 ): Record<string, unknown>[] {
   const result: Record<string, unknown>[] = [];
   for (const b of blocks) {
     if (b && typeof b === 'object' && !Array.isArray(b)) {
       const block = b as Record<string, unknown>;
       const expanded = expandSingleBlock(block, projectRoot, parentColl);
+      // Apply defaults to expanded blocks
+      if (defaults) {
+        for (const eb of expanded) {
+          applyFieldDefaults(eb, projectRoot, defaults);
+        }
+      }
       result.push(...expanded);
     } else {
-      // Pass through non-object entries unchanged
       result.push(b as Record<string, unknown>);
     }
   }
   return result;
+}
+
+/**
+ * Apply default popup templates to fields that match defaults.popups.
+ * For table fields that are plain strings (no popup config), if the field's
+ * target collection has a default popup template, auto-add `popup:` setting.
+ *
+ * This requires knowing which fields are relation fields. We infer from:
+ * - Field names that match collection names (e.g. 'customer' → nb_crm_customers)
+ * - Or fields listed in defaults.popups keys
+ */
+function applyFieldDefaults(
+  block: Record<string, unknown>,
+  projectRoot: string,
+  defaults: ProjectDefaults,
+): void {
+  if (!defaults.popups || !Object.keys(defaults.popups).length) return;
+  if (!['table', 'details', 'list', 'gridCard'].includes(block.type as string)) return;
+
+  const fields = block.fields as unknown[];
+  if (!Array.isArray(fields)) return;
+
+  // Build a lookup: field name patterns → popup template path
+  // defaults.popups is collectionName → templatePath
+  // A field named 'customer' likely points to collection containing 'customer'
+  const popupMap = defaults.popups;
+
+  for (let i = 0; i < fields.length; i++) {
+    const f = fields[i];
+    // Skip fields that already have popup config
+    if (typeof f === 'object' && f !== null) {
+      const fo = f as Record<string, unknown>;
+      if (fo.popup || fo.clickToOpen || fo.popupSettings) continue;
+      // Check if field name matches a default
+      const fieldName = (fo.field || fo.fieldPath || '') as string;
+      if (!fieldName) continue;
+      const templatePath = findDefaultPopup(fieldName, popupMap, projectRoot);
+      if (templatePath) {
+        fo.popup = templatePath;
+      }
+    } else if (typeof f === 'string') {
+      // Bare field name — check if it matches a default
+      const templatePath = findDefaultPopup(f, popupMap, projectRoot);
+      if (templatePath) {
+        fields[i] = { field: f, popup: templatePath };
+      }
+    }
+  }
+}
+
+/**
+ * Find default popup template for a field name.
+ * Matches field name against collection names in defaults.popups.
+ * E.g. field 'customer' matches 'nb_crm_customers' or 'customers'.
+ */
+function findDefaultPopup(
+  fieldName: string,
+  popupMap: Record<string, string>,
+  projectRoot: string,
+): string | null {
+  const fn = fieldName.toLowerCase();
+  for (const [coll, templatePath] of Object.entries(popupMap)) {
+    const collLower = coll.toLowerCase();
+    // Direct match: field name = collection name
+    if (fn === collLower) return templatePath;
+    // Singular match: 'customer' matches 'nb_crm_customers'
+    if (collLower.endsWith(fn) || collLower.endsWith(`${fn}s`)) return templatePath;
+    // Suffix match: 'lead' matches 'nb_crm_leads'
+    const collParts = collLower.split('_');
+    const lastPart = collParts[collParts.length - 1];
+    if (lastPart === fn || lastPart === `${fn}s`) return templatePath;
+    // Singular of last part: 'nb_crm_leads' → 'lead' matches 'lead'
+    if (lastPart.endsWith('s') && lastPart.slice(0, -1) === fn) return templatePath;
+  }
+  return null;
 }
 
 /**

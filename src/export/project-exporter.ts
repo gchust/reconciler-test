@@ -66,6 +66,9 @@ export async function exportProject(
   await exportAllTemplates(nb, outDir);
   await exportTemplateUsages(nb, outDir);
 
+  // Generate defaults.yaml from high-usage popup templates
+  await exportDefaults(nb, outDir);
+
   // Export pages by traversing route tree
   const pagesDir = path.join(outDir, 'pages');
   fs.mkdirSync(pagesDir, { recursive: true });
@@ -942,6 +945,54 @@ function buildRoutesTree(
     result.push(entry);
   }
   return result;
+}
+
+/**
+ * Generate defaults.yaml from popup templates with 2+ usages.
+ * Maps collection → template file path for auto-popup-binding.
+ */
+async function exportDefaults(nb: NocoBaseClient, outDir: string): Promise<void> {
+  try {
+    const resp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, { params: { pageSize: 200 } });
+    const templates = (resp.data.data || []) as Record<string, unknown>[];
+
+    const popups: Record<string, string> = {};
+    const forms: Record<string, string> = {};
+
+    // Read _index.yaml for file paths
+    const indexFile = path.join(outDir, 'templates', '_index.yaml');
+    const index = fs.existsSync(indexFile) ? loadYaml<Record<string, unknown>[]>(indexFile) || [] : [];
+    const uidToFile = new Map<string, string>();
+    for (const entry of index) {
+      if (entry.uid && entry.file) uidToFile.set(entry.uid as string, entry.file as string);
+    }
+
+    for (const t of templates) {
+      const coll = t.collectionName as string;
+      if (!coll) continue;
+      const file = uidToFile.get(t.uid as string);
+      if (!file) continue;
+
+      if (t.type === 'popup') {
+        // For popup templates with most usages, pick as default
+        const existing = popups[coll];
+        if (!existing) {
+          popups[coll] = `templates/${file}`;
+        }
+      } else if (t.type === 'block' && (t.name as string)?.startsWith('Form (Add new)')) {
+        if (!forms[coll]) {
+          forms[coll] = `templates/${file}`;
+        }
+      }
+    }
+
+    if (Object.keys(popups).length || Object.keys(forms).length) {
+      const defaults: Record<string, unknown> = {};
+      if (Object.keys(popups).length) defaults.popups = popups;
+      if (Object.keys(forms).length) defaults.forms = forms;
+      fs.writeFileSync(path.join(outDir, 'defaults.yaml'), dumpYaml(defaults));
+    }
+  } catch { /* best effort */ }
 }
 
 async function exportCollections(nb: NocoBaseClient, outDir: string): Promise<void> {
