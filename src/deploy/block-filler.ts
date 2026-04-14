@@ -298,6 +298,27 @@ export async function fillBlock(
     }
   }
 
+  // ── Fillable recordActions for table blocks (view/edit in actCol) ──
+  if (btype === 'table') {
+    for (const aspec of bs.recordActions || []) {
+      const atype = typeof aspec === 'string' ? aspec : (aspec as Record<string, unknown>).type as string;
+      if (!(atype in FILLABLE_ACTION_TYPE_TO_MODEL)) continue;
+      if (!blockState.record_actions) blockState.record_actions = {};
+      if (blockState.record_actions[atype]) continue;
+      let uid = '';
+      try {
+        const result = await nb.surfaces.addRecordAction(blockUid, atype) as Record<string, unknown>;
+        uid = (result?.uid as string) || '';
+      } catch (e) {
+        log(`      . recordAction ${atype} failed: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+      }
+      if (uid) {
+        blockState.record_actions[atype] = { uid };
+        log(`      + recordAction: ${atype}`);
+      }
+    }
+  }
+
   // ── Non-compose actions (legacy save_model) ──
   await deployNonComposeActions(nb, blockUid, bs, blockState, mod, log);
 
