@@ -4,8 +4,11 @@
  * These are HARD rules that every AI agent must follow.
  * Errors block deployment. Warnings are logged but don't block.
  */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { PageSpec, BlockSpec, PopupSpec } from '../types/spec';
 import type { PageInfo } from './page-discovery';
+import { loadYaml } from '../utils/yaml';
 
 export interface SpecIssue {
   level: 'error' | 'warn';
@@ -65,6 +68,56 @@ export function validatePageSpecs(pages: PageInfo[], projectDir: string): SpecIs
       const recTypes = recActs.map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string);
       if (!recTypes.includes('view') && !recTypes.includes('edit')) {
         issues.push({ level: 'warn', page: page.title, block: key, message: `table "${key}" has no view/edit recordActions — add recordActions: [view, edit]` });
+      }
+    }
+
+    // ── Dashboard validation ──
+    const isDashboard = page.title.toLowerCase().includes('dashboard') || page.title.toLowerCase().includes('analytics');
+    if (isDashboard) {
+      const chartBlocks = allBlocks.filter(b => b.type === 'chart');
+      const jsBlocks = allBlocks.filter(b => b.type === 'jsBlock');
+
+      // Must have >= 5 chart blocks
+      if (chartBlocks.length < 5) {
+        issues.push({ level: 'error', page: page.title, message: `dashboard must have >= 5 chart blocks (has ${chartBlocks.length}). Add more charts with SQL + render config.` });
+      }
+
+      // Must have KPI cards (JS blocks) at the top
+      if (!jsBlocks.length) {
+        issues.push({ level: 'error', page: page.title, message: 'dashboard must have KPI card JS blocks at the top — copy CRM pattern (js: ./js/kpi_xxx.js)' });
+      }
+
+      // Validate chart configs
+      for (const cb of chartBlocks) {
+        const chartConfig = (cb as Record<string, unknown>).chart_config as string;
+        if (!chartConfig) {
+          issues.push({ level: 'error', page: page.title, block: cb.key, message: 'chart block missing chart_config file reference' });
+          continue;
+        }
+        // Check SQL file exists
+        const configPath = path.resolve(page.dir, chartConfig);
+        if (fs.existsSync(configPath)) {
+          const config = loadYaml<Record<string, unknown>>(configPath);
+          const sqlFile = config?.sql_file as string;
+          if (sqlFile) {
+            const sqlPath = path.resolve(page.dir, sqlFile);
+            if (!fs.existsSync(sqlPath)) {
+              issues.push({ level: 'error', page: page.title, block: cb.key, message: `chart SQL file not found: ${sqlFile}` });
+            }
+          } else {
+            issues.push({ level: 'error', page: page.title, block: cb.key, message: 'chart config missing sql_file' });
+          }
+          // Check render JS exists
+          const renderFile = config?.render_file as string;
+          if (renderFile) {
+            const renderPath = path.resolve(page.dir, renderFile);
+            if (!fs.existsSync(renderPath)) {
+              issues.push({ level: 'error', page: page.title, block: cb.key, message: `chart render file not found: ${renderFile}` });
+            }
+          }
+        } else {
+          issues.push({ level: 'error', page: page.title, block: cb.key, message: `chart config not found: ${chartConfig}` });
+        }
       }
     }
   }
