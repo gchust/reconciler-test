@@ -859,7 +859,8 @@ function buildRoutesTree(
   const seenTitles = new Set<string>();
 
   const buildEntry = (r: RouteInfo): Record<string, unknown> => {
-    const entry: Record<string, unknown> = { title: r.title || r.schemaUid, type: r.type };
+    const entry: Record<string, unknown> = { title: r.title || r.schemaUid };
+    if (r.type === 'group') entry.type = 'group'; // flowPage is default, omit
     if (r.icon) entry.icon = r.icon;
     if (r.hidden) entry.hidden = true;
     return entry;

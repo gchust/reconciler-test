@@ -11,7 +11,7 @@ import { slugify } from '../utils/slugify';
 
 export interface RouteEntry {
   title: string;
-  type: 'group' | 'flowPage';
+  type?: 'group' | 'flowPage';  // default: flowPage
   icon?: string;
   hidden?: boolean;
   children?: RouteEntry[];
@@ -39,27 +39,30 @@ export function discoverPages(
   if (!fs.existsSync(pagesDir)) return pages;
 
   for (const routeEntry of routes) {
-    if (routeEntry.type === 'group') {
+    const rtype = routeEntry.type || (routeEntry.children ? 'group' : 'flowPage');
+    if (rtype === 'group') {
       if (filterGroup && routeEntry.title !== filterGroup) continue;
       const groupSlug = slugify(routeEntry.title);
       const groupDir = path.join(pagesDir, groupSlug);
       if (!fs.existsSync(groupDir)) continue;
 
       for (const child of routeEntry.children || []) {
-        if (child.type === 'flowPage') {
+        const ctype = child.type || (child.children ? 'group' : 'flowPage');
+        if (ctype === 'flowPage') {
           const p = readPageDir(path.join(groupDir, slugify(child.title)), child.title, child.icon);
           if (p) pages.push(p);
-        } else if (child.type === 'group') {
+        } else if (ctype === 'group') {
           const subDir = path.join(groupDir, slugify(child.title));
           for (const sc of child.children || []) {
-            if (sc.type === 'flowPage') {
+            const stype = sc.type || 'flowPage';
+            if (stype === 'flowPage') {
               const p = readPageDir(path.join(subDir, slugify(sc.title)), sc.title, sc.icon);
               if (p) pages.push(p);
             }
           }
         }
       }
-    } else if (routeEntry.type === 'flowPage' && !filterGroup) {
+    } else if (rtype === 'flowPage' && !filterGroup) {
       const p = readPageDir(path.join(pagesDir, slugify(routeEntry.title)), routeEntry.title, routeEntry.icon);
       if (p) pages.push(p);
     }

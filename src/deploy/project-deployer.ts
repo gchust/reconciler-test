@@ -47,6 +47,15 @@ export async function deployProject(
   if (!fs.existsSync(routesFile)) throw new Error(`routes.yaml not found in ${root}`);
   const routes = loadYaml<RouteEntry[]>(routesFile);
 
+  // Normalize: default type = flowPage (group if has children)
+  const normalizeRoutes = (entries: RouteEntry[]) => {
+    for (const r of entries) {
+      if (!r.type) r.type = r.children?.length ? 'group' : 'flowPage';
+      if (r.children) normalizeRoutes(r.children);
+    }
+  };
+  normalizeRoutes(routes);
+
   // Read collections
   const collDefs: Record<string, CollectionDef> = {};
   const collDir = path.join(root, 'collections');
