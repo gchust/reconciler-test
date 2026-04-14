@@ -167,10 +167,12 @@ function simplifyUpdateRecord(actionSpec: Record<string, unknown>): Record<strin
 
   const buttonSettings = sp.buttonSettings as Record<string, unknown> | undefined;
   const general = (buttonSettings?.general || {}) as Record<string, unknown>;
-  const updateSettings = sp.updateRecordSettings as Record<string, unknown> | undefined;
-  const assignedValues = (updateSettings?.assignedValues || {}) as Record<string, unknown>;
-  const triggerWorkflows = updateSettings?.triggerWorkflows;
-  const linkageRules = (sp.linkageRules as Record<string, unknown> | undefined);
+  // assignSettings.assignFieldValues.assignedValues is the correct path
+  const assignSettings = sp.assignSettings as Record<string, unknown> | undefined;
+  const assignFieldValues = (assignSettings?.assignFieldValues || {}) as Record<string, unknown>;
+  const rawAssigned = assignFieldValues.assignedValues as Record<string, unknown> | undefined;
+  const triggerWorkflows = (sp.apply as Record<string, unknown>)?.triggerWorkflows;
+  const linkageRules = (buttonSettings?.linkageRules as Record<string, unknown> | undefined);
 
   const result: Record<string, unknown> = {};
 
@@ -186,24 +188,17 @@ function simplifyUpdateRecord(actionSpec: Record<string, unknown>): Record<strin
   const danger = general.danger as boolean | undefined;
   if (danger) result.danger = true;
 
-  // Assigned values — flatten pairs
-  const assignObj: Record<string, unknown> = {};
-  const pairs = assignedValues.pairs as Array<Record<string, unknown>> | undefined;
-  if (pairs?.length) {
-    for (const pair of pairs) {
-      const field = pair.field as string;
-      const value = pair.value;
-      if (field) assignObj[field] = value;
-    }
+  // Assigned values — direct key:value map
+  if (rawAssigned && Object.keys(rawAssigned).length) {
+    result.assign = rawAssigned;
   }
-  if (Object.keys(assignObj).length) result.assign = assignObj;
 
   // Trigger workflows
   if (triggerWorkflows) result.triggerWorkflows = triggerWorkflows;
 
   // Linkage rules → hiddenWhen shorthand (simplified)
   if (linkageRules) {
-    const rules = (linkageRules as Record<string, unknown>).rules as Array<Record<string, unknown>> | undefined;
+    const rules = ((linkageRules as Record<string, unknown>).value || (linkageRules as Record<string, unknown>).rules) as Array<Record<string, unknown>> | undefined;
     if (rules?.length) {
       const hiddenWhen = extractHiddenWhen(rules);
       if (hiddenWhen) result.hiddenWhen = hiddenWhen;
