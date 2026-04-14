@@ -273,33 +273,31 @@ async function createPopupTemplate(
   let tempRouteId: number | null = null;
 
   try {
-    // 1. Create temp hidden menu group + page
+    // 1. Create temp hidden menu group + page via blueprint
     const groupResp = await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:create`, {
       type: 'group', title: '__tpl_temp__', hidden: true,
     });
     tempGroupId = groupResp.data?.data?.id;
 
-    const pageResult = await nb.surfaces.call('createPage', {
-      navigation: { group: { routeId: tempGroupId } },
-      item: { title: '__tpl_popup_temp__' },
-    }) as Record<string, unknown>;
-    const pageSchemaUid = (pageResult.target as Record<string, unknown>)?.pageSchemaUid as string || '';
-    tempRouteId = (pageResult.target as Record<string, unknown>)?.routeId as number || null;
+    const bpResult = await nb.surfaces.applyBlueprint({
+      version: '1', mode: 'create',
+      navigation: { group: { routeId: tempGroupId }, item: { title: '__popup_tpl__' } },
+      page: { title: '__popup_tpl__' },
+      tabs: [{ key: 'main', title: 'Main', blocks: [
+        { key: 'details', type: 'details', collection: collName },
+      ] }],
+    } as unknown as Record<string, unknown>) as Record<string, unknown>;
 
+    const pageSchemaUid = (bpResult.target as Record<string, unknown>)?.pageSchemaUid as string || '';
+    tempRouteId = (bpResult.target as Record<string, unknown>)?.routeId as number || null;
     if (!pageSchemaUid) throw new Error('failed to create temp page');
 
-    // 2. Read page tab UID + compose a table block with a name field
+    // 2. Read page → find details block → add field with clickToOpen
     const pageData = await nb.get({ pageSchemaUid });
-    const tabUid = ((Array.isArray(pageData.tree.subModels?.tabs)
-      ? pageData.tree.subModels.tabs : [pageData.tree.subModels?.tabs])[0] as Record<string, unknown>)?.uid as string || '';
-    if (!tabUid) throw new Error('no tab UID');
-
-    const composeResult = await nb.surfaces.compose(tabUid, [{
-      key: 'table', type: 'details',
-      resource: { collectionName: collName, dataSourceKey: 'main', binding: 'currentRecord' },
-    }], 'replace');
-    const blockUid = composeResult.blocks?.[0]?.uid;
-    if (!blockUid) throw new Error('compose failed');
+    const tabArr = Array.isArray(pageData.tree.subModels?.tabs) ? pageData.tree.subModels.tabs : [pageData.tree.subModels?.tabs];
+    const gridItems = tabArr[0]?.subModels?.grid?.subModels?.items;
+    const blockUid = (Array.isArray(gridItems) && gridItems.length) ? gridItems[0].uid : '';
+    if (!blockUid) throw new Error('no block in temp page');
 
     // 3. Add a field with clickToOpen to host the popup
     const fieldResult = await nb.surfaces.addField(blockUid, 'id') as Record<string, unknown>;
@@ -362,10 +360,17 @@ async function createPopupTemplate(
   } catch (e) {
     log(`    . popup template ${name}: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
   } finally {
-    // Cleanup temp page + group
+    // Cleanup temp page + group (children first)
     try {
-      if (tempRouteId) await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: tempRouteId } });
-      if (tempGroupId) await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: tempGroupId } });
+      if (tempGroupId) {
+        const routes = await nb.http.get(`${nb.baseUrl}/api/desktopRoutes:list`, { params: { paginate: 'false', tree: 'true' } });
+        const grp = (routes.data.data || []).find((r: any) => r.id === tempGroupId);
+        if (grp?.children) for (const c of grp.children) {
+          if (c.children) for (const sc of c.children) await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: sc.id } }).catch(() => {});
+          await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: c.id } }).catch(() => {});
+        }
+        await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: tempGroupId } }).catch(() => {});
+      }
     } catch { /* best effort cleanup */ }
   }
 
