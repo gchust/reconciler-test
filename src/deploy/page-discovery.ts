@@ -8,6 +8,7 @@ import * as path from 'node:path';
 import type { PageSpec, BlockSpec, PopupSpec } from '../types/spec';
 import { loadYaml } from '../utils/yaml';
 import { slugify } from '../utils/slugify';
+import { expandPageSugar, expandPopupSugar } from './sugar';
 
 export interface RouteEntry {
   title: string;
@@ -106,7 +107,10 @@ export function readPageDir(pageDir: string, title: string, icon?: string): Page
 
   if (fs.existsSync(layoutFile)) {
     // Single tab page
-    const layoutRaw = loadYaml<Record<string, unknown>>(layoutFile);
+    const layoutRaw = expandPageSugar(
+      loadYaml<Record<string, unknown>>(layoutFile),
+      pageDir,
+    );
     layout = {
       page: title,
       icon: icon || (pageMeta.icon as string) || 'fileoutlined',
@@ -132,7 +136,10 @@ export function readPageDir(pageDir: string, title: string, icon?: string): Page
     for (const td of tabDirs) {
       const tabLayout = path.join(pageDir, td, 'layout.yaml');
       if (!fs.existsSync(tabLayout)) continue;
-      const tabRaw = loadYaml<Record<string, unknown>>(tabLayout);
+      const tabRaw = expandPageSugar(
+        loadYaml<Record<string, unknown>>(tabLayout),
+        path.join(pageDir, td),
+      );
       const dirSlug = td.replace('tab_', '');
       const meta = tabMetaMap.get(dirSlug);
       const tabTitle = meta?.title || dirSlug.replace(/_/g, ' ');
@@ -172,7 +179,8 @@ export function readPageDir(pageDir: string, title: string, icon?: string): Page
     if (!fs.existsSync(popupsDir)) continue;
     for (const f of fs.readdirSync(popupsDir).filter(f => f.endsWith('.yaml')).sort()) {
       try {
-        const ps = loadYaml<PopupSpec>(path.join(popupsDir, f));
+        const raw = loadYaml<Record<string, unknown>>(path.join(popupsDir, f));
+        const ps = expandPopupSugar(raw, popupsDir) as unknown as PopupSpec;
         if (ps.target) popups.push(ps);
       } catch { /* skip malformed popup file */ }
     }
