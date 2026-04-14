@@ -110,11 +110,14 @@ export async function deployPopup(
         const popupLayout = popupSpec.layout || (tabsSpec ? tabsSpec[0]?.layout : undefined);
 
         if (blocks.length) {
-          // Use state-based key→uid mapping (from previous deploy)
-          // Falls back to deploySurface if no state exists
-          if (Object.keys(existingPopupBlocks).length) {
+          // Use state-based key→uid mapping, OR extract from live tree
+          let blocksState = { ...existingPopupBlocks };
+          if (!Object.keys(blocksState).length) {
+            // No state — extract block UIDs from live tree
+            blocksState = extractLiveBlockState(tabArr, blocks);
+          }
+          if (Object.keys(blocksState).length) {
             const { fillBlock } = await import('./block-filler');
-            const blocksState = { ...existingPopupBlocks };
             for (const bs of blocks) {
               const key = bs.key || bs.type;
               const existing = blocksState[key];
