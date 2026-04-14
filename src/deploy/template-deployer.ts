@@ -45,6 +45,33 @@ interface ExistingTemplate {
 export type TemplateUidMap = Map<string, string>; // oldUid → newUid
 
 /**
+ * Auto-discover template YAML files when _index.yaml doesn't exist.
+ * Scans templates/popup/ and templates/block/ directories.
+ */
+function discoverTemplates(tplDir: string): TemplateIndex[] {
+  const result: TemplateIndex[] = [];
+  for (const subDir of ['popup', 'block']) {
+    const dir = path.join(tplDir, subDir);
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.yaml')).sort()) {
+      try {
+        const content = loadYaml<Record<string, unknown>>(path.join(dir, f));
+        if (!content?.name) continue;
+        result.push({
+          uid: (content.uid as string) || generateUid(),
+          name: content.name as string,
+          type: (content.type as 'popup' | 'block') || (subDir === 'popup' ? 'popup' : 'block'),
+          collection: (content.collectionName as string) || undefined,
+          targetUid: (content.targetUid as string) || generateUid(),
+          file: `${subDir}/${f}`,
+        });
+      } catch { /* skip malformed */ }
+    }
+  }
+  return result;
+}
+
+/**
  * Deploy all templates. Returns uid mapping (old → new).
  *
  * Called before page deployment so that popupTemplateUid references
@@ -56,11 +83,17 @@ export async function deployTemplates(
   log: (msg: string) => void = console.log,
 ): Promise<TemplateUidMap> {
   const tplDir = path.join(projectDir, 'templates');
-  const indexFile = path.join(tplDir, '_index.yaml');
-  if (!fs.existsSync(indexFile)) return new Map();
+  if (!fs.existsSync(tplDir)) return new Map();
 
-  const index = loadYaml<TemplateIndex[]>(indexFile);
-  if (!index?.length) return new Map();
+  // Build index: prefer _index.yaml, then auto-discover YAML files
+  let index: TemplateIndex[];
+  const indexFile = path.join(tplDir, '_index.yaml');
+  if (fs.existsSync(indexFile)) {
+    index = loadYaml<TemplateIndex[]>(indexFile) || [];
+  } else {
+    index = discoverTemplates(tplDir);
+  }
+  if (!index.length) return new Map();
 
   log('\n  -- Templates --');
 
@@ -234,95 +267,110 @@ async function createPopupTemplate(
   tplDir: string,
   log: (msg: string) => void,
 ): Promise<{ templateUid: string; targetUid: string } | undefined> {
-  // Create a host node (DisplayTextFieldModel) that will hold the ChildPage
-  const hostUid = generateUid();
-  await nb.models.save({
-    uid: hostUid,
-    use: 'DisplayTextFieldModel',
-    stepParams: {},
-    flowRegistry: {},
-  });
+  // Strategy: create temp page → add table with clickToOpen field →
+  // deploy popup content → saveTemplate on the field → cleanup
+  let tempGroupId: number | null = null;
+  let tempRouteId: number | null = null;
 
-  const tabs = content.tabs as Record<string, unknown>[] | undefined;
-  const blocks = content.blocks as Record<string, unknown>[] | undefined;
-
-  if (tabs?.length) {
-    // Multi-tab popup: compose first tab, then addPopupTab for additional tabs
-    const firstBlocks = (tabs[0].blocks || []) as Record<string, unknown>[];
-    const composeBlocks = firstBlocks
-      .map(b => toComposeBlock(b as any, collName))
-      .filter(Boolean) as Record<string, unknown>[];
-
-    if (composeBlocks.length) {
-      try {
-        await nb.surfaces.compose(hostUid, composeBlocks, 'replace');
-      } catch (e) {
-        log(`    . popup compose first tab: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-      }
-    }
-
-    // Additional tabs
-    for (let i = 1; i < tabs.length; i++) {
-      try {
-        const d = await nb.get({ uid: hostUid });
-        const page = d.tree.subModels?.page as unknown as Record<string, unknown>;
-        if (page?.uid) {
-          const tabResult = await nb.surfaces.addPopupTab(
-            page.uid as string,
-            (tabs[i].title as string) || `Tab${i}`,
-          );
-          const tabUid = (tabResult as Record<string, unknown>).popupTabUid as string
-            || (tabResult as Record<string, unknown>).tabSchemaUid as string || '';
-          if (tabUid) {
-            const tabBlocks = ((tabs[i].blocks || []) as Record<string, unknown>[])
-              .map(b => toComposeBlock(b as any, collName))
-              .filter(Boolean) as Record<string, unknown>[];
-            if (tabBlocks.length) {
-              await nb.surfaces.compose(tabUid, tabBlocks, 'replace');
-            }
-          }
-        }
-      } catch (e) {
-        log(`    . popup compose tab ${i}: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-      }
-    }
-  } else if (blocks?.length) {
-    // Single-tab popup
-    const composeBlocks = blocks
-      .map(b => toComposeBlock(b as any, collName))
-      .filter(Boolean) as Record<string, unknown>[];
-    if (composeBlocks.length) {
-      try {
-        await nb.surfaces.compose(hostUid, composeBlocks, 'replace');
-      } catch (e) {
-        log(`    . popup compose: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
-      }
-    }
-  }
-
-  // Try saveTemplate first, fall back to manual registration
   try {
+    // 1. Create temp hidden menu group + page
+    const groupResp = await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:create`, {
+      type: 'group', title: '__tpl_temp__', hidden: true,
+    });
+    tempGroupId = groupResp.data?.data?.id;
+
+    const pageResult = await nb.surfaces.call('createPage', {
+      navigation: { group: { routeId: tempGroupId } },
+      item: { title: '__tpl_popup_temp__' },
+    }) as Record<string, unknown>;
+    const pageSchemaUid = (pageResult.target as Record<string, unknown>)?.pageSchemaUid as string || '';
+    tempRouteId = (pageResult.target as Record<string, unknown>)?.routeId as number || null;
+
+    if (!pageSchemaUid) throw new Error('failed to create temp page');
+
+    // 2. Read page tab UID + compose a table block with a name field
+    const pageData = await nb.get({ pageSchemaUid });
+    const tabUid = ((Array.isArray(pageData.tree.subModels?.tabs)
+      ? pageData.tree.subModels.tabs : [pageData.tree.subModels?.tabs])[0] as Record<string, unknown>)?.uid as string || '';
+    if (!tabUid) throw new Error('no tab UID');
+
+    const composeResult = await nb.surfaces.compose(tabUid, [{
+      key: 'table', type: 'details',
+      resource: { collectionName: collName, dataSourceKey: 'main', binding: 'currentRecord' },
+    }], 'replace');
+    const blockUid = composeResult.blocks?.[0]?.uid;
+    if (!blockUid) throw new Error('compose failed');
+
+    // 3. Add a field with clickToOpen to host the popup
+    const fieldResult = await nb.surfaces.addField(blockUid, 'id') as Record<string, unknown>;
+    const fieldWrapperUid = fieldResult.wrapperUid || fieldResult.uid;
+    if (!fieldWrapperUid) throw new Error('addField failed');
+
+    // Get field model UID
+    const blockData = await nb.get({ uid: fieldWrapperUid as string });
+    const fieldModel = blockData.tree.subModels?.field;
+    const fieldUid = (fieldModel && !Array.isArray(fieldModel)) ? (fieldModel as Record<string, unknown>).uid as string : '';
+    if (!fieldUid) throw new Error('no field UID');
+
+    // 4. Set popupSettings + compose popup content
+    await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+      uid: fieldUid,
+      stepParams: {
+        popupSettings: { openView: { collectionName: collName, dataSourceKey: 'main', mode: 'drawer', size: 'large', pageModelClass: 'ChildPageModel', uid: fieldUid } },
+        displayFieldSettings: { clickToOpen: { clickToOpen: true } },
+      },
+    });
+
+    // Read back to get ChildPage tab UID
+    const fieldData = await nb.get({ uid: fieldUid });
+    let popupTabUid = '';
+    const fieldPage = (fieldData.tree.subModels as Record<string, unknown>)?.page as Record<string, unknown>;
+    if (fieldPage) {
+      const popupTabs = fieldPage.subModels as Record<string, unknown>;
+      const tabList = popupTabs?.tabs;
+      const tabArr = Array.isArray(tabList) ? tabList : tabList ? [tabList] : [];
+      if (tabArr.length) popupTabUid = (tabArr[0] as Record<string, unknown>).uid as string || '';
+    }
+
+    // Compose popup content
+    const tabs = content.tabs as Record<string, unknown>[] | undefined;
+    const blocks = content.blocks as Record<string, unknown>[] | undefined;
+    const firstBlocks = tabs?.length ? (tabs[0].blocks || []) as Record<string, unknown>[] : blocks || [];
+
+    if (popupTabUid && firstBlocks.length) {
+      const composeBlocks = firstBlocks.map(b => toComposeBlock(b as any, collName)).filter(Boolean) as Record<string, unknown>[];
+      if (composeBlocks.length) {
+        await nb.surfaces.compose(popupTabUid, composeBlocks, 'replace');
+      }
+    }
+
+    // 5. saveTemplate on the field
     const saveResult = await nb.surfaces.saveTemplate({
-      target: { uid: hostUid },
+      target: { uid: fieldUid },
       name,
-      type: 'popup',
-      collectionName: collName,
-      dataSourceKey: (tplSpec.dataSourceKey as string) || 'main',
+      description: '',
       saveMode: 'duplicate',
     }) as Record<string, unknown>;
 
     const templateUid = (saveResult.uid || saveResult.templateUid) as string;
-    const targetUid = (saveResult.targetUid) as string || hostUid;
+    const targetUid = (saveResult.targetUid) as string || fieldUid;
 
     if (templateUid) {
+      log(`    + popup template: ${name} (${templateUid})`);
       return { templateUid, targetUid };
     }
-  } catch {
-    // saveTemplate not available or failed — fall back to manual registration
+  } catch (e) {
+    log(`    . popup template ${name}: ${e instanceof Error ? e.message.slice(0, 80) : e}`);
+  } finally {
+    // Cleanup temp page + group
+    try {
+      if (tempRouteId) await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: tempRouteId } });
+      if (tempGroupId) await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:destroy`, {}, { params: { filterByTk: tempGroupId } });
+    } catch { /* best effort cleanup */ }
   }
 
-  // Fallback: register manually via flowModelTemplates:create
-  return registerTemplateManually(nb, name, 'popup', collName, tplSpec, hostUid);
+  // Fallback: register manually
+  return registerTemplateManually(nb, name, 'popup', collName, tplSpec, generateUid());
 }
 
 // ── Fallback: direct model creation for unsupported block types ──
