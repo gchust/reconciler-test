@@ -235,6 +235,28 @@ async function createBlockTemplate(
       return undefined;
     }
 
+    // 2b. Apply field_layout + dividers to the composed block (before saving as template)
+    const fieldLayout = content.field_layout as unknown[] | undefined;
+    if (fieldLayout?.length) {
+      try {
+        // Get grid UID
+        const blockData = await nb.get({ uid: blockUid });
+        const gridNode = blockData.tree.subModels?.grid;
+        const formGridUid = (gridNode as Record<string, unknown>)?.uid as string || '';
+        if (formGridUid) {
+          // Deploy dividers first
+          const { deployDividers } = await import('./fillers/divider-filler');
+          await deployDividers(nb, formGridUid, content as any, {}, log);
+          // Apply layout
+          const { applyFieldLayout } = await import('./fillers/field-layout');
+          await applyFieldLayout(nb, formGridUid, fieldLayout, log, content as any);
+          log(`    ~ template field_layout applied (${fieldLayout.length} rows)`);
+        }
+      } catch (e) {
+        log(`    . template field_layout: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+      }
+    }
+
     // 3. Save as template via flowSurfaces:saveTemplate
     const saveResult = await nb.surfaces.saveTemplate({
       target: { uid: blockUid },
