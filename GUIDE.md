@@ -2,9 +2,22 @@
 
 ## 快速开始
 
-### 1. 创建项目结构
+### 0. 用 scaffold 生成骨架（推荐）
 
 ```bash
+npx tsx src/cli/cli.ts scaffold /tmp/my-app MyApp \
+  --pages Dashboard,Orders,Products,Customers \
+  --collections nb_myapp_orders,nb_myapp_products,nb_myapp_customers
+```
+
+自动生成：routes.yaml + collections/ + pages/（含 Dashboard KPI + 5 charts）+ templates/ + popups/
+
+然后编辑生成的文件，添加业务字段和自定义逻辑。
+
+### 1. 项目目录结构
+
+```bash
+# scaffold 自动生成，或手动创建：
 mkdir -p /tmp/my-app/{collections,pages/my_app,templates}
 ```
 
