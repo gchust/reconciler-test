@@ -247,11 +247,22 @@ function expandSingleBlock(
     result.recordActions = expandActionList(result.recordActions);
   }
 
-  // ── filterForm: NocoBase does NOT support filter/reset actions on FilterFormBlockModel ──
-  // (compose and blueprint both reject these → 400 / "not allowed under FilterFormBlockModel")
-  // filterForm is auto-search by default; no action buttons needed.
+  // ── filterForm: ensure correct action types ──
+  // FilterFormBlockModel uses submit/reset/collapse (NOT filter/refresh which are table actions)
   if (result.type === 'filterForm') {
-    delete result.actions;
+    const validFilterActions = new Set(['submit', 'reset', 'collapse']);
+    if (result.actions) {
+      // Remove invalid actions (filter/refresh are table actions, not filterForm)
+      result.actions = (result.actions as unknown[]).filter(a => {
+        const t = typeof a === 'string' ? a : (a as Record<string, unknown>).type as string;
+        return validFilterActions.has(t) || t === 'ai'; // keep AI buttons too
+      });
+    }
+    // Auto-add submit + reset if missing
+    if (!result.actions) result.actions = [];
+    const actTypes = (result.actions as unknown[]).map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string);
+    if (!actTypes.includes('submit')) (result.actions as unknown[]).push('submit');
+    if (!actTypes.includes('reset')) (result.actions as unknown[]).push('reset');
   }
 
   // Expand filter sugar

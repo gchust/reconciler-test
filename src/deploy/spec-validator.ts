@@ -157,7 +157,15 @@ function validateBlock(bs: BlockSpec, pageTitle: string, popups: PopupSpec[], is
       issues.push({ level: 'warn', page: pageTitle, block: key, message: 'filterForm has no JS stats button group — consider adding js_items for quick filter stats' });
     }
 
-    // filterForm: NocoBase auto-handles filter/reset internally, no action buttons needed
+    // ── Rule 6: filterForm must have submit + reset actions ──
+    const actions = bs.actions || [];
+    const actionTypes = actions.map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string);
+    // Check for invalid table actions on filterForm
+    for (const bad of ['filter', 'refresh', 'addNew']) {
+      if (actionTypes.includes(bad)) {
+        issues.push({ level: 'error', page: pageTitle, block: key, message: `filterForm has "${bad}" action — this is a table action, not valid on filterForm. Use submit/reset instead.` });
+      }
+    }
   }
 
   // ── Rule 4: createForm/editForm MUST have field_layout with sections ──
@@ -199,9 +207,24 @@ function validatePopup(ps: PopupSpec, pageTitle: string, issues: SpecIssue[], pr
   const blocks = ps.blocks || [];
   const tabs = ps.tabs || [];
 
-  // Check popup form blocks
+  // Check popup form blocks — including ref: template content
   for (const bs of blocks) {
-    validateBlock(bs, `${pageTitle} popup`, [], issues, projectDir);
+    const bAny = bs as unknown as Record<string, unknown>;
+    // If block is a ref: to template, validate template content
+    if (bAny.ref && typeof bAny.ref === 'string') {
+      const tplPath = path.resolve(projectDir, bAny.ref as string);
+      if (fs.existsSync(tplPath)) {
+        try {
+          const tpl = loadYaml<Record<string, unknown>>(tplPath);
+          const content = tpl.content as Record<string, unknown>;
+          if (content) {
+            validateBlock(content as any, `${pageTitle} popup [${tpl.name || bAny.ref}]`, [], issues, projectDir);
+          }
+        } catch { /* skip malformed */ }
+      }
+    } else {
+      validateBlock(bs, `${pageTitle} popup`, [], issues, projectDir);
+    }
   }
   for (const tab of tabs) {
     for (const bs of (tab.blocks || [])) {
