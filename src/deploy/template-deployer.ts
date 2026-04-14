@@ -143,6 +143,22 @@ export async function deployTemplates(
       if (tpl.targetUid && existingEntry.targetUid) {
         uidMap.set(tpl.targetUid, existingEntry.targetUid);
       }
+      // Update template target content (field_layout, dividers) if spec has it
+      const tplContent = tplSpec.content as Record<string, unknown>;
+      const fieldLayout = tplContent?.field_layout as unknown[];
+      if (fieldLayout?.length && existingEntry.targetUid) {
+        try {
+          const targetData = await nb.get({ uid: existingEntry.targetUid });
+          const targetGrid = targetData.tree.subModels?.grid;
+          const targetGridUid = (targetGrid as Record<string, unknown>)?.uid as string;
+          if (targetGridUid) {
+            const { deployDividers } = await import('./fillers/divider-filler');
+            const { applyFieldLayout } = await import('./fillers/field-layout');
+            await deployDividers(nb, targetGridUid, tplContent as any, {}, log);
+            await applyFieldLayout(nb, targetGridUid, fieldLayout, log, tplContent as any);
+          }
+        } catch { /* best effort */ }
+      }
       reused++;
       continue;
     }
