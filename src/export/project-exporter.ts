@@ -967,22 +967,18 @@ async function exportDefaults(nb: NocoBaseClient, outDir: string): Promise<void>
       if (entry.uid && entry.file) uidToFile.set(entry.uid as string, entry.file as string);
     }
 
-    for (const t of templates) {
+    // Sort by usageCount descending — pick highest-usage template per collection
+    const sorted = [...templates].sort((a, b) => ((b.usageCount as number) || 0) - ((a.usageCount as number) || 0));
+    for (const t of sorted) {
       const coll = t.collectionName as string;
       if (!coll) continue;
       const file = uidToFile.get(t.uid as string);
       if (!file) continue;
 
       if (t.type === 'popup') {
-        // For popup templates with most usages, pick as default
-        const existing = popups[coll];
-        if (!existing) {
-          popups[coll] = `templates/${file}`;
-        }
+        if (!popups[coll]) popups[coll] = `templates/${file}`;
       } else if (t.type === 'block' && (t.name as string)?.startsWith('Form (Add new)')) {
-        if (!forms[coll]) {
-          forms[coll] = `templates/${file}`;
-        }
+        if (!forms[coll]) forms[coll] = `templates/${file}`;
       }
     }
 
