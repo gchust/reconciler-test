@@ -247,6 +247,15 @@ function expandSingleBlock(
     result.recordActions = expandActionList(result.recordActions);
   }
 
+  // ── Auto-fix: filterForm auto-append filter + reset if missing ──
+  if (result.type === 'filterForm') {
+    if (!result.actions) result.actions = [];
+    const acts = result.actions as (string | Record<string, unknown>)[];
+    const actTypes = acts.map(a => typeof a === 'string' ? a : (a as Record<string, unknown>).type as string);
+    if (!actTypes.includes('filter') && !actTypes.includes('submit')) acts.push('filter');
+    if (!actTypes.includes('reset')) acts.push('reset');
+  }
+
   // Expand filter sugar
   if (result.filter && !result.dataScope) {
     result.dataScope = expandFilterSugar(result.filter as Record<string, unknown>);

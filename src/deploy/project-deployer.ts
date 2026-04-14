@@ -157,6 +157,26 @@ export async function deployProject(
     ? loadYaml<ModuleState>(stateFile)
     : { pages: {} };
 
+  // ── Pre-deploy validation ──
+  const { validatePageSpecs } = await import('./spec-validator');
+  const specIssues = validatePageSpecs(pages, root);
+  const specErrors = specIssues.filter(i => i.level === 'error');
+  const specWarnings = specIssues.filter(i => i.level === 'warn');
+  if (specErrors.length) {
+    log('\n  ── Spec Validation ERRORS (blocking deployment) ──');
+    for (const e of specErrors) log(`  ✗ [${e.page}${e.block ? '/' + e.block : ''}] ${e.message}`);
+    if (specWarnings.length) {
+      log('\n  ── Spec Warnings ──');
+      for (const w of specWarnings) log(`  ⚠ [${w.page}${w.block ? '/' + w.block : ''}] ${w.message}`);
+    }
+    log(`\n  ${specErrors.length} errors, ${specWarnings.length} warnings. Fix errors before deploying.`);
+    process.exit(1);
+  }
+  if (specWarnings.length) {
+    log('\n  ── Spec Warnings ──');
+    for (const w of specWarnings) log(`  ⚠ [${w.page}${w.block ? '/' + w.block : ''}] ${w.message}`);
+  }
+
   // Collections (skip if deploying single page — safety)
   if (!opts.page) {
     for (const [name, def] of Object.entries(collDefs)) {
