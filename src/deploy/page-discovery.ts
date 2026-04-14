@@ -13,6 +13,7 @@ export interface RouteEntry {
   title: string;
   type: 'group' | 'flowPage';
   icon?: string;
+  hidden?: boolean;
   children?: RouteEntry[];
 }
 

@@ -857,27 +857,37 @@ function buildRoutesTree(
 ): Record<string, unknown>[] {
   const result: Record<string, unknown>[] = [];
   const seenTitles = new Set<string>();
+
+  const buildEntry = (r: RouteInfo): Record<string, unknown> => {
+    const entry: Record<string, unknown> = { title: r.title || r.schemaUid, type: r.type };
+    if (r.icon) entry.icon = r.icon;
+    if (r.hidden) entry.hidden = true;
+    return entry;
+  };
+
   for (const r of routes) {
     if (r.type === 'tabs') continue;
-    if (filterGroup && r.type === 'group' && r.title !== filterGroup) continue;
-    // Skip duplicate groups (same title)
+    // Export all routes for global view; only filter pages (not groups) when filterGroup is set
+    if (filterGroup && r.type === 'group' && r.title !== filterGroup) {
+      // Still export non-target groups as stubs (title + type only, no children pages to export)
+      if (!seenTitles.has(r.title || '')) {
+        seenTitles.add(r.title || '');
+        const stub = buildEntry(r);
+        const childEntries = (r.children || []).filter(c => c.type !== 'tabs').map(buildEntry);
+        if (childEntries.length) stub.children = childEntries;
+        result.push(stub);
+      }
+      continue;
+    }
     if (r.type === 'group' && seenTitles.has(r.title || '')) continue;
     if (r.type === 'group') seenTitles.add(r.title || '');
 
-    const entry: Record<string, unknown> = {
-      title: r.title || r.schemaUid,
-      type: r.type,
-    };
-    if (r.icon) entry.icon = r.icon;
-
+    const entry = buildEntry(r);
     const childEntries = (r.children || [])
       .filter(c => c.type !== 'tabs')
       .map(c => {
-        const ce: Record<string, unknown> = { title: c.title, type: c.type };
-        if (c.icon) ce.icon = c.icon;
-        const subEntries = (c.children || [])
-          .filter(s => s.type !== 'tabs')
-          .map(s => ({ title: s.title, type: s.type }));
+        const ce = buildEntry(c);
+        const subEntries = (c.children || []).filter(s => s.type !== 'tabs').map(buildEntry);
         if (subEntries.length) ce.children = subEntries;
         return ce;
       });

@@ -898,24 +898,29 @@ async function syncMenuOrder(
     const liveChildren = liveGroup.children as { id: number; title: string; type: string; sortIndex?: number; children?: any[] }[];
     let changed = 0;
 
-    // Set sortIndex on top-level pages/sub-groups
+    // Sync sortIndex, icon, hidden on top-level pages/sub-groups
+    const syncRoute = async (spec: RouteEntry, live: any, sortIdx: number) => {
+      const patch: Record<string, unknown> = {};
+      if (live.sortIndex !== sortIdx) patch.sortIndex = sortIdx;
+      if (spec.icon && live.icon !== spec.icon) patch.icon = spec.icon;
+      if (spec.hidden !== undefined && live.hidden !== spec.hidden) patch.hidden = spec.hidden;
+      if (Object.keys(patch).length) {
+        await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`, patch, { params: { 'filter[id]': live.id } });
+        changed++;
+      }
+    };
+
     for (let i = 0; i < groupEntry.children.length; i++) {
       const specChild = groupEntry.children[i];
       const liveChild = liveChildren.find(c => c.title === specChild.title);
       if (!liveChild) continue;
-      if (liveChild.sortIndex !== i + 1) {
-        await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`, { sortIndex: i + 1 }, { params: { 'filter[id]': liveChild.id } });
-        changed++;
-      }
+      await syncRoute(specChild, liveChild, i + 1);
       // Sub-group children
       if (specChild.type === 'group' && specChild.children?.length && liveChild.children?.length) {
         for (let j = 0; j < specChild.children.length; j++) {
           const specSub = specChild.children[j];
           const liveSub = liveChild.children.find((c: any) => c.title === specSub.title);
-          if (liveSub && liveSub.sortIndex !== j + 1) {
-            await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`, { sortIndex: j + 1 }, { params: { 'filter[id]': liveSub.id } });
-            changed++;
-          }
+          if (liveSub) await syncRoute(specSub, liveSub, j + 1);
         }
       }
     }
