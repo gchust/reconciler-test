@@ -227,6 +227,9 @@ export async function deployProject(
     if (!r.ok) log(`  ✗ ${r.label}: ${r.error}`);
   }
 
+  // Set menu sortIndex to match routes.yaml declaration order
+  await syncMenuOrder(nb, state, routes, log);
+
   // Auto-sync: re-export deployed group to keep local files in sync with live state.
   const deployedGroupTitle = routes.find(r => r.type === 'group')?.title;
   if (deployedGroupTitle) {
@@ -864,6 +867,65 @@ function buildPopupTargetFields(popups: PopupSpec[]): Set<string> {
 /**
  * Re-export routes.yaml from live NocoBase state after deploy.
  *
+/**
+ * Set sortIndex on deployed routes to match routes.yaml declaration order.
+ */
+async function syncMenuOrder(
+  nb: NocoBaseClient,
+  state: ModuleState,
+  routes: RouteEntry[],
+  log: (msg: string) => void,
+): Promise<void> {
+  try {
+    // Find deployed group
+    const groupEntry = routes.find(r => r.type === 'group');
+    if (!groupEntry?.children?.length) return;
+
+    const allRoutes = await nb.http.get(`${nb.baseUrl}/api/desktopRoutes:list`, { params: { paginate: 'false', tree: 'true' } });
+    const liveGroups = (allRoutes.data.data || []).filter((r: any) => r.type === 'group');
+
+    // Find by state route_id or title match
+    let liveGroup = liveGroups.find((g: any) => {
+      for (const [, ps] of Object.entries(state.pages)) {
+        const pg = ps as Record<string, unknown>;
+        if (pg.route_id && g.children?.some((c: any) => c.id === pg.route_id)) return true;
+      }
+      return false;
+    });
+    if (!liveGroup) liveGroup = liveGroups.find((g: any) => g.title === groupEntry.title);
+    if (!liveGroup?.children?.length) return;
+
+    const liveChildren = liveGroup.children as { id: number; title: string; type: string; sortIndex?: number; children?: any[] }[];
+    let changed = 0;
+
+    // Set sortIndex on top-level pages/sub-groups
+    for (let i = 0; i < groupEntry.children.length; i++) {
+      const specChild = groupEntry.children[i];
+      const liveChild = liveChildren.find(c => c.title === specChild.title);
+      if (!liveChild) continue;
+      if (liveChild.sortIndex !== i + 1) {
+        await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`, { sortIndex: i + 1 }, { params: { 'filter[id]': liveChild.id } });
+        changed++;
+      }
+      // Sub-group children
+      if (specChild.type === 'group' && specChild.children?.length && liveChild.children?.length) {
+        for (let j = 0; j < specChild.children.length; j++) {
+          const specSub = specChild.children[j];
+          const liveSub = liveChild.children.find((c: any) => c.title === specSub.title);
+          if (liveSub && liveSub.sortIndex !== j + 1) {
+            await nb.http.post(`${nb.baseUrl}/api/desktopRoutes:update`, { sortIndex: j + 1 }, { params: { 'filter[id]': liveSub.id } });
+            changed++;
+          }
+        }
+      }
+    }
+    if (changed) log(`  menu: ${changed} routes reordered`);
+  } catch (e) {
+    log(`  ! menu order: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
+}
+
+/**
  * For copy mode (Main -> CRM Copy), this syncs back from CRM Copy so spec
  * reflects the actual deployed state. Source template (Main) is unaffected.
  * Only routes.yaml is updated; use explicit `export-project` for full sync.
