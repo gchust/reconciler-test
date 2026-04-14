@@ -180,7 +180,13 @@ export function readPageDir(pageDir: string, title: string, icon?: string): Page
     for (const f of fs.readdirSync(popupsDir).filter(f => f.endsWith('.yaml')).sort()) {
       try {
         const raw = loadYaml<Record<string, unknown>>(path.join(popupsDir, f));
-        const ps = expandPopupSugar(raw, popupsDir) as unknown as PopupSpec;
+        // Use project root (not popupsDir) so ref: templates/... resolves correctly
+        // Walk up from pageDir to find project root (where templates/ lives)
+        let projRoot = pageDir;
+        for (let d = pageDir; d !== path.dirname(d); d = path.dirname(d)) {
+          if (fs.existsSync(path.join(d, 'routes.yaml')) || fs.existsSync(path.join(d, 'templates'))) { projRoot = d; break; }
+        }
+        const ps = expandPopupSugar(raw, projRoot) as unknown as PopupSpec;
         if (ps.target) popups.push(ps);
       } catch { /* skip malformed popup file */ }
     }
