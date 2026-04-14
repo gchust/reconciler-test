@@ -916,11 +916,25 @@ function buildRoutesTree(
     if (r.type === 'group') seenTitles.add(r.title || '');
 
     const entry = buildEntry(r);
+    const seenChildren = new Set<string>();
     const childEntries = (r.children || [])
-      .filter(c => c.type !== 'tabs')
+      .filter(c => {
+        if (c.type === 'tabs') return false;
+        if (seenChildren.has(c.title || '')) return false;
+        seenChildren.add(c.title || '');
+        return true;
+      })
       .map(c => {
         const ce = buildEntry(c);
-        const subEntries = (c.children || []).filter(s => s.type !== 'tabs').map(buildEntry);
+        const seenSub = new Set<string>();
+        const subEntries = (c.children || [])
+          .filter(s => {
+            if (s.type === 'tabs') return false;
+            if (seenSub.has(s.title || '')) return false;
+            seenSub.add(s.title || '');
+            return true;
+          })
+          .map(buildEntry);
         if (subEntries.length) ce.children = subEntries;
         return ce;
       });

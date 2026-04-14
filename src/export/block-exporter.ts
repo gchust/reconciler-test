@@ -159,6 +159,28 @@ function simplifyJsBlock(spec: Record<string, unknown>): Record<string, unknown>
 }
 
 /**
+ * Simplify dataScope { logic: $and, items: [{path, operator, value}] }
+ * into filter: { path.$op: value } shorthand.
+ * Only simplifies flat $and conditions. Complex nested logic keeps original format.
+ */
+export function simplifyDataScope(dataScope: Record<string, unknown>): Record<string, unknown> | null {
+  const logic = dataScope.logic as string;
+  const items = dataScope.items as Record<string, unknown>[] | undefined;
+  if (logic !== '$and' || !Array.isArray(items)) return null;
+
+  const filter: Record<string, unknown> = {};
+  for (const item of items) {
+    const p = item.path as string;
+    const op = item.operator as string;
+    const val = item.value;
+    if (!p || !op) return null; // can't simplify
+    if (item.logic) return null; // nested condition — bail
+    filter[`${p}.${op}`] = val;
+  }
+  return filter;
+}
+
+/**
  * Simplify an updateRecord action from full stepParams into shorthand.
  */
 function simplifyUpdateRecord(actionSpec: Record<string, unknown>): Record<string, unknown> {
@@ -355,7 +377,14 @@ export function exportBlock(
   const tableSettings = sp.tableSettings as Record<string, unknown>;
   if (tableSettings) {
     const ds = tableSettings.dataScope as Record<string, unknown>;
-    if (ds?.filter) spec.dataScope = ds.filter;
+    if (ds?.filter) {
+      const simplified = simplifyDataScope(ds.filter as Record<string, unknown>);
+      if (simplified) {
+        spec.filter = simplified;
+      } else {
+        spec.dataScope = ds.filter;
+      }
+    }
     const ps = tableSettings.pageSize as Record<string, unknown>;
     const pageSize = typeof ps === 'object' ? ps?.pageSize : ps;
     if (pageSize && pageSize !== 20) spec.pageSize = pageSize;
