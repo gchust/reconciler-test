@@ -265,6 +265,25 @@ function expandSingleBlock(
     result.fields = expandFieldList(result.fields, projectRoot, blockColl);
   }
 
+  // ── Default actions by block type (only if not declared in DSL) ──
+  const btype = result.type as string;
+  if (!result.actions && !['chart', 'jsBlock', 'markdown', 'iframe'].includes(btype)) {
+    const defaults: Record<string, string[]> = {
+      table: ['filter', 'refresh', 'addNew'],
+      filterForm: [],  // compose creates submit/reset automatically
+      createForm: ['submit'],
+      editForm: ['submit'],
+    };
+    if (defaults[btype]) result.actions = defaults[btype];
+  }
+  if (!result.recordActions && !['chart', 'jsBlock', 'markdown', 'iframe'].includes(btype)) {
+    const defaults: Record<string, string[]> = {
+      table: ['edit', 'delete'],
+      details: ['edit'],
+    };
+    if (defaults[btype]) result.recordActions = defaults[btype];
+  }
+
   // Expand action sugar (link:, ai:, updateRecord:)
   if (Array.isArray(result.actions)) {
     result.actions = expandActionList(result.actions);
@@ -274,8 +293,6 @@ function expandSingleBlock(
   }
 
   // ── filterForm: strip invalid action types ──
-  // FilterFormBlockModel uses submit/reset/collapse (NOT filter/refresh which are table actions).
-  // Don't auto-add submit/reset — NocoBase compose creates them as defaults.
   if (result.type === 'filterForm' && result.actions) {
     const validFilterActions = new Set(['submit', 'reset', 'collapse']);
     result.actions = (result.actions as unknown[]).filter(a => {
@@ -285,11 +302,8 @@ function expandSingleBlock(
     if (!(result.actions as unknown[]).length) delete result.actions;
   }
 
-  // ── chart / jsBlock / markdown: strip all actions ──
-  // These block types don't support toolbar actions (filter, refresh, addNew etc.)
-  // Chart uses SQL queries (no collection data source), so FilterCollapse would crash
-  // with "Invalid filter: filter must have logic and items properties" at transformFilter.
-  if (['chart', 'jsBlock', 'markdown'].includes(result.type as string)) {
+  // ── chart / jsBlock / markdown: no actions ──
+  if (['chart', 'jsBlock', 'markdown', 'iframe'].includes(btype)) {
     delete result.actions;
     delete result.recordActions;
   }
