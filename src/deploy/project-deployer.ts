@@ -303,6 +303,9 @@ export async function deployProject(
     }
   }
 
+  // Ensure popup template blocks have binding: 'currentRecord' (for edit/detail popups)
+  await ensurePopupBindings(nb, log);
+
   // SQL verify
   const sqlResult = await verifySqlFromPages(nb, pages);
   log(`\n  ── SQL Verification: ${sqlResult.passed} passed, ${sqlResult.failed} failed ──`);
@@ -1408,5 +1411,62 @@ async function enablePageTabs(
     }
   } catch (e) {
     log(`    ! enableTabs: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
+  }
+}
+
+/**
+ * Post-deploy: ensure popup template blocks have binding:'currentRecord'.
+ *
+ * Popup templates with filterByTk (context-bound) need their internal blocks
+ * to have binding='currentRecord' so the popup framework injects the record.
+ * Generic templates (no filterByTk) are left as-is.
+ */
+async function ensurePopupBindings(
+  nb: NocoBaseClient,
+  log: (msg: string) => void,
+): Promise<void> {
+  try {
+    const resp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, { params: { paginate: false } });
+    const popups = ((resp.data?.data || []) as Record<string, unknown>[])
+      .filter(t => t.type === 'popup' && t.filterByTk);
+
+    let fixed = 0;
+    for (const tpl of popups) {
+      const data = await nb.get({ uid: tpl.targetUid as string });
+      // Walk tree to find block models
+      const blocks: { uid: string; use: string; stepParams: Record<string, unknown> }[] = [];
+      function scan(node: any) {
+        if (!node || typeof node !== 'object') return;
+        if (['EditFormModel', 'DetailsBlockModel'].includes(node.use)) {
+          blocks.push(node);
+        }
+        const subs = node.subModels;
+        if (subs) for (const v of Object.values(subs)) {
+          if (Array.isArray(v)) v.forEach(scan);
+          else if (v && typeof v === 'object') scan(v);
+        }
+      }
+      scan(data.tree);
+
+      for (const b of blocks) {
+        const init = b.stepParams?.resourceSettings as Record<string, unknown>;
+        const resInit = (init?.init || {}) as Record<string, unknown>;
+        if (resInit.binding === 'currentRecord') continue;
+        await nb.updateModel(b.uid, {
+          resourceSettings: {
+            init: {
+              ...resInit,
+              binding: 'currentRecord',
+              collectionName: resInit.collectionName || tpl.collectionName,
+              dataSourceKey: resInit.dataSourceKey || 'main',
+            },
+          },
+        });
+        fixed++;
+      }
+    }
+    if (fixed) log(`  popup bindings: ${fixed} blocks fixed`);
+  } catch (e) {
+    log(`  ! popup bindings: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
   }
 }
