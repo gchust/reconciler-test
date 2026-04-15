@@ -493,7 +493,7 @@ export async function convertPopupToTemplate(
       description: name,
       collectionName: collName,
       dataSourceKey: 'main',
-      saveMode: 'duplicate',
+      saveMode: 'convert',
     }) as Record<string, unknown>;
 
     const newTemplateUid = (result.uid || result.templateUid) as string;
