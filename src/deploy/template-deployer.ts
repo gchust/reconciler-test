@@ -465,9 +465,11 @@ async function createBlockTemplate(
 /**
  * Convert an already-deployed inline popup into a reusable popup template.
  *
- * Two-step flow (matches NocoBase UI):
- *   1. flowModels:duplicate — copy the host's popup tree (creates independent copy)
- *   2. flowModelTemplates:create — register as popup template (type:'popup', useModel from host)
+ * Uses flowSurfaces:saveTemplate with saveMode:'convert':
+ *   - Duplicates popup content tree
+ *   - Registers as popup template (type:'popup')
+ *   - Updates host openView with popupTemplateUid + popupTemplateHasFilterByTk
+ *   - Cleans up inline popup content
  *
  * @param targetUid - The popup host field/action UID (from state.popups.target_uid)
  * @param name - Template name
@@ -491,41 +493,22 @@ export async function convertPopupToTemplate(
       }
     } catch { /* use targetUid as-is */ }
 
-    // Get host model to determine useModel
-    const hostResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: hostUid } });
-    const hostModel = hostResp.data?.data;
-    if (!hostModel) {
-      log(`    . popup convert ${name}: host model not found`);
-      return undefined;
-    }
-
-    // Step 1: Duplicate the host's popup tree
-    const dupResp = await nb.http.post(`${nb.baseUrl}/api/flowModels:duplicate`, {}, {
-      params: { uid: hostUid },
-    });
-    const dupUid = dupResp.data?.data?.uid;
-    if (!dupUid) {
-      log(`    . popup convert ${name}: duplicate failed`);
-      return undefined;
-    }
-
-    // Step 2: Register as popup template
-    const templateUid = generateUid();
-    const needsFilterByTk = !hostModel.use?.includes('AddNew');
-    await nb.http.post(`${nb.baseUrl}/api/flowModelTemplates:create`, {
-      uid: templateUid,
+    const result = await nb.surfaces.saveTemplate({
+      target: { uid: hostUid },
       name,
-      description: '',
-      targetUid: dupUid,
-      useModel: hostModel.use,     // e.g. EditActionModel, DisplayTextFieldModel
-      type: 'popup',               // popup template, not block
-      dataSourceKey: 'main',
+      description: name,
       collectionName: collName,
-      filterByTk: needsFilterByTk ? '{{ctx.view.inputArgs.filterByTk}}' : null,
-    });
+      dataSourceKey: 'main',
+      saveMode: 'convert',
+    }) as Record<string, unknown>;
 
-    log(`    + popup template: ${name} (${templateUid}, coll: ${collName})`);
-    return { templateUid, targetUid: dupUid };
+    const newTemplateUid = (result.uid || result.templateUid) as string;
+    const newTargetUid = (result.targetUid) as string;
+
+    if (newTemplateUid) {
+      log(`    + popup template: ${name} (${newTemplateUid}, coll: ${collName})`);
+      return { templateUid: newTemplateUid, targetUid: newTargetUid };
+    }
   } catch (e) {
     log(`    . popup template convert: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
   }

@@ -286,7 +286,7 @@ export async function deployProject(
         const pageState = ps as Record<string, unknown>;
         const popups = (pageState.popups || {}) as Record<string, Record<string, unknown>>;
         for (const [popupKey, popupState] of Object.entries(popups)) {
-          if (!popupKey.includes('.fields.')) continue;
+          // Convert all popup types (fields, recordActions, actions)
           const targetUid = popupState.target_uid as string;
           if (!targetUid) continue;
           try {
