@@ -14,11 +14,20 @@ blocks:
       - status
       - priority
       - owner
+    actions:
+      - submit
+      - reset
+    field_layout:
+      - - name
+      - - status
+        - priority
+        - owner
   - key: table
     type: table
     coll: nb_pm_projects
     fields:
-      - name
+      - field: name
+        clickToOpen: true
       - code
       - owner
       - client_name

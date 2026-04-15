@@ -14,11 +14,20 @@ blocks:
       - status
       - department
       - role_name
+    actions:
+      - submit
+      - reset
+    field_layout:
+      - - name
+      - - status
+        - department
+        - role_name
   - key: table
     type: table
     coll: nb_pm_members
     fields:
-      - name
+      - field: name
+        clickToOpen: true
       - employee_no
       - role_name
       - department

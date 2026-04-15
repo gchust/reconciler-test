@@ -1,0 +1,39 @@
+target: $dashboard.my_tasks.actions.addNew
+auto:
+  - edit
+  - detail
+view_field: title
+coll: nb_pm_tasks
+blocks:
+  - key: form
+    type: createForm
+    coll: nb_pm_tasks
+    fields:
+      - task_no
+      - title
+      - project
+      - assignee
+      - start_date
+      - due_date
+      - planned_hours
+      - actual_hours
+      - priority
+      - status
+      - description
+    actions:
+      - submit
+    field_layout:
+      - '--- 任务信息 ---'
+      - - task_no
+        - title
+      - - project
+        - assignee
+      - - start_date
+        - due_date
+      - '--- 进度与工时 ---'
+      - - planned_hours
+        - actual_hours
+      - - priority
+        - status
+      - '--- 描述 ---'
+      - - description

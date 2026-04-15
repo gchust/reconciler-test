@@ -12,11 +12,20 @@ blocks:
       - status
       - project
       - owner
+    actions:
+      - submit
+      - reset
+    field_layout:
+      - - name
+      - - status
+        - project
+        - owner
   - key: table
     type: table
     coll: nb_pm_milestones
     fields:
-      - name
+      - field: name
+        clickToOpen: true
       - project
       - owner
       - planned_date

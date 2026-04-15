@@ -12,11 +12,20 @@ blocks:
       - status
       - project
       - billable
+    actions:
+      - submit
+      - reset
+    field_layout:
+      - - entry_no
+      - - status
+        - project
+        - billable
   - key: table
     type: table
     coll: nb_pm_time_entries
     fields:
-      - entry_no
+      - field: entry_no
+        clickToOpen: true
       - project
       - task
       - member_name

@@ -1,0 +1,2 @@
+sql_file: ./charts/tasks_status.sql
+render_file: ./charts/status_bar_render.js

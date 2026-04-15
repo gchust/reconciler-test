@@ -14,11 +14,21 @@ blocks:
       - priority
       - project
       - assignee
+    actions:
+      - submit
+      - reset
+    field_layout:
+      - - title
+      - - status
+        - priority
+        - project
+      - - assignee
   - key: table
     type: table
     coll: nb_pm_tasks
     fields:
-      - title
+      - field: title
+        clickToOpen: true
       - task_no
       - project
       - assignee

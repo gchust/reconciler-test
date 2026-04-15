@@ -1,10 +1,30 @@
 blocks:
+  - key: project_overview_kpi
+    type: jsBlock
+    file: ./js/project_overview_kpi.js
+    desc: Project Overview KPI
+  - key: chart_projects_status
+    type: chart
+    chart_config: ./charts/projects_status.yaml
+  - key: chart_tasks_status
+    type: chart
+    chart_config: ./charts/tasks_status.yaml
+  - key: chart_milestones_status
+    type: chart
+    chart_config: ./charts/milestones_status.yaml
+  - key: chart_member_status
+    type: chart
+    chart_config: ./charts/member_status.yaml
+  - key: chart_time_entries_billable
+    type: chart
+    chart_config: ./charts/time_entries_billable.yaml
   - key: active_projects
     type: table
     coll: nb_pm_projects
     title: 进行中的项目
     fields:
-      - name
+      - field: name
+        clickToOpen: true
       - owner
       - client_name
       - end_date
@@ -20,7 +40,8 @@ blocks:
     coll: nb_pm_tasks
     title: 待跟进任务
     fields:
-      - title
+      - field: title
+        clickToOpen: true
       - project
       - assignee
       - due_date
@@ -40,7 +61,8 @@ blocks:
     coll: nb_pm_milestones
     title: 近期里程碑
     fields:
-      - name
+      - field: name
+        clickToOpen: true
       - project
       - owner
       - planned_date
@@ -55,6 +77,12 @@ blocks:
           - delayed
     pageSize: 8
 layout:
+  - - project_overview_kpi
+  - - chart_projects_status: 8
+    - chart_tasks_status: 8
+    - chart_milestones_status: 8
+  - - chart_member_status: 12
+    - chart_time_entries_billable: 12
   - - active_projects
   - - my_tasks: 14
     - upcoming_milestones: 10
