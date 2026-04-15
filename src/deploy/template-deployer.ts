@@ -500,8 +500,33 @@ export async function convertPopupToTemplate(
       // Verify the template still exists
       try {
         const existingTpl = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:get`, { params: { filterByTk: existingTplUid } });
-        const existingTargetUid = existingTpl.data?.data?.targetUid || hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid || '';
+        const existingTargetUid = existingTpl.data?.data?.targetUid || '';
         log(`    = popup template: ${name} (already converted: ${existingTplUid.slice(0, 8)})`);
+
+        // Fix openView.uid → point to template's targetUid (not host itself)
+        const currentOvUid = hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid;
+        if (existingTargetUid && currentOvUid !== existingTargetUid) {
+          const sp = hostResp.data.data.stepParams;
+          sp.popupSettings.openView.uid = existingTargetUid;
+          await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+            uid: hostUid, use: hostResp.data.data.use, parentId: hostResp.data.data.parentId,
+            subKey: hostResp.data.data.subKey, subType: hostResp.data.data.subType,
+            sortIndex: hostResp.data.data.sortIndex || 0, flowRegistry: hostResp.data.data.flowRegistry || {},
+            stepParams: sp,
+          });
+          log(`      ~ openView.uid fixed → ${existingTargetUid.slice(0, 8)}`);
+        }
+
+        // Clean up stale inline popup content if template exists
+        try {
+          const tree = await nb.get({ uid: hostUid });
+          const page = tree.tree.subModels?.page;
+          if (page?.uid) {
+            await nb.http.post(`${nb.baseUrl}/api/flowModels:destroy`, {}, { params: { filterByTk: page.uid } }).catch(() => {});
+            log(`      ~ cleared stale inline popup`);
+          }
+        } catch { /* skip */ }
+
         // Still check if blocks inside need converting to block templates
         if (existingTargetUid) {
           await convertPopupBlocksToTemplates(nb, existingTargetUid, collName, log);
