@@ -266,9 +266,8 @@ export async function deployProject(
     for (const w of pv.warnings) log(`  💡 ${w}`);
   }
 
-  // Convert pending popup templates (inline popups → templates)
-  if (pendingPopups.length) {
-    // Build pageKey → collection mapping from pageInfo
+  // Convert all inline popups to popup templates (one by one)
+  {
     const pageCollMap = new Map<string, string>();
     for (const pi of pages) {
       const blocks = (pi.layout as any)?.blocks || [];
@@ -276,29 +275,23 @@ export async function deployProject(
       if (firstColl) pageCollMap.set(pi.slug, firstColl);
     }
 
-    for (const pp of pendingPopups) {
-      // Find a deployed popup on the page whose collection matches the template's collection
-      for (const [pageKey, ps] of Object.entries(state.pages)) {
-        // Match by collection — derive from pageInfo
-        const pageColl = pageCollMap.get(pageKey) || '';
-        if (!pageColl || (pp.collName && pageColl !== pp.collName)) continue;
-
-        const pageState = ps as Record<string, unknown>;
-        const popups = (pageState.popups || {}) as Record<string, Record<string, unknown>>;
-        for (const [popupKey, popupState] of Object.entries(popups)) {
-          // Convert all popup types (fields, recordActions, actions)
-          const targetUid = popupState.target_uid as string;
-          if (!targetUid) continue;
-          try {
-            const result = await convertPopupToTemplate(nb, targetUid, pp.name, pp.collName, log);
-            if (result) {
-              templateUidMap.set(pp.uid, result.templateUid);
-              if (pp.targetUid) templateUidMap.set(pp.targetUid, result.targetUid);
-              break;
-            }
-          } catch { /* skip */ }
-        }
-        if (templateUidMap.has(pp.uid)) break;
+    for (const [pageKey, ps] of Object.entries(state.pages)) {
+      const pageColl = pageCollMap.get(pageKey) || '';
+      if (!pageColl) continue;
+      const popups = ((ps as Record<string, unknown>).popups || {}) as Record<string, Record<string, unknown>>;
+      for (const [popupKey, popupState] of Object.entries(popups)) {
+        const targetUid = popupState.target_uid as string;
+        if (!targetUid) continue;
+        // Derive template name from popup key
+        const popupType = popupKey.includes('.actions.addNew') ? 'Add new'
+          : popupKey.includes('.recordActions.edit') ? 'Edit'
+          : popupKey.includes('.fields.') ? 'Detail' : null;
+        if (!popupType) continue;
+        const collTitle = pageColl.replace(/^nb_\w+_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const tplName = `Popup (${popupType}): ${collTitle}`;
+        try {
+          await convertPopupToTemplate(nb, targetUid, tplName, pageColl, log);
+        } catch { /* skip */ }
       }
     }
   }
