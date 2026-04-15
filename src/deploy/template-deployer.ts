@@ -631,24 +631,26 @@ async function convertPopupBlocksToTemplates(
     walkTree(tree, null);
     if (!blocks.length) return;
 
-    // Fetch existing block templates for dedup (name + collectionName)
+    // Find existing block templates (by useModel + collectionName) to reuse
     const allTpls = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, { params: { paginate: false } });
-    const existingByKey = new Map<string, { uid: string; targetUid: string }>();
+    const existingByUseModel = new Map<string, { uid: string; targetUid: string; name: string }>();
     for (const t of (allTpls.data?.data || []) as Record<string, unknown>[]) {
       if (t.type === 'block' && t.collectionName === collName) {
-        existingByKey.set(`${t.name}|${t.collectionName}`, { uid: t.uid as string, targetUid: t.targetUid as string });
+        const key = `${t.useModel}|${t.collectionName}`;
+        // Prefer templates from _index.yaml (longer names with collection prefix)
+        if (!existingByUseModel.has(key) || (t.name as string).length > (existingByUseModel.get(key)!.name.length)) {
+          existingByUseModel.set(key, { uid: t.uid as string, targetUid: t.targetUid as string, name: t.name as string });
+        }
       }
     }
 
     for (const block of blocks) {
-      const collTitle = collName.replace(/^nb_\w+_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-      const tplName = `${BLOCK_NAMES[block.use] || block.use}: ${collTitle}`;
-      const dedupeKey = `${tplName}|${collName}`;
+      const key = `${block.use}|${collName}`;
+      const existing = existingByUseModel.get(key);
 
       try {
-        const existing = existingByKey.get(dedupeKey);
         if (existing) {
-          // Template exists — reuse: just replace block with ReferenceBlockModel pointing to existing
+          // Reuse existing block template → ReferenceBlockModel pointing to it
           const refUid = generateUid();
           await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
             uid: refUid,
@@ -661,7 +663,7 @@ async function convertPopupBlocksToTemplates(
                 target: { targetUid: existing.targetUid, mode: 'reference' },
                 useTemplate: {
                   templateUid: existing.uid,
-                  templateName: tplName,
+                  templateName: existing.name,
                   templateDescription: '',
                   targetUid: existing.targetUid,
                   mode: 'reference',
@@ -671,53 +673,35 @@ async function convertPopupBlocksToTemplates(
             sortIndex: block.sortIndex,
             flowRegistry: {},
           });
-          // Delete the original block (it's been replaced)
+          // Delete the original inline block
           await nb.http.post(`${nb.baseUrl}/api/flowModels:destroy`, {}, { params: { filterByTk: block.uid } }).catch(() => {});
-          log(`      = block template: ${tplName} (reused ${existing.uid.slice(0, 8)})`);
-          continue;
-        }
-
-        // Template doesn't exist — create via detachParent
-        const tplResp = await nb.http.post(`${nb.baseUrl}/api/flowModelTemplates:create`, {
-          name: tplName,
-          description: '',
-          targetUid: block.uid,
-          useModel: block.use,
-          type: 'block',
-          dataSourceKey: 'main',
-          collectionName: collName,
-          filterByTk: block.use !== 'CreateFormModel' ? '{{ctx.view.inputArgs.filterByTk}}' : null,
-          sourceId: null,
-          detachParent: true,
-        });
-        const blockTplUid = tplResp.data?.data?.uid;
-        if (!blockTplUid) continue;
-
-        // ReferenceBlockModel replaces the block in the grid
-        const refUid = generateUid();
-        await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
-          uid: refUid,
-          use: 'ReferenceBlockModel',
-          parentId: block.parentId,
-          subKey: 'items',
-          subType: 'array',
-          stepParams: {
-            referenceSettings: {
+          log(`      = block ref: ${existing.name} (${existing.uid.slice(0, 8)})`);
+        } else {
+          // No existing template — detach this block as new template
+          const collTitle = collName.replace(/^nb_\w+_/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const tplName = `${BLOCK_NAMES[block.use] || block.use}: ${collTitle}`;
+          const tplResp = await nb.http.post(`${nb.baseUrl}/api/flowModelTemplates:create`, {
+            name: tplName, description: '',
+            targetUid: block.uid, useModel: block.use, type: 'block',
+            dataSourceKey: 'main', collectionName: collName,
+            filterByTk: block.use !== 'CreateFormModel' ? '{{ctx.view.inputArgs.filterByTk}}' : null,
+            detachParent: true,
+          });
+          const blockTplUid = tplResp.data?.data?.uid;
+          if (!blockTplUid) continue;
+          const refUid = generateUid();
+          await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+            uid: refUid, use: 'ReferenceBlockModel',
+            parentId: block.parentId, subKey: 'items', subType: 'array',
+            stepParams: { referenceSettings: {
               target: { targetUid: block.uid, mode: 'reference' },
-              useTemplate: {
-                templateUid: blockTplUid,
-                templateName: tplName,
-                templateDescription: '',
-                targetUid: block.uid,
-                mode: 'reference',
-              },
-            },
-          },
-          sortIndex: block.sortIndex,
-          flowRegistry: {},
-        });
-        existingByKey.set(dedupeKey, { uid: blockTplUid, targetUid: block.uid });
-        log(`      + block template: ${tplName} (${blockTplUid.slice(0, 8)})`);
+              useTemplate: { templateUid: blockTplUid, templateName: tplName, targetUid: block.uid, mode: 'reference' },
+            }},
+            sortIndex: block.sortIndex, flowRegistry: {},
+          });
+          existingByUseModel.set(key, { uid: blockTplUid, targetUid: block.uid, name: tplName });
+          log(`      + block template: ${tplName} (${blockTplUid.slice(0, 8)})`);
+        }
       } catch (e: any) {
         log(`      . block template ${block.use}: ${e?.response?.data?.errors?.[0]?.message?.slice(0, 60) || e?.message?.slice(0, 60) || ''}`);
       }
