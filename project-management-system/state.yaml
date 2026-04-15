@@ -329,4 +329,113 @@ pages:
             actions:
               submit:
                 uid: k7fu170cjuy
+  members:
+    route_id: 0
+    page_uid: k9ygz8kajmx
+    tab_uid: r81dgwbmn8k
+    blocks:
+      filter:
+        uid: 9yzfh75u70k
+        type: filterForm
+        grid_uid: 8lpt93nv6e1
+        fields:
+          name:
+            wrapper: it7uucrgmwz
+            field: ''
+          status:
+            wrapper: njjvop99xek
+            field: ''
+          department:
+            wrapper: h8i60nglzlx
+            field: ''
+          role_name:
+            wrapper: glms1llvb3v
+            field: ''
+        actions:
+          filterFormSubmit:
+            uid: r8yijb2yiap
+          filterFormReset:
+            uid: z0ho01r5y6l
+          submit:
+            uid: noc0wfula0b
+          reset:
+            uid: ll7wsynbku1
+      table:
+        uid: tphaj162xcm
+        type: table
+        grid_uid: ''
+        fields:
+          name:
+            wrapper: 2s6w98p1h6q
+            field: ''
+          employee_no:
+            wrapper: jjdlejixtg0
+            field: ''
+          role_name:
+            wrapper: bfw2zkwh14s
+            field: ''
+          department:
+            wrapper: 4m4juvsuq1k
+            field: ''
+          email:
+            wrapper: 2fx2bcv94ra
+            field: ''
+          phone:
+            wrapper: kmpbmlru9k6
+            field: ''
+          status:
+            wrapper: eima9vvhs38
+            field: ''
+        actions:
+          filter:
+            uid: jgottoclpo5
+          refresh:
+            uid: mooap4tzc3v
+          addNew:
+            uid: wqwdr7xwcfb
+          export:
+            uid: feewolj7dai
+        record_actions:
+          edit:
+            uid: xoj2pqmn1td
+          view:
+            uid: cakaqk4km1j
+          delete:
+            uid: kshztia3w6o
+    popups:
+      table.actions.addNew:
+        target_uid: wqwdr7xwcfb
+        blocks:
+          form:
+            uid: mcwu1puur78
+            type: createForm
+            grid_uid: oq3qz6cm4je
+            fields:
+              employee_no:
+                wrapper: su041jyyjqp
+                field: ''
+              name:
+                wrapper: fx8akhbru6n
+                field: ''
+              role_name:
+                wrapper: ppcg0evfse4
+                field: ''
+              department:
+                wrapper: yd9a4zvai77
+                field: ''
+              email:
+                wrapper: 7p1w5gphpp7
+                field: ''
+              phone:
+                wrapper: fpr5zsu0uln
+                field: ''
+              status:
+                wrapper: 9wugxqnz0l7
+                field: ''
+              notes:
+                wrapper: 8f54ks8vkaq
+                field: ''
+            actions:
+              submit:
+                uid: 1yqqnrnndnv
 group_id: 359119394373632
