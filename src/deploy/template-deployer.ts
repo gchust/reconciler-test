@@ -499,9 +499,14 @@ export async function convertPopupToTemplate(
     if (existingTplUid && typeof existingTplUid === 'string' && existingTplUid.length > 5) {
       // Verify the template still exists
       try {
-        await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:get`, { params: { filterByTk: existingTplUid } });
+        const existingTpl = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:get`, { params: { filterByTk: existingTplUid } });
+        const existingTargetUid = existingTpl.data?.data?.targetUid || hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid || '';
         log(`    = popup template: ${name} (already converted: ${existingTplUid.slice(0, 8)})`);
-        return { templateUid: existingTplUid, targetUid: hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid || '' };
+        // Still check if blocks inside need converting to block templates
+        if (existingTargetUid) {
+          await convertPopupBlocksToTemplates(nb, existingTargetUid, collName, log);
+        }
+        return { templateUid: existingTplUid, targetUid: existingTargetUid };
       } catch {
         // Template deleted — clear stale ref so convert can proceed
         const ov = hostResp.data.data.stepParams.popupSettings.openView;
