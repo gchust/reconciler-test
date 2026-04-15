@@ -112,9 +112,9 @@ export function expandPopupSugar(
     delete result.popup;
   }
 
-  // Expand blocks — popup context: inline-expand ref: to preserve resource_binding
+  // Expand blocks
   if (Array.isArray(result.blocks)) {
-    result.blocks = expandBlockList(result.blocks, projectRoot, result.coll as string | undefined, defaults, true);
+    result.blocks = expandBlockList(result.blocks, projectRoot, result.coll as string | undefined, defaults);
   }
 
   // Expand tabs
@@ -122,7 +122,7 @@ export function expandPopupSugar(
     result.tabs = (result.tabs as Record<string, unknown>[]).map(tab => {
       const t = { ...tab };
       if (Array.isArray(t.blocks)) {
-        t.blocks = expandBlockList(t.blocks, projectRoot, (t.coll || result.coll) as string | undefined, defaults, true);
+        t.blocks = expandBlockList(t.blocks, projectRoot, (t.coll || result.coll) as string | undefined, defaults);
       }
       return t;
     });
@@ -138,13 +138,12 @@ function expandBlockList(
   projectRoot: string,
   parentColl?: string,
   defaults?: ProjectDefaults,
-  isPopupContext = false,
 ): Record<string, unknown>[] {
   const result: Record<string, unknown>[] = [];
   for (const b of blocks) {
     if (b && typeof b === 'object' && !Array.isArray(b)) {
       const block = b as Record<string, unknown>;
-      const expanded = expandSingleBlock(block, projectRoot, parentColl, isPopupContext);
+      const expanded = expandSingleBlock(block, projectRoot, parentColl);
       // Apply defaults to expanded blocks
       if (defaults) {
         for (const eb of expanded) {
@@ -242,7 +241,6 @@ function expandSingleBlock(
   block: Record<string, unknown>,
   projectRoot: string,
   parentColl?: string,
-  isPopupContext = false,
 ): Record<string, unknown>[] {
   // ── Sugar 1: js: shorthand ──
   if ('js' in block && !('type' in block)) {
@@ -251,7 +249,7 @@ function expandSingleBlock(
 
   // ── Sugar 1: ref: shorthand ──
   if ('ref' in block && !('type' in block)) {
-    return [expandRefSugar(block, projectRoot, isPopupContext)];
+    return [expandRefSugar(block, projectRoot)];
   }
 
   // Otherwise, process the block normally — expand its internals
@@ -351,7 +349,6 @@ function expandJsSugar(block: Record<string, unknown>): Record<string, unknown> 
 function expandRefSugar(
   block: Record<string, unknown>,
   projectRoot: string,
-  isPopupContext = false,
 ): Record<string, unknown> {
   const refPath = block.ref as string;
   if (!refPath) return block;
@@ -368,14 +365,6 @@ function expandRefSugar(
   try {
     const template = loadYaml<Record<string, unknown>>(absPath);
 
-    // In popup context: inline-expand the template content (preserve resource_binding)
-    // This ensures editForm/details inside popups bind to the current record.
-    if (isPopupContext && template.content && typeof template.content === 'object') {
-      const content = template.content as Record<string, unknown>;
-      return { ...content };
-    }
-
-    // Normal context: use ReferenceBlockModel
     const tplName = (template.templateName || template.name || '') as string;
     const tplUid = (template.templateUid || template.uid || '') as string;
     return {
