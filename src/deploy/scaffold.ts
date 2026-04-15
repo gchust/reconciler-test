@@ -497,7 +497,7 @@ function generateCrudPage(
           'createdAt',
         ],
         actions: ['filter', 'refresh', 'addNew'],
-        recordActions: ['edit'],
+        recordActions: ['edit', 'delete'],
       },
     ],
     layout: [
