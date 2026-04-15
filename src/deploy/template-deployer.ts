@@ -493,12 +493,31 @@ export async function convertPopupToTemplate(
       }
     } catch { /* use targetUid as-is */ }
 
-    // Check if host already has a popup template (skip if already converted)
+    // Check if host already has a popup template
     const hostResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: hostUid } });
     const existingTplUid = hostResp.data?.data?.stepParams?.popupSettings?.openView?.popupTemplateUid;
     if (existingTplUid) {
-      log(`    = popup template: ${name} (already converted: ${existingTplUid.slice(0, 8)})`);
-      return { templateUid: existingTplUid, targetUid: hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid || '' };
+      // Verify the template still exists
+      try {
+        await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:get`, { params: { filterByTk: existingTplUid } });
+        log(`    = popup template: ${name} (already converted: ${existingTplUid.slice(0, 8)})`);
+        return { templateUid: existingTplUid, targetUid: hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid || '' };
+      } catch {
+        // Template deleted — clear stale ref so convert can proceed
+        const ov = hostResp.data.data.stepParams.popupSettings.openView;
+        delete ov.popupTemplateUid;
+        delete ov.popupTemplateMode;
+        delete ov.popupTemplateHasFilterByTk;
+        delete ov.popupTemplateHasSourceId;
+        const d = hostResp.data.data;
+        await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+          uid: hostUid, use: d.use, parentId: d.parentId,
+          subKey: d.subKey, subType: d.subType,
+          sortIndex: d.sortIndex || 0, flowRegistry: d.flowRegistry || {},
+          stepParams: d.stepParams,
+        });
+        log(`    ~ cleared stale popupTemplateUid on ${name}`);
+      }
     }
 
     const result = await nb.surfaces.saveTemplate({
