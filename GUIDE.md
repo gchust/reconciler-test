@@ -10,14 +10,16 @@
 
 ## Build Mode — 分层搭建
 
-搭建分三轮，每轮部署后确认效果再继续下一轮。
+分三轮，每轮部署确认后再继续。
 
-### 第一轮：数据表 + CRUD 页面
+### 第一轮：页面布局
+
+所有页面的基本布局，包括 CRUD 列表页和仪表盘。
 
 1. **设计** — 列出数据表、字段、关系，确认后开始
-2. **Scaffold** — 生成骨架（Dashboard + 每个数据表一个 CRUD 页面）
-3. **编辑字段** — `collections/*.yaml` 加业务字段，`templates/block/*.yaml` 更新 field_layout
-4. **部署** — deploy-project，检查结果
+2. **Scaffold** — 生成骨架（Dashboard + CRUD 页面）
+3. **编辑** — `collections/*.yaml` 加业务字段，`templates/block/*.yaml` 更新布局，Dashboard 加 KPI/图表区块
+4. **部署** — deploy-project，确认所有页面布局正确
 
 ```bash
 # Scaffold（--collections 自动推导页面名 + Dashboard）
@@ -29,32 +31,39 @@ cd src && NB_USER=admin@nocobase.com NB_PASSWORD=admin123 \
   npx tsx cli/cli.ts deploy-project /tmp/my-app --group "My App" --force
 ```
 
-### 第二轮：详情页（弹窗内容）
+Scaffold 生成内容：
+- Dashboard：KPI 卡片（JS 区块）+ 图表（chart 区块）
+- 每个数据表：filterForm（含 stats 筛选按钮）+ table + addNew/edit 弹窗
 
-点击记录名打开的弹窗 = 详情页面。默认只有一个 details 区块，需要丰富内容：
+### 第二轮：详情页
 
-- **详情区块**：主要字段 + 分组布局
-- **关联列表**：o2m/m2m 关联数据（如订单→明细、客户→联系人）
-- **操作日志**：时间线或活动记录
-- **Tabs 分页**：内容多时用 tabs 分隔
+点击记录名打开的弹窗 = 详情页面。默认只有一个 details 区块，需要按业务需求丰富：
 
-编辑 `templates/popup/detail_xxx.yaml` 或 `pages/xxx/popups/table.name.yaml`。
+- **详情区块**：主要字段 + 分组布局（field_layout）
+- **关联列表**：o2m/m2m 关联数据表格（如订单→明细、客户→联系人）
+- **Tabs 分页**：内容多时用 tabs 分隔不同类别
+- **操作按钮**：详情页内的业务操作（审批、状态变更等）
 
-### 第三轮：仪表盘
+编辑 `templates/popup/detail_xxx.yaml` 和弹窗模板中的 blocks 内容。
 
-Dashboard 页面的 KPI 卡片、图表需要编写 SQL + JS。
+### 第三轮：JS 区块 + 事件流
 
-**JS 组件模板** — 在 `templates/js/` 目录：
+填充业务逻辑：
+
+**JS 区块** — 从 `templates/js/` 复制组件模板，修改 CONFIG 参数：
 
 | 模板 | 类型 | 用途 |
 |------|------|------|
-| `stats-filter.js` | JSItemModel | 状态分布筛选按钮 |
+| `stats-filter.js` | JSItemModel | 状态分布筛选按钮（ctx.sql 动态查询） |
 | `kpi-card.js` | JSBlockModel | KPI 指标卡片 |
 | `status-tag.js` | JSColumnModel | 彩色状态标签 |
 | `progress-bar.js` | JSColumnModel | 进度条列 |
 | `currency.js` | JSColumnModel | 货币格式化列 |
 
-复制模板到页面 js/ 目录，修改 CONFIG 区域参数即可。
+**事件流（Workflow）** — 业务自动化：
+- 状态变更触发通知
+- 库存不足自动创建采购单
+- 审批流程
 
 ## What Scaffold Generates
 
