@@ -10,8 +10,11 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { slugify } from '../utils/slugify';
 import { dumpYaml } from '../utils/yaml';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── Dashboard constants (reusable templates) ──
 
