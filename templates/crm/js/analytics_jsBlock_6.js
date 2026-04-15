@@ -13,6 +13,26 @@ const bgChartStyle = { position: 'absolute', bottom: 0, right: 0, width: '140px'
 const fmt = (v) => v >= 1e6 ? `¥${(v/1e6).toFixed(1)}M` : v >= 1e3 ? `¥${(v/1e3).toFixed(1)}K` : `¥${v.toFixed(0)}`;
 const { useState, useEffect } = ctx.React;
 const SQL_UID = 'kpi_total_revenue_v2';
+const SQL = `
+WITH current_period AS (
+  SELECT COALESCE(SUM(order_amount), 0) as current_revenue
+  FROM nb_crm_orders
+  WHERE status = 'completed'
+    AND "createdAt" >= {{startDate1}} AND "createdAt" <= {{endDate1}}
+),
+previous_period AS (
+  SELECT COALESCE(SUM(order_amount), 0) as previous_revenue
+  FROM nb_crm_orders
+  WHERE status = 'completed'
+    AND "createdAt" >= {{previousStart1}} AND "createdAt" < {{startDate2}}
+)
+SELECT cp.current_revenue,
+  CASE WHEN pp.previous_revenue > 0 THEN
+    ROUND(((cp.current_revenue - pp.previous_revenue) / pp.previous_revenue * 100)::numeric, 1)
+  ELSE CASE WHEN cp.current_revenue > 0 THEN 100.0 ELSE 0 END
+  END as growth_rate
+FROM current_period cp, previous_period pp
+`;
 
 const KpiCard = () => {
   const [data, setData] = useState({ revenue: 0, growthRate: 0, loading: true });
@@ -20,6 +40,9 @@ const KpiCard = () => {
   const fetchData = async () => {
     try {
       setData(prev => ({ ...prev, loading: true }));
+      if (ctx.flowSettingsEnabled) {
+        try { await ctx.sql.save({ uid: SQL_UID, sql: SQL.trim(), dataSourceKey: 'main' }); } catch(e) {}
+      }
       const { date_range } = ctx.form?.getFieldsValue?.() || {};
       const startDate = date_range?.[0] || ctx.libs.dayjs().startOf('month');
       const endDate = date_range?.[1] || ctx.libs.dayjs().endOf('month');

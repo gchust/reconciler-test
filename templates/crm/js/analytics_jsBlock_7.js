@@ -12,6 +12,18 @@ const bgChartStyle = { position: 'absolute', bottom: 0, right: 0, width: '140px'
 
 const { useState, useEffect } = ctx.React;
 const SQL_UID = 'kpi_new_leads_v2';
+const SQL = `
+WITH current_period AS (
+  SELECT COUNT(*) as current_count FROM nb_crm_leads
+  WHERE "createdAt" >= {{startDate1}} AND "createdAt" <= {{endDate1}}
+),
+previous_period AS (
+  SELECT COUNT(*) as previous_count FROM nb_crm_leads
+  WHERE "createdAt" >= {{previousStart1}} AND "createdAt" < {{startDate2}}
+)
+SELECT cp.current_count, (cp.current_count - pp.previous_count) as growth_count
+FROM current_period cp, previous_period pp
+`;
 
 const KpiCard = () => {
   const [data, setData] = useState({ count: 0, growthCount: 0, loading: true });
@@ -19,6 +31,9 @@ const KpiCard = () => {
   const fetchData = async () => {
     try {
       setData(prev => ({ ...prev, loading: true }));
+      if (ctx.flowSettingsEnabled) {
+        try { await ctx.sql.save({ uid: SQL_UID, sql: SQL.trim(), dataSourceKey: 'main' }); } catch(e) {}
+      }
       const { date_range } = ctx.form?.getFieldsValue?.() || {};
       const startDate = date_range?.[0] || ctx.libs.dayjs().startOf('month');
       const endDate = date_range?.[1] || ctx.libs.dayjs().endOf('month');

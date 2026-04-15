@@ -13,6 +13,30 @@ const bgChartStyle = { position: 'absolute', bottom: 0, right: 0, width: '140px'
 
 const { useState, useEffect } = ctx.React;
 const SQL_UID = 'kpi_conversion_rate_v2';
+const SQL = `
+WITH current_period AS (
+  SELECT COUNT(DISTINCT l.id) as lead_count,
+    COUNT(DISTINCT CASE WHEN o.stage = 'won' THEN o.id END) as won_count
+  FROM nb_crm_leads l
+  LEFT JOIN nb_crm_opportunities o ON l.converted_opportunity_id = o.id
+    AND o."createdAt" >= {{startDate1}} AND o."createdAt" <= {{endDate1}}
+  WHERE l."createdAt" >= {{startDate2}} AND l."createdAt" <= {{endDate2}}
+),
+previous_period AS (
+  SELECT COUNT(DISTINCT l.id) as lead_count,
+    COUNT(DISTINCT CASE WHEN o.stage = 'won' THEN o.id END) as won_count
+  FROM nb_crm_leads l
+  LEFT JOIN nb_crm_opportunities o ON l.converted_opportunity_id = o.id
+    AND o."createdAt" >= {{previousStart1}} AND o."createdAt" < {{startDate2}}
+  WHERE l."createdAt" >= {{previousStart1}} AND l."createdAt" < {{startDate2}}
+)
+SELECT
+  CASE WHEN cp.lead_count > 0 THEN ROUND((cp.won_count::numeric / cp.lead_count * 100), 1) ELSE 0 END as current_rate,
+  CASE WHEN pp.lead_count > 0 THEN ROUND((pp.won_count::numeric / pp.lead_count * 100), 1) ELSE 0 END as previous_rate,
+  CASE WHEN cp.lead_count > 0 THEN ROUND((cp.won_count::numeric / cp.lead_count * 100), 1) ELSE 0 END
+    - CASE WHEN pp.lead_count > 0 THEN ROUND((pp.won_count::numeric / pp.lead_count * 100), 1) ELSE 0 END as rate_change
+FROM current_period cp, previous_period pp
+`;
 
 const KpiCard = () => {
   const [data, setData] = useState({ rate: 0, rateChange: 0, loading: true });
@@ -20,6 +44,9 @@ const KpiCard = () => {
   const fetchData = async () => {
     try {
       setData(prev => ({ ...prev, loading: true }));
+      if (ctx.flowSettingsEnabled) {
+        try { await ctx.sql.save({ uid: SQL_UID, sql: SQL.trim(), dataSourceKey: 'main' }); } catch(e) {}
+      }
       const { date_range } = ctx.form?.getFieldsValue?.() || {};
       const startDate = date_range?.[0] || ctx.libs.dayjs().startOf('month');
       const endDate = date_range?.[1] || ctx.libs.dayjs().endOf('month');

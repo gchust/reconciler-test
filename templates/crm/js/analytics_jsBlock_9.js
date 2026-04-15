@@ -13,6 +13,13 @@ const bgChartStyle = { position: 'absolute', bottom: 0, right: 0, width: '140px'
 
 const { useState, useEffect } = ctx.React;
 const SQL_UID = 'kpi_deal_cycle_v2';
+const SQL = `
+SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (o."updatedAt" - o."createdAt")) / 86400)::integer, 0) as current_days
+FROM nb_crm_opportunities o
+WHERE o.stage = 'won'
+  AND o."updatedAt" >= {{startDate1}} AND o."updatedAt" <= {{endDate1}}
+  AND o."createdAt" IS NOT NULL
+`;
 
 const KpiCard = () => {
   const [data, setData] = useState({ days: 0, loading: true });
@@ -20,10 +27,13 @@ const KpiCard = () => {
   const fetchData = async () => {
     try {
       setData(prev => ({ ...prev, loading: true }));
+      if (ctx.flowSettingsEnabled) {
+        try { await ctx.sql.save({ uid: SQL_UID, sql: SQL.trim(), dataSourceKey: 'main' }); } catch(e) {}
+      }
       const { date_range } = ctx.form?.getFieldsValue?.() || {};
       const startDate = date_range?.[0] || ctx.libs.dayjs().startOf('month');
       const endDate = date_range?.[1] || ctx.libs.dayjs().endOf('month');
-      
+
       const result = await ctx.sql.runById(SQL_UID, {
         bind: { __var1: startDate.format('YYYY-MM-DD 00:00:00'), __var2: endDate.format('YYYY-MM-DD 23:59:59') }, type: 'selectRows', dataSourceKey: 'main'
       });
