@@ -1455,62 +1455,33 @@ async function ensurePopupBindings(
     }
     if (fixed) log(`  popup filterByTk: ${fixed} hosts fixed`);
 
-    // Also fix block templates referenced inside popup templates
-    // Block templates created on temp pages lack filterByTk in their target blocks
+    // Fix block template targets: edit/detail templates need filterByTk
+    // (created on temp page without popup context, so target block has no filterByTk)
     let blockFixed = 0;
     const tplResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, { params: { paginate: false } });
-    const allTpls = (tplResp.data?.data || []) as Record<string, unknown>[];
-    const blockTplMap = new Map<string, Record<string, unknown>>();
-    for (const t of allTpls) {
-      if (t.type === 'block') blockTplMap.set(t.uid as string, t);
-    }
-
-    for (const t of allTpls) {
-      if (t.type !== 'popup' || !t.filterByTk) continue;
-      // Walk popup template tree to find ReferenceBlockModels
+    const NO_FILTER_MODELS = new Set(['CreateFormModel']);
+    for (const t of (tplResp.data?.data || []) as Record<string, unknown>[]) {
+      if (t.type !== 'block' || !t.targetUid) continue;
+      if (NO_FILTER_MODELS.has(t.useModel as string)) continue; // addNew doesn't need filterByTk
       try {
-        const data = await nb.get({ uid: t.targetUid as string });
-        const refs: { uid: string; tplUid: string }[] = [];
-        function scanRefs(node: any) {
-          if (!node || typeof node !== 'object') return;
-          if (node.use === 'ReferenceBlockModel') {
-            const tplUid = node.stepParams?.referenceSettings?.useTemplate?.templateUid;
-            if (tplUid) refs.push({ uid: node.uid, tplUid });
-          }
-          const subs = node.subModels;
-          if (subs) for (const v of Object.values(subs)) {
-            if (Array.isArray(v)) (v as any[]).forEach(scanRefs);
-            else if (v && typeof v === 'object') scanRefs(v);
-          }
-        }
-        scanRefs(data.tree);
-
-        for (const ref of refs) {
-          const blockTpl = blockTplMap.get(ref.tplUid);
-          if (!blockTpl?.targetUid) continue;
-          // Check target block's resourceSettings
-          try {
-            const fm = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: blockTpl.targetUid } });
-            const d = fm.data?.data;
-            if (!d) continue;
-            const res = d.stepParams?.resourceSettings?.init || {};
-            if (res.filterByTk === '{{ctx.view.inputArgs.filterByTk}}') continue;
-            // Fix it
-            const sp = d.stepParams || {};
-            if (!sp.resourceSettings) sp.resourceSettings = {};
-            if (!sp.resourceSettings.init) sp.resourceSettings.init = {};
-            sp.resourceSettings.init.filterByTk = '{{ctx.view.inputArgs.filterByTk}}';
-            if (!sp.resourceSettings.init.dataSourceKey) sp.resourceSettings.init.dataSourceKey = 'main';
-            if (!sp.resourceSettings.init.collectionName) sp.resourceSettings.init.collectionName = blockTpl.collectionName;
-            await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
-              uid: blockTpl.targetUid, use: d.use, parentId: d.parentId,
-              subKey: d.subKey, subType: d.subType,
-              sortIndex: d.sortIndex || 0, flowRegistry: d.flowRegistry || {},
-              stepParams: sp,
-            });
-            blockFixed++;
-          } catch { /* skip */ }
-        }
+        const fm = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: t.targetUid } });
+        const d = fm.data?.data;
+        if (!d) continue;
+        const res = d.stepParams?.resourceSettings?.init || {};
+        if (res.filterByTk === '{{ctx.view.inputArgs.filterByTk}}') continue;
+        const sp = d.stepParams || {};
+        if (!sp.resourceSettings) sp.resourceSettings = {};
+        if (!sp.resourceSettings.init) sp.resourceSettings.init = {};
+        sp.resourceSettings.init.filterByTk = '{{ctx.view.inputArgs.filterByTk}}';
+        if (!sp.resourceSettings.init.dataSourceKey) sp.resourceSettings.init.dataSourceKey = 'main';
+        if (!sp.resourceSettings.init.collectionName) sp.resourceSettings.init.collectionName = t.collectionName;
+        await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+          uid: t.targetUid as string, use: d.use, parentId: d.parentId,
+          subKey: d.subKey, subType: d.subType,
+          sortIndex: d.sortIndex || 0, flowRegistry: d.flowRegistry || {},
+          stepParams: sp,
+        });
+        blockFixed++;
       } catch { /* skip */ }
     }
     if (blockFixed) log(`  block template filterByTk: ${blockFixed} targets fixed`);
