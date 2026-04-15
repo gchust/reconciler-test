@@ -1,0 +1,357 @@
+stats:
+  nodes: 30
+  edges: 44
+  collections: 5
+  pages: 6
+  components: 0
+  cycles: 0
+nodes:
+  - id: collection:nb_pm_members
+    type: collection
+    name: nb_pm_members
+    meta:
+      file: collections/nb_pm_members.yaml
+  - id: collection:nb_pm_milestones
+    type: collection
+    name: nb_pm_milestones
+    meta:
+      file: collections/nb_pm_milestones.yaml
+  - id: collection:nb_pm_projects
+    type: collection
+    name: nb_pm_projects
+    meta:
+      file: collections/nb_pm_projects.yaml
+  - id: collection:nb_pm_tasks
+    type: collection
+    name: nb_pm_tasks
+    meta:
+      file: collections/nb_pm_tasks.yaml
+  - id: collection:nb_pm_time_entries
+    type: collection
+    name: nb_pm_time_entries
+    meta:
+      file: collections/nb_pm_time_entries.yaml
+  - id: page:项目管理/dashboard
+    type: page
+    name: dashboard
+    meta:
+      dir: pages/项目管理/dashboard
+      group: 项目管理
+  - id: page:项目管理/dashboard/project_overview_kpi
+    type: block
+    name: project_overview_kpi (jsBlock)
+    meta:
+      type: jsBlock
+      depth: 0
+  - id: page:项目管理/dashboard/chart_projects_status
+    type: block
+    name: chart_projects_status (chart)
+    meta:
+      type: chart
+      depth: 0
+  - id: page:项目管理/dashboard/chart_tasks_status
+    type: block
+    name: chart_tasks_status (chart)
+    meta:
+      type: chart
+      depth: 0
+  - id: page:项目管理/dashboard/chart_milestones_status
+    type: block
+    name: chart_milestones_status (chart)
+    meta:
+      type: chart
+      depth: 0
+  - id: page:项目管理/dashboard/chart_member_status
+    type: block
+    name: chart_member_status (chart)
+    meta:
+      type: chart
+      depth: 0
+  - id: page:项目管理/dashboard/chart_time_entries_billable
+    type: block
+    name: chart_time_entries_billable (chart)
+    meta:
+      type: chart
+      depth: 0
+  - id: page:项目管理/dashboard/active_projects
+    type: block
+    name: active_projects (table)
+    meta:
+      type: table
+      coll: nb_pm_projects
+      depth: 0
+  - id: page:项目管理/dashboard/my_tasks
+    type: block
+    name: my_tasks (table)
+    meta:
+      type: table
+      coll: nb_pm_tasks
+      depth: 0
+  - id: page:项目管理/dashboard/upcoming_milestones
+    type: block
+    name: upcoming_milestones (table)
+    meta:
+      type: table
+      coll: nb_pm_milestones
+      depth: 0
+  - id: page:项目管理/members
+    type: page
+    name: members
+    meta:
+      dir: pages/项目管理/members
+      group: 项目管理
+  - id: page:项目管理/members/filter
+    type: block
+    name: filter (filterForm)
+    meta:
+      type: filterForm
+      coll: nb_pm_members
+      depth: 0
+  - id: page:项目管理/members/table
+    type: block
+    name: table (table)
+    meta:
+      type: table
+      coll: nb_pm_members
+      depth: 0
+  - id: page:项目管理/milestones
+    type: page
+    name: milestones
+    meta:
+      dir: pages/项目管理/milestones
+      group: 项目管理
+  - id: page:项目管理/milestones/filter
+    type: block
+    name: filter (filterForm)
+    meta:
+      type: filterForm
+      coll: nb_pm_milestones
+      depth: 0
+  - id: page:项目管理/milestones/table
+    type: block
+    name: table (table)
+    meta:
+      type: table
+      coll: nb_pm_milestones
+      depth: 0
+  - id: page:项目管理/projects
+    type: page
+    name: projects
+    meta:
+      dir: pages/项目管理/projects
+      group: 项目管理
+  - id: page:项目管理/projects/filter
+    type: block
+    name: filter (filterForm)
+    meta:
+      type: filterForm
+      coll: nb_pm_projects
+      depth: 0
+  - id: page:项目管理/projects/table
+    type: block
+    name: table (table)
+    meta:
+      type: table
+      coll: nb_pm_projects
+      depth: 0
+  - id: page:项目管理/tasks
+    type: page
+    name: tasks
+    meta:
+      dir: pages/项目管理/tasks
+      group: 项目管理
+  - id: page:项目管理/tasks/filter
+    type: block
+    name: filter (filterForm)
+    meta:
+      type: filterForm
+      coll: nb_pm_tasks
+      depth: 0
+  - id: page:项目管理/tasks/table
+    type: block
+    name: table (table)
+    meta:
+      type: table
+      coll: nb_pm_tasks
+      depth: 0
+  - id: page:项目管理/time_entries
+    type: page
+    name: time_entries
+    meta:
+      dir: pages/项目管理/time_entries
+      group: 项目管理
+  - id: page:项目管理/time_entries/filter
+    type: block
+    name: filter (filterForm)
+    meta:
+      type: filterForm
+      coll: nb_pm_time_entries
+      depth: 0
+  - id: page:项目管理/time_entries/table
+    type: block
+    name: table (table)
+    meta:
+      type: table
+      coll: nb_pm_time_entries
+      depth: 0
+edges:
+  - from: collection:nb_pm_milestones
+    to: collection:nb_pm_projects
+    type: references
+    meta:
+      field: project
+      relation: m2o
+  - from: collection:nb_pm_tasks
+    to: collection:nb_pm_projects
+    type: references
+    meta:
+      field: project
+      relation: m2o
+  - from: collection:nb_pm_time_entries
+    to: collection:nb_pm_projects
+    type: references
+    meta:
+      field: project
+      relation: m2o
+  - from: collection:nb_pm_time_entries
+    to: collection:nb_pm_tasks
+    type: references
+    meta:
+      field: task
+      relation: m2o
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/project_overview_kpi
+    type: contains
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/chart_projects_status
+    type: contains
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/chart_tasks_status
+    type: contains
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/chart_milestones_status
+    type: contains
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/chart_member_status
+    type: contains
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/chart_time_entries_billable
+    type: contains
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/active_projects
+    type: contains
+  - from: page:项目管理/dashboard/active_projects
+    to: collection:nb_pm_projects
+    type: belongsTo
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/my_tasks
+    type: contains
+  - from: page:项目管理/dashboard/my_tasks
+    to: collection:nb_pm_tasks
+    type: belongsTo
+  - from: page:项目管理/dashboard
+    to: page:项目管理/dashboard/upcoming_milestones
+    type: contains
+  - from: page:项目管理/dashboard/upcoming_milestones
+    to: collection:nb_pm_milestones
+    type: belongsTo
+  - from: page:项目管理/dashboard
+    to: collection:nb_pm_projects
+    type: popupTo
+    meta:
+      file: active_projects.addNew.yaml
+  - from: page:项目管理/dashboard
+    to: collection:nb_pm_tasks
+    type: popupTo
+    meta:
+      file: my_tasks.addNew.yaml
+  - from: page:项目管理/dashboard
+    to: collection:nb_pm_milestones
+    type: popupTo
+    meta:
+      file: upcoming_milestones.addNew.yaml
+  - from: page:项目管理/members
+    to: page:项目管理/members/filter
+    type: contains
+  - from: page:项目管理/members/filter
+    to: collection:nb_pm_members
+    type: belongsTo
+  - from: page:项目管理/members
+    to: page:项目管理/members/table
+    type: contains
+  - from: page:项目管理/members/table
+    to: collection:nb_pm_members
+    type: belongsTo
+  - from: page:项目管理/members
+    to: collection:nb_pm_members
+    type: popupTo
+    meta:
+      file: table.addNew.0.yaml
+  - from: page:项目管理/milestones
+    to: page:项目管理/milestones/filter
+    type: contains
+  - from: page:项目管理/milestones/filter
+    to: collection:nb_pm_milestones
+    type: belongsTo
+  - from: page:项目管理/milestones
+    to: page:项目管理/milestones/table
+    type: contains
+  - from: page:项目管理/milestones/table
+    to: collection:nb_pm_milestones
+    type: belongsTo
+  - from: page:项目管理/milestones
+    to: collection:nb_pm_milestones
+    type: popupTo
+    meta:
+      file: table.addNew.0.yaml
+  - from: page:项目管理/projects
+    to: page:项目管理/projects/filter
+    type: contains
+  - from: page:项目管理/projects/filter
+    to: collection:nb_pm_projects
+    type: belongsTo
+  - from: page:项目管理/projects
+    to: page:项目管理/projects/table
+    type: contains
+  - from: page:项目管理/projects/table
+    to: collection:nb_pm_projects
+    type: belongsTo
+  - from: page:项目管理/projects
+    to: collection:nb_pm_projects
+    type: popupTo
+    meta:
+      file: table.addNew.0.yaml
+  - from: page:项目管理/tasks
+    to: page:项目管理/tasks/filter
+    type: contains
+  - from: page:项目管理/tasks/filter
+    to: collection:nb_pm_tasks
+    type: belongsTo
+  - from: page:项目管理/tasks
+    to: page:项目管理/tasks/table
+    type: contains
+  - from: page:项目管理/tasks/table
+    to: collection:nb_pm_tasks
+    type: belongsTo
+  - from: page:项目管理/tasks
+    to: collection:nb_pm_tasks
+    type: popupTo
+    meta:
+      file: table.addNew.0.yaml
+  - from: page:项目管理/time_entries
+    to: page:项目管理/time_entries/filter
+    type: contains
+  - from: page:项目管理/time_entries/filter
+    to: collection:nb_pm_time_entries
+    type: belongsTo
+  - from: page:项目管理/time_entries
+    to: page:项目管理/time_entries/table
+    type: contains
+  - from: page:项目管理/time_entries/table
+    to: collection:nb_pm_time_entries
+    type: belongsTo
+  - from: page:项目管理/time_entries
+    to: collection:nb_pm_time_entries
+    type: popupTo
+    meta:
+      file: table.addNew.0.yaml

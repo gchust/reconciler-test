@@ -35,6 +35,7 @@ import { discoverPages, type RouteEntry, type PageInfo } from './page-discovery'
 import { RefResolver } from '../refs';
 import { pageToBlueprint } from './blueprint-converter';
 import { BLOCK_TYPE_TO_MODEL } from '../utils/block-types';
+import { loadPageLayout, loadTsApp } from '../dsl/loader';
 
 export async function deployProject(
   projectDir: string,
@@ -44,9 +45,18 @@ export async function deployProject(
   const root = path.resolve(projectDir);
 
   // ── 1. Read project structure ──
+  const appFile = path.join(root, 'app.ts');
   const routesFile = path.join(root, 'routes.yaml');
-  if (!fs.existsSync(routesFile)) throw new Error(`routes.yaml not found in ${root}`);
-  const routes = loadYaml<RouteEntry[]>(routesFile);
+  const hasTsApp = fs.existsSync(appFile);
+  let routes: RouteEntry[];
+
+  if (hasTsApp) {
+    const tsApp = await loadTsApp(appFile);
+    routes = tsApp.routes;
+  } else {
+    if (!fs.existsSync(routesFile)) throw new Error(`routes.yaml not found in ${root}`);
+    routes = loadYaml<RouteEntry[]>(routesFile);
+  }
 
   // Normalize: default type = flowPage (group if has children)
   const normalizeRoutes = (entries: RouteEntry[]) => {
@@ -56,6 +66,9 @@ export async function deployProject(
     }
   };
   normalizeRoutes(routes);
+  if (hasTsApp) {
+    log('  TS app: routes loaded from app.ts');
+  }
 
   // Read collections
   const collDefs: Record<string, CollectionDef> = {};
@@ -86,6 +99,27 @@ export async function deployProject(
       process.exit(1);
     }
     log(`  Deploying single page: ${pages[0].title}`);
+  }
+
+  // layout.ts takes precedence over layout.yaml when present.
+  let tsLayoutCount = 0;
+  pages = await Promise.all(
+    pages.map(async (pageInfo) => {
+      const tsLayoutFile = path.join(pageInfo.dir, 'layout.ts');
+      if (!fs.existsSync(tsLayoutFile)) return pageInfo;
+
+      const tsLayout = await loadPageLayout(pageInfo.dir, pageInfo.title, pageInfo.icon);
+      if (!tsLayout) return pageInfo;
+
+      tsLayoutCount += 1;
+      return {
+        ...pageInfo,
+        layout: tsLayout,
+      };
+    }),
+  );
+  if (tsLayoutCount > 0) {
+    log(`  TS layouts: ${tsLayoutCount} page${tsLayoutCount === 1 ? '' : 's'} override YAML snapshots`);
   }
 
   // ── 2. Plan ──
