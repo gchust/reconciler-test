@@ -1,0 +1,13 @@
+uid: ffjvjvls96d
+name: 'Popup (Edit): Orders'
+type: popup
+collectionName: nb_erp_purchase_orders
+dataSourceKey: main
+targetUid: qt3kfudq090
+description: 'Popup (Edit): Orders'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - 9a6e98xo

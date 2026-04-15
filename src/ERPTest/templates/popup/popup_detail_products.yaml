@@ -1,0 +1,13 @@
+uid: jkv2nb94x36
+name: 'Popup (Detail): Products'
+type: popup
+collectionName: nb_erp_products
+dataSourceKey: main
+targetUid: i478dlkub87
+description: 'Popup (Detail): Products'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - wkja62x8

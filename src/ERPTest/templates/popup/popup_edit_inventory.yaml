@@ -1,0 +1,13 @@
+uid: wxifby1ekxn
+name: 'Popup (Edit): Inventory'
+type: popup
+collectionName: nb_erp_inventory
+dataSourceKey: main
+targetUid: y3iepdiubkl
+description: 'Popup (Edit): Inventory'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - 89csxfc9

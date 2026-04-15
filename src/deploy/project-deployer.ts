@@ -1454,6 +1454,66 @@ async function ensurePopupBindings(
       }
     }
     if (fixed) log(`  popup filterByTk: ${fixed} hosts fixed`);
+
+    // Also fix block templates referenced inside popup templates
+    // Block templates created on temp pages lack filterByTk in their target blocks
+    let blockFixed = 0;
+    const tplResp = await nb.http.get(`${nb.baseUrl}/api/flowModelTemplates:list`, { params: { paginate: false } });
+    const allTpls = (tplResp.data?.data || []) as Record<string, unknown>[];
+    const blockTplMap = new Map<string, Record<string, unknown>>();
+    for (const t of allTpls) {
+      if (t.type === 'block') blockTplMap.set(t.uid as string, t);
+    }
+
+    for (const t of allTpls) {
+      if (t.type !== 'popup' || !t.filterByTk) continue;
+      // Walk popup template tree to find ReferenceBlockModels
+      try {
+        const data = await nb.get({ uid: t.targetUid as string });
+        const refs: { uid: string; tplUid: string }[] = [];
+        function scanRefs(node: any) {
+          if (!node || typeof node !== 'object') return;
+          if (node.use === 'ReferenceBlockModel') {
+            const tplUid = node.stepParams?.referenceSettings?.useTemplate?.templateUid;
+            if (tplUid) refs.push({ uid: node.uid, tplUid });
+          }
+          const subs = node.subModels;
+          if (subs) for (const v of Object.values(subs)) {
+            if (Array.isArray(v)) (v as any[]).forEach(scanRefs);
+            else if (v && typeof v === 'object') scanRefs(v);
+          }
+        }
+        scanRefs(data.tree);
+
+        for (const ref of refs) {
+          const blockTpl = blockTplMap.get(ref.tplUid);
+          if (!blockTpl?.targetUid) continue;
+          // Check target block's resourceSettings
+          try {
+            const fm = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: blockTpl.targetUid } });
+            const d = fm.data?.data;
+            if (!d) continue;
+            const res = d.stepParams?.resourceSettings?.init || {};
+            if (res.filterByTk === '{{ctx.view.inputArgs.filterByTk}}') continue;
+            // Fix it
+            const sp = d.stepParams || {};
+            if (!sp.resourceSettings) sp.resourceSettings = {};
+            if (!sp.resourceSettings.init) sp.resourceSettings.init = {};
+            sp.resourceSettings.init.filterByTk = '{{ctx.view.inputArgs.filterByTk}}';
+            if (!sp.resourceSettings.init.dataSourceKey) sp.resourceSettings.init.dataSourceKey = 'main';
+            if (!sp.resourceSettings.init.collectionName) sp.resourceSettings.init.collectionName = blockTpl.collectionName;
+            await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+              uid: blockTpl.targetUid, use: d.use, parentId: d.parentId,
+              subKey: d.subKey, subType: d.subType,
+              sortIndex: d.sortIndex || 0, flowRegistry: d.flowRegistry || {},
+              stepParams: sp,
+            });
+            blockFixed++;
+          } catch { /* skip */ }
+        }
+      } catch { /* skip */ }
+    }
+    if (blockFixed) log(`  block template filterByTk: ${blockFixed} targets fixed`);
   } catch (e) {
     log(`  ! popup bindings: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
   }

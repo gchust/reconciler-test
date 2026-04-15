@@ -1,0 +1,19 @@
+name: nb_erp_categories
+title: Nb Erp Categories
+fields:
+  - name: updatedBy
+    interface: updatedBy
+  - name: createdBy
+    interface: createdBy
+  - name: status
+    interface: select
+  - name: name
+    interface: input
+  - name: createdAt
+    interface: createdAt
+  - name: updatedAt
+    interface: updatedAt
+  - name: description
+    interface: textarea
+  - name: id
+    interface: snowflakeId

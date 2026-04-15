@@ -1,0 +1,22 @@
+uid: dgfjdad4dli
+name: 'Form (Add new): Nb Erp Po Items'
+type: block
+collectionName: nb_erp_po_items
+dataSourceKey: main
+targetUid: 2g8okt0nzlj
+description: 'Form (Add new): Nb Erp Po Items'
+content:
+  key: createForm
+  type: createForm
+  coll: nb_erp_po_items
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

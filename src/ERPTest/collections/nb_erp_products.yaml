@@ -1,0 +1,19 @@
+name: nb_erp_products
+title: Nb Erp Products
+fields:
+  - name: name
+    interface: input
+  - name: description
+    interface: textarea
+  - name: updatedAt
+    interface: updatedAt
+  - name: createdAt
+    interface: createdAt
+  - name: updatedBy
+    interface: updatedBy
+  - name: createdBy
+    interface: createdBy
+  - name: status
+    interface: select
+  - name: id
+    interface: snowflakeId

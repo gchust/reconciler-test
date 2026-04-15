@@ -1,0 +1,22 @@
+uid: 5xl5imu2dmx
+name: 'Form (Edit): Nb Erp Products'
+type: block
+collectionName: nb_erp_products
+dataSourceKey: main
+targetUid: tndi5vb9p2k
+description: 'Form (Edit): Nb Erp Products'
+content:
+  key: editForm
+  type: editForm
+  coll: nb_erp_products
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

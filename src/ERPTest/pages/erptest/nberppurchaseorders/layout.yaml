@@ -1,0 +1,75 @@
+blocks:
+  - key: filterForm
+    type: filterForm
+    coll: nb_erp_purchase_orders
+    fields:
+      - field: name
+        label: Search
+        filterPaths:
+          - name
+          - description
+      - status
+    js_items:
+      - key: stats_filter_block
+        file: ./js/nberppurchaseorders_filterForm_stats_filter_block.js
+        desc: Stats Filter Block
+    field_layout:
+      - - '[JS:Stats Filter Block]'
+      - - name
+        - status
+  - key: table
+    type: table
+    coll: nb_erp_purchase_orders
+    fields:
+      - field: name
+        popup: templates/popup/popup_detail_orders.yaml
+      - status
+      - createdAt
+    recordActions:
+      - type: edit
+        stepParams:
+          buttonSettings:
+            general:
+              title: Edit
+              icon: null
+              type: link
+          popupSettings:
+            openView:
+              mode: drawer
+              size: large
+              pageModelClass: ChildPageModel
+              dataSourceKey: main
+              collectionName: nb_erp_purchase_orders
+              filterByTk: '{{ctx.view.inputArgs.filterByTk}}'
+          displayFieldSettings:
+            clickToOpen:
+              clickToOpen: true
+        props:
+          title: Edit
+          icon: null
+          type: link
+        key: edit_edit
+      - type: delete
+        stepParams:
+          buttonSettings:
+            general:
+              title: Delete
+              icon: null
+              type: link
+          deleteSettings:
+            confirm:
+              enable: true
+              title: Delete record
+              content: Are you sure you want to delete it?
+        props:
+          type: link
+          title: Delete
+          icon: null
+        key: delete_delete
+    actions:
+      - filter
+      - refresh
+      - addNew
+layout:
+  - - filterForm
+  - - table

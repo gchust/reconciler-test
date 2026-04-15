@@ -1,0 +1,20 @@
+uid: nsz4mvbfjxv
+name: 'Detail: Nb Erp Purchase Orders'
+type: block
+collectionName: nb_erp_purchase_orders
+dataSourceKey: main
+targetUid: fup18fksdyt
+description: 'Detail: Nb Erp Purchase Orders'
+content:
+  key: details
+  type: details
+  coll: nb_erp_purchase_orders
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description

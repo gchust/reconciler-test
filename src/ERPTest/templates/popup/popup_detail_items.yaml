@@ -1,0 +1,13 @@
+uid: lnnyknho3jj
+name: 'Popup (Detail): Items'
+type: popup
+collectionName: nb_erp_po_items
+dataSourceKey: main
+targetUid: 3ibuohl77zl
+description: 'Popup (Detail): Items'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - zpq8ymxa

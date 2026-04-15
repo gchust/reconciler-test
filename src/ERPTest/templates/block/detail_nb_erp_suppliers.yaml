@@ -1,0 +1,20 @@
+uid: j347gxtzoku
+name: 'Detail: Nb Erp Suppliers'
+type: block
+collectionName: nb_erp_suppliers
+dataSourceKey: main
+targetUid: lxi0n3bms73
+description: 'Detail: Nb Erp Suppliers'
+content:
+  key: details
+  type: details
+  coll: nb_erp_suppliers
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description

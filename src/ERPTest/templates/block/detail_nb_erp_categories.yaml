@@ -1,0 +1,20 @@
+uid: majvxbf9i48
+name: 'Detail: Nb Erp Categories'
+type: block
+collectionName: nb_erp_categories
+dataSourceKey: main
+targetUid: 0u6djhhmpv7
+description: 'Detail: Nb Erp Categories'
+content:
+  key: details
+  type: details
+  coll: nb_erp_categories
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Category Details ---'
+    - - name
+      - description
+    - - status

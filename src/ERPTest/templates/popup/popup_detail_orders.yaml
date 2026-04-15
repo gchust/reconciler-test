@@ -1,0 +1,13 @@
+uid: t9htrrruu03
+name: 'Popup (Detail): Orders'
+type: popup
+collectionName: nb_erp_purchase_orders
+dataSourceKey: main
+targetUid: fy0zy9adtja
+description: 'Popup (Detail): Orders'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - kww713tb

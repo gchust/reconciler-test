@@ -1,0 +1,19 @@
+name: nb_erp_warehouses
+title: Nb Erp Warehouses
+fields:
+  - name: status
+    interface: select
+  - name: id
+    interface: snowflakeId
+  - name: createdBy
+    interface: createdBy
+  - name: createdAt
+    interface: createdAt
+  - name: name
+    interface: input
+  - name: description
+    interface: textarea
+  - name: updatedAt
+    interface: updatedAt
+  - name: updatedBy
+    interface: updatedBy

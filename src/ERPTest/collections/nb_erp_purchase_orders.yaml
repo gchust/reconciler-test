@@ -1,0 +1,19 @@
+name: nb_erp_purchase_orders
+title: Nb Erp Purchase Orders
+fields:
+  - name: status
+    interface: select
+  - name: updatedBy
+    interface: updatedBy
+  - name: createdBy
+    interface: createdBy
+  - name: name
+    interface: input
+  - name: description
+    interface: textarea
+  - name: id
+    interface: snowflakeId
+  - name: createdAt
+    interface: createdAt
+  - name: updatedAt
+    interface: updatedAt

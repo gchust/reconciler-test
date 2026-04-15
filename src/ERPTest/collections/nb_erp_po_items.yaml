@@ -1,0 +1,19 @@
+name: nb_erp_po_items
+title: Nb Erp Po Items
+fields:
+  - name: status
+    interface: select
+  - name: description
+    interface: textarea
+  - name: name
+    interface: input
+  - name: createdAt
+    interface: createdAt
+  - name: createdBy
+    interface: createdBy
+  - name: id
+    interface: snowflakeId
+  - name: updatedAt
+    interface: updatedAt
+  - name: updatedBy
+    interface: updatedBy

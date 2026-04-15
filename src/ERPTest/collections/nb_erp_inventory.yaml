@@ -1,0 +1,19 @@
+name: nb_erp_inventory
+title: Nb Erp Inventory
+fields:
+  - name: status
+    interface: select
+  - name: name
+    interface: input
+  - name: description
+    interface: textarea
+  - name: createdBy
+    interface: createdBy
+  - name: id
+    interface: snowflakeId
+  - name: createdAt
+    interface: createdAt
+  - name: updatedBy
+    interface: updatedBy
+  - name: updatedAt
+    interface: updatedAt

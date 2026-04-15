@@ -1,0 +1,42 @@
+blocks:
+  - js:
+      file: ./js/dashboard_kpi_card_1_total_records.js
+      desc: 'KPI Card 1: Total Records'
+    key: kpi_card_1_total_records
+  - js:
+      file: ./js/dashboard_kpi_card_2_active_rate.js
+      desc: 'KPI Card 2: Active Rate'
+    key: kpi_card_2_active_rate
+  - js:
+      file: ./js/dashboard_kpi_card_3_pending_items.js
+      desc: 'KPI Card 3: Pending Items'
+    key: kpi_card_3_pending_items
+  - js:
+      file: ./js/dashboard_kpi_card_4_completed.js
+      desc: 'KPI Card 4: Completed'
+    key: kpi_card_4_completed
+  - key: chart
+    type: chart
+    chart_config: ./charts/dashboard_chart.yaml
+  - key: chart_2
+    type: chart
+    chart_config: ./charts/dashboard_chart_2.yaml
+  - key: chart_3
+    type: chart
+    chart_config: ./charts/dashboard_chart_3.yaml
+  - key: chart_4
+    type: chart
+    chart_config: ./charts/dashboard_chart_4.yaml
+  - key: chart_5
+    type: chart
+    chart_config: ./charts/dashboard_chart_5.yaml
+layout:
+  - - kpi_card_1_total_records
+    - kpi_card_2_active_rate
+    - kpi_card_3_pending_items
+    - kpi_card_4_completed
+  - - chart: 15
+    - chart_2: 9
+  - - chart_3
+  - - chart_4: 14
+    - chart_5: 10

@@ -1,0 +1,13 @@
+uid: t89z5dccuaw
+name: 'Popup (Edit): Products'
+type: popup
+collectionName: nb_erp_products
+dataSourceKey: main
+targetUid: kc9nj13ehot
+description: 'Popup (Edit): Products'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - mhr10pgy

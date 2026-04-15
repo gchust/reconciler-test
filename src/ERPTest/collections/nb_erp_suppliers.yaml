@@ -1,0 +1,19 @@
+name: nb_erp_suppliers
+title: Nb Erp Suppliers
+fields:
+  - name: name
+    interface: input
+  - name: id
+    interface: snowflakeId
+  - name: createdBy
+    interface: createdBy
+  - name: updatedBy
+    interface: updatedBy
+  - name: createdAt
+    interface: createdAt
+  - name: updatedAt
+    interface: updatedAt
+  - name: description
+    interface: textarea
+  - name: status
+    interface: select

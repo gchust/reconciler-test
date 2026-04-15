@@ -1,0 +1,13 @@
+uid: 6tgrklo9jjh
+name: 'Popup (Add new): Products'
+type: popup
+collectionName: nb_erp_products
+dataSourceKey: main
+targetUid: z1p92m07y2f
+description: 'Popup (Add new): Products'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - xdbrs4t6

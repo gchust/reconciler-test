@@ -1,0 +1,22 @@
+uid: ocy6x9a8cg5
+name: 'Form (Add new): Nb Erp Inventory'
+type: block
+collectionName: nb_erp_inventory
+dataSourceKey: main
+targetUid: lfh40vjll87
+description: 'Form (Add new): Nb Erp Inventory'
+content:
+  key: createForm
+  type: createForm
+  coll: nb_erp_inventory
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

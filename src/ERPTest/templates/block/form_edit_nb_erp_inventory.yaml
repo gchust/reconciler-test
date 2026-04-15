@@ -1,0 +1,22 @@
+uid: bzux3yo56ib
+name: 'Form (Edit): Nb Erp Inventory'
+type: block
+collectionName: nb_erp_inventory
+dataSourceKey: main
+targetUid: bkg9iqfu3kz
+description: 'Form (Edit): Nb Erp Inventory'
+content:
+  key: editForm
+  type: editForm
+  coll: nb_erp_inventory
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

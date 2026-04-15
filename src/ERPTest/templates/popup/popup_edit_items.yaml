@@ -1,0 +1,13 @@
+uid: 506unxvdwmq
+name: 'Popup (Edit): Items'
+type: popup
+collectionName: nb_erp_po_items
+dataSourceKey: main
+targetUid: n598q99yga7
+description: 'Popup (Edit): Items'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - sk8yab0q

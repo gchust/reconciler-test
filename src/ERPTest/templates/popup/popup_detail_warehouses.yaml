@@ -1,0 +1,13 @@
+uid: tkh9fiyujyr
+name: 'Popup (Detail): Warehouses'
+type: popup
+collectionName: nb_erp_warehouses
+dataSourceKey: main
+targetUid: 2p5t2m9nyoz
+description: 'Popup (Detail): Warehouses'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - ioei8lg7

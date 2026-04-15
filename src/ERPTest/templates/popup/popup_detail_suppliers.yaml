@@ -1,0 +1,13 @@
+uid: wordf4frsen
+name: 'Popup (Detail): Suppliers'
+type: popup
+collectionName: nb_erp_suppliers
+dataSourceKey: main
+targetUid: xg2f14te1zl
+description: 'Popup (Detail): Suppliers'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - ac3affc4

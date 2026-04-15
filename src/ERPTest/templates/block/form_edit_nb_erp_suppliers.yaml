@@ -1,0 +1,22 @@
+uid: 0h642771iae
+name: 'Form (Edit): Nb Erp Suppliers'
+type: block
+collectionName: nb_erp_suppliers
+dataSourceKey: main
+targetUid: jpo7efns8tm
+description: 'Form (Edit): Nb Erp Suppliers'
+content:
+  key: editForm
+  type: editForm
+  coll: nb_erp_suppliers
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

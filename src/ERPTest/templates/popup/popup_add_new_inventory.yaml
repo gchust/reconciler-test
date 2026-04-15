@@ -1,0 +1,13 @@
+uid: 1z7aspyl3za
+name: 'Popup (Add new): Inventory'
+type: popup
+collectionName: nb_erp_inventory
+dataSourceKey: main
+targetUid: mo3mrqtqhf1
+description: 'Popup (Add new): Inventory'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - vk2hpp5y

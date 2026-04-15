@@ -1,0 +1,22 @@
+uid: mk944slk0rl
+name: 'Form (Add new): Nb Erp Purchase Orders'
+type: block
+collectionName: nb_erp_purchase_orders
+dataSourceKey: main
+targetUid: 6mqotr7oeow
+description: 'Form (Add new): Nb Erp Purchase Orders'
+content:
+  key: createForm
+  type: createForm
+  coll: nb_erp_purchase_orders
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

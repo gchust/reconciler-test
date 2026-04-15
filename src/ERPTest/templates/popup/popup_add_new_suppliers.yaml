@@ -1,0 +1,13 @@
+uid: pjc9ssat1jf
+name: 'Popup (Add new): Suppliers'
+type: popup
+collectionName: nb_erp_suppliers
+dataSourceKey: main
+targetUid: eh41ennks1v
+description: 'Popup (Add new): Suppliers'
+content:
+  blocks:
+    - key: reference
+      type: reference
+  layout:
+    - - my963afl

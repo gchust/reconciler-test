@@ -1,0 +1,20 @@
+uid: iivjo8auq5b
+name: 'Detail: Nb Erp Warehouses'
+type: block
+collectionName: nb_erp_warehouses
+dataSourceKey: main
+targetUid: 6ywacevoaf2
+description: 'Detail: Nb Erp Warehouses'
+content:
+  key: details
+  type: details
+  coll: nb_erp_warehouses
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description

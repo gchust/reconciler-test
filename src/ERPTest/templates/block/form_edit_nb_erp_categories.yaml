@@ -1,0 +1,22 @@
+uid: a4ygfmcgcmi
+name: 'Form (Edit): Nb Erp Categories'
+type: block
+collectionName: nb_erp_categories
+dataSourceKey: main
+targetUid: 2vtuc6ymq1a
+description: 'Form (Edit): Nb Erp Categories'
+content:
+  key: editForm
+  type: editForm
+  coll: nb_erp_categories
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
+  actions:
+    - submit

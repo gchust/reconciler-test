@@ -1,0 +1,20 @@
+uid: rrwjso9bmer
+name: 'Detail: Nb Erp Po Items'
+type: block
+collectionName: nb_erp_po_items
+dataSourceKey: main
+targetUid: uqxg2d46daq
+description: 'Detail: Nb Erp Po Items'
+content:
+  key: details
+  type: details
+  coll: nb_erp_po_items
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description

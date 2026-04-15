@@ -1,0 +1,20 @@
+uid: erjnbn3ldqj
+name: 'Detail: Nb Erp Products'
+type: block
+collectionName: nb_erp_products
+dataSourceKey: main
+targetUid: kedjgmynnxu
+description: 'Detail: Nb Erp Products'
+content:
+  key: details
+  type: details
+  coll: nb_erp_products
+  fields:
+    - name
+    - status
+    - description
+  field_layout:
+    - '--- Basic Info ---'
+    - - name
+      - status
+    - - description
