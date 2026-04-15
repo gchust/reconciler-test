@@ -204,7 +204,7 @@ async function deployInlinePopup(
         mode: (inlinePopup.mode || ps?.mode || 'drawer') as string,
         size: (inlinePopup.size || ps?.size || 'medium') as string,
         pageModelClass: 'ChildPageModel', uid: fieldUid,
-        filterByTk: (ps?.filterByTk || '{{ ctx.record.id }}') as string,
+        filterByTk: (ps?.filterByTk || '{{ctx.view.inputArgs.filterByTk}}') as string,
       },
     },
   };
@@ -265,7 +265,7 @@ function makePopupSettings(
       size: ps?.size || 'medium',
       pageModelClass: 'ChildPageModel',
       uid: fieldUid,
-      filterByTk: ps?.filterByTk || '{{ ctx.record.id }}',
+      filterByTk: ps?.filterByTk || '{{ctx.view.inputArgs.filterByTk}}',
     },
   };
 }

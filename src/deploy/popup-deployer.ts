@@ -169,7 +169,7 @@ export async function deployPopup(
     uid: targetUid,
   };
   if (needsRecordContext) {
-    openViewSettings.filterByTk = '{{ ctx.record.id }}';
+    openViewSettings.filterByTk = '{{ctx.view.inputArgs.filterByTk}}';
   }
   await nb.updateModel(targetUid, {
     popupSettings: { openView: openViewSettings },

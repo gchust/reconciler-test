@@ -420,7 +420,7 @@ function expandPopupFieldSugar(
       collectionName: blockColl || undefined,
       mode: 'drawer',
       size: 'large',
-      filterByTk: '{{ ctx.record.id }}',
+      filterByTk: '{{ctx.view.inputArgs.filterByTk}}',
     };
     return result;
   }
@@ -479,7 +479,7 @@ function expandPopupFieldSugar(
       collectionName: (popupObj.collectionName || blockColl) as string || undefined,
       mode: popupObj.mode || 'drawer',
       size: popupObj.size || 'large',
-      filterByTk: (popupObj.filterByTk || '{{ ctx.record.id }}') as string,
+      filterByTk: (popupObj.filterByTk || '{{ctx.view.inputArgs.filterByTk}}') as string,
     };
     return result;
   }

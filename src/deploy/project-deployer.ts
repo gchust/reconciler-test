@@ -1418,7 +1418,7 @@ async function enablePageTabs(
  * Post-deploy: ensure popup action/field hosts have filterByTk in openView.
  *
  * Checks all deployed popups in state:
- * - recordActions.* and fields.* → must have filterByTk='{{ ctx.record.id }}'
+ * - recordActions.* and fields.* → must have filterByTk='{{ctx.view.inputArgs.filterByTk}}'
  * - actions.* (addNew) → no filterByTk needed
  */
 async function ensurePopupBindings(
@@ -1448,7 +1448,7 @@ async function ensurePopupBindings(
 
           // Fix missing filterByTk on host
           if (!ov.filterByTk) {
-            ov.filterByTk = '{{ ctx.record.id }}';
+            ov.filterByTk = '{{ctx.view.inputArgs.filterByTk}}';
             await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
               uid: targetUid, use: data.use, parentId: data.parentId,
               subKey: data.subKey, subType: data.subType,
