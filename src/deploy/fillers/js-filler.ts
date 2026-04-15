@@ -39,6 +39,10 @@ export async function deployJsItems(
       log(`      ✗ JS item ${jsSpec.file}: unfilled template params: ${unfilled.join(', ')}`);
       continue;
     }
+    if (/ctx\.sql\s*\(/.test(code) && !/ctx\.sql\.(save|runById)/.test(code)) {
+      log(`      ✗ JS item ${jsSpec.file}: ctx.sql() 直接调用不可用，请用 ctx.sql.save() + ctx.sql.runById()`);
+      continue;
+    }
     code = ensureJsHeader(code, { desc: jsSpec.desc, jsType: 'JSItemModel', coll });
     code = replaceJsUids(code, allBlocksState);
 
