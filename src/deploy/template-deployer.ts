@@ -493,6 +493,14 @@ export async function convertPopupToTemplate(
       }
     } catch { /* use targetUid as-is */ }
 
+    // Check if host already has a popup template (skip if already converted)
+    const hostResp = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: hostUid } });
+    const existingTplUid = hostResp.data?.data?.stepParams?.popupSettings?.openView?.popupTemplateUid;
+    if (existingTplUid) {
+      log(`    = popup template: ${name} (already converted: ${existingTplUid.slice(0, 8)})`);
+      return { templateUid: existingTplUid, targetUid: hostResp.data?.data?.stepParams?.popupSettings?.openView?.uid || '' };
+    }
+
     const result = await nb.surfaces.saveTemplate({
       target: { uid: hostUid },
       name,
