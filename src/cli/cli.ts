@@ -420,11 +420,12 @@ function cmdScaffold(args: string[]) {
     pages = args[pagesIdx + 1].split(',').map(s => s.trim());
   } else if (collections?.length) {
     // Auto-derive page names from collection names: nb_erp_purchase_orders → PurchaseOrders
+    // Always include Dashboard as first page
     const prefix = `nb_${name.toLowerCase()}_`;
-    pages = collections.map(c => {
+    pages = ['Dashboard', ...collections.map(c => {
       const short = c.startsWith(prefix) ? c.slice(prefix.length) : c;
       return short.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
-    });
+    })];
   } else {
     pages = ['Dashboard', 'Main'];
   }

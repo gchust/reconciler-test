@@ -8,45 +8,53 @@
 | "Modify / add a field" | Edit collections/*.yaml + templates/block/*.yaml → redeploy `--force` |
 | "Export pages" | `npx tsx src/cli/cli.ts export-project "Group" outdir/` |
 
-## Build Mode
+## Build Mode — 分层搭建
 
-### Step 1 — Design (show plan, ask to confirm)
+搭建分三轮，每轮部署后确认效果再继续下一轮。
 
-```
-Module: Project Management
-Pages: Projects, Tasks, Milestones, Members, TimeEntries
+### 第一轮：数据表 + CRUD 页面
 
-Collections:
-  nb_pm_projects: name, code, status(select), priority(select), start_date, end_date, budget(number), owner(m2o→members)
-  nb_pm_tasks: name, status(select), priority(select), project(m2o), assignee(m2o), due_date, estimated_hours(number)
-  nb_pm_members: name, email, role(select), department
-
-Each page: JS stats filter + search + table + addNew/edit/detail popups (auto-generated)
-
-Shall I start building?
-```
-
-### Step 2 — Scaffold + Edit + Deploy
+1. **设计** — 列出数据表、字段、关系，确认后开始
+2. **Scaffold** — 生成骨架（Dashboard + 每个数据表一个 CRUD 页面）
+3. **编辑字段** — `collections/*.yaml` 加业务字段，`templates/block/*.yaml` 更新 field_layout
+4. **部署** — deploy-project，检查结果
 
 ```bash
-# 1. Scaffold (auto-generates everything)
-cd /path/to/nocobase-reconciler
+# Scaffold（--collections 自动推导页面名 + Dashboard）
 npx tsx src/cli/cli.ts scaffold /tmp/my-app MyApp \
-  --pages Projects,Tasks,Members \
-  --collections nb_myapp_projects,nb_myapp_tasks,nb_myapp_members
+  --collections nb_myapp_orders,nb_myapp_customers,nb_myapp_products
 
-# 2. Edit collections — add business fields
-# 3. Edit templates/block — update field_layout to match new fields
-# 4. Deploy
+# Deploy
 cd src && NB_USER=admin@nocobase.com NB_PASSWORD=admin123 \
-  npx tsx cli/cli.ts deploy-project /tmp/my-app --group "My App" --blueprint
-
-# 5. Insert test data (5-8 records per table)
-# 6. Force update after edits
-npx tsx cli/cli.ts deploy-project /tmp/my-app --group "My App" --force
+  npx tsx cli/cli.ts deploy-project /tmp/my-app --group "My App" --force
 ```
 
-Report each step result. Ask before continuing.
+### 第二轮：详情页（弹窗内容）
+
+点击记录名打开的弹窗 = 详情页面。默认只有一个 details 区块，需要丰富内容：
+
+- **详情区块**：主要字段 + 分组布局
+- **关联列表**：o2m/m2m 关联数据（如订单→明细、客户→联系人）
+- **操作日志**：时间线或活动记录
+- **Tabs 分页**：内容多时用 tabs 分隔
+
+编辑 `templates/popup/detail_xxx.yaml` 或 `pages/xxx/popups/table.name.yaml`。
+
+### 第三轮：仪表盘
+
+Dashboard 页面的 KPI 卡片、图表需要编写 SQL + JS。
+
+**JS 组件模板** — 在 `templates/js/` 目录：
+
+| 模板 | 类型 | 用途 |
+|------|------|------|
+| `stats-filter.js` | JSItemModel | 状态分布筛选按钮 |
+| `kpi-card.js` | JSBlockModel | KPI 指标卡片 |
+| `status-tag.js` | JSColumnModel | 彩色状态标签 |
+| `progress-bar.js` | JSColumnModel | 进度条列 |
+| `currency.js` | JSColumnModel | 货币格式化列 |
+
+复制模板到页面 js/ 目录，修改 CONFIG 区域参数即可。
 
 ## What Scaffold Generates
 
