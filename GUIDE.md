@@ -35,6 +35,16 @@ Scaffold 生成内容：
 - Dashboard：KPI 卡片（JS 区块）+ 图表（chart 区块）
 - 每个数据表：filterForm（含 stats 筛选按钮）+ table + addNew/edit 弹窗
 
+**部署成功后立即插入测试数据**（每个表 5-8 条），否则 stats filter 和 KPI 没有数据显示。
+用 NocoBase REST API 插入：
+```bash
+# 示例：插入产品数据
+curl -X POST "$NB_URL/api/nb_myapp_products:create" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Product A","status":"active","price":99.9}'
+```
+
 ### 第二轮：详情页
 
 点击记录名打开的弹窗 = 详情页面。默认只有一个 details 区块，需要按业务需求丰富：
