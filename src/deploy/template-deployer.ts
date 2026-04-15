@@ -507,12 +507,117 @@ export async function convertPopupToTemplate(
 
     if (newTemplateUid) {
       log(`    + popup template: ${name} (${newTemplateUid}, coll: ${collName})`);
+
+      // Step 2: Convert blocks inside popup template to block template references.
+      // Must happen AFTER popup template creation (saveTemplate duplicates the tree,
+      // giving it proper closure table entries that detachParent requires).
+      if (newTargetUid) {
+        await convertPopupBlocksToTemplates(nb, newTargetUid, collName, log);
+      }
+
       return { templateUid: newTemplateUid, targetUid: newTargetUid };
     }
   } catch (e) {
     log(`    . popup template convert: ${e instanceof Error ? e.message.slice(0, 60) : e}`);
   }
   return undefined;
+}
+
+/**
+ * Convert real blocks inside a popup template to block template references.
+ *
+ * Walks the popup template's content tree, finds DetailsBlockModel/EditFormModel/CreateFormModel,
+ * and converts each to: flowModelTemplates:create(detachParent) + ReferenceBlockModel.
+ */
+async function convertPopupBlocksToTemplates(
+  nb: NocoBaseClient,
+  popupTargetUid: string,
+  collName: string,
+  log: (msg: string) => void,
+): Promise<void> {
+  const BLOCK_USES = new Set(['DetailsBlockModel', 'EditFormModel', 'CreateFormModel']);
+  const BLOCK_NAMES: Record<string, string> = {
+    DetailsBlockModel: 'Detail',
+    EditFormModel: 'Form (Edit)',
+    CreateFormModel: 'Form (Add new)',
+  };
+
+  try {
+    const fm = await nb.http.get(`${nb.baseUrl}/api/flowModels:get`, { params: { filterByTk: popupTargetUid } });
+    if (!fm.data?.data) return;
+
+    // Walk descendants to find blocks + their parent grid
+    // Use flowSurfaces:get won't work on popup template targets, so walk via flowModels
+    const visited = new Set<string>();
+    const blocks: { uid: string; use: string; parentId: string; sortIndex: number }[] = [];
+
+    async function walkChildren(parentUid: string): Promise<void> {
+      if (visited.has(parentUid)) return;
+      visited.add(parentUid);
+      try {
+        const resp = await nb.http.get(`${nb.baseUrl}/api/flowModels:list`, {
+          params: { paginate: false, 'filter[parentId]': parentUid },
+        });
+        for (const child of (resp.data?.data || [])) {
+          if (BLOCK_USES.has(child.use)) {
+            blocks.push({ uid: child.uid, use: child.use, parentId: child.parentId, sortIndex: child.sortIndex || 0 });
+          }
+          await walkChildren(child.uid);
+        }
+      } catch { /* skip — some models don't support list by parentId */ }
+    }
+
+    await walkChildren(popupTargetUid);
+    if (!blocks.length) return;
+
+    for (const block of blocks) {
+      const tplName = `${BLOCK_NAMES[block.use] || block.use}: ${collName.replace('nb_erp_', '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`;
+      try {
+        // Step 1: detachParent → block becomes template content
+        const tplResp = await nb.http.post(`${nb.baseUrl}/api/flowModelTemplates:create`, {
+          name: tplName,
+          description: '',
+          targetUid: block.uid,
+          useModel: block.use,
+          type: 'block',
+          dataSourceKey: 'main',
+          collectionName: collName,
+          filterByTk: block.use !== 'CreateFormModel' ? '{{ctx.view.inputArgs.filterByTk}}' : null,
+          sourceId: null,
+          detachParent: true,
+        });
+        const blockTplUid = tplResp.data?.data?.uid;
+        if (!blockTplUid) continue;
+
+        // Step 2: ReferenceBlockModel replaces the block in the grid
+        const refUid = generateUid();
+        await nb.http.post(`${nb.baseUrl}/api/flowModels:save`, {
+          uid: refUid,
+          use: 'ReferenceBlockModel',
+          parentId: block.parentId,
+          subKey: 'items',
+          subType: 'array',
+          stepParams: {
+            referenceSettings: {
+              target: { targetUid: block.uid, mode: 'reference' },
+              useTemplate: {
+                templateUid: blockTplUid,
+                templateName: tplName,
+                templateDescription: '',
+                targetUid: block.uid,
+                mode: 'reference',
+              },
+            },
+          },
+          sortIndex: block.sortIndex,
+          flowRegistry: {},
+        });
+        log(`      + block template: ${tplName} (${blockTplUid.slice(0, 8)})`);
+      } catch (e: any) {
+        log(`      . block template ${block.use}: ${e?.response?.data?.errors?.[0]?.message?.slice(0, 60) || e?.message?.slice(0, 60) || ''}`);
+      }
+    }
+  } catch { /* skip */ }
 }
 
 /**
