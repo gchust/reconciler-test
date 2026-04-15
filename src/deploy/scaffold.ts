@@ -478,12 +478,11 @@ function generateCrudPage(
 
   // js/stats_filter.js — copy from template + fill parameters
   const tplRoot = path.join(__dirname, '..', '..', 'templates', 'js');
+  const { fillTemplate } = await import('../utils/template-filler');
   const statsFilterTpl = path.join(tplRoot, 'stats-filter.js');
   const statsFilterJs = fs.existsSync(statsFilterTpl)
-    ? fs.readFileSync(statsFilterTpl, 'utf8')
-        .replace(/\{\{COLLECTION\}\}/g, coll)
-        .replace(/\{\{GROUP_FIELD\|\|status\}\}/g, 'status')
-    : `// stats-filter template not found at ${statsFilterTpl}\nctx.render(null);`;
+    ? fillTemplate(fs.readFileSync(statsFilterTpl, 'utf8'), { COLLECTION: coll })
+    : `// stats-filter template not found\nctx.render(null);`;
   fs.writeFileSync(path.join(pageDir, 'js', 'stats_filter.js'), statsFilterJs);
 
   // popups — reference popup templates

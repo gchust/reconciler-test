@@ -177,15 +177,16 @@ export async function deploySurface(
   if (composeBlocks.length) {
     try {
       const mode = Object.keys(existing).length ? 'append' : 'replace';
+      log(`    composing ${composeBlocks.length} blocks (mode: ${mode}): ${composeBlocks.map((b: any) => b.key).join(', ')}`);
       const result = await nb.surfaces.compose(tabUid, composeBlocks, mode as 'replace' | 'append');
       const composed = result.blocks || [];
-      log(`    composed ${composed.length} block shells`);
+      log(`    composed ${composed.length} block shells: ${composed.map((b: any) => b.key + '=' + b.uid?.slice(0, 6)).join(', ')}`);
 
-      // Map compose results to spec keys
+      // Map compose results to spec keys (must match compose input: skip existing)
       let composeIdx = 0;
       for (const bs of blocksSpec) {
         const key = bs.key || bs.type;
-        if (key in existing && !force) continue;
+        if (key in existing) continue;  // existing blocks were NOT sent to compose
         const cb = toComposeBlock(bs, coll);
         if (!cb) continue;
         if (composeIdx < composed.length) {
@@ -227,6 +228,16 @@ export async function deploySurface(
         if (key in existing) continue;
         if (!blocksState[key]) continue;
         await fillBlock(nb, blocksState[key].uid, blocksState[key].grid_uid || '', bs, coll, modDir, blocksState[key], blocksState, gridUid, log, undefined, popupTargetFields);
+      }
+
+      // ── Step 2b: Also fill EXISTING blocks when force (sync content) ──
+      if (force) {
+        for (const bs of blocksSpec) {
+          const key = bs.key || bs.type;
+          if (!(key in existing)) continue;
+          if (!blocksState[key]?.uid) continue;
+          await fillBlock(nb, blocksState[key].uid, blocksState[key].grid_uid || '', bs, coll, modDir, blocksState[key], blocksState, gridUid, log, undefined, popupTargetFields);
+        }
       }
     } catch (e: any) {
       const detail = e?.response?.data?.errors?.[0]?.message || e?.response?.data || '';

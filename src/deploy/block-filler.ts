@@ -217,10 +217,16 @@ export async function fillBlock(
     const jsPath = path.join(mod, bs.file);
     if (fs.existsSync(jsPath)) {
       let code = fs.readFileSync(jsPath, 'utf8');
-      code = ensureJsHeader(code, { desc: bs.desc, jsType: 'JSBlockModel', coll });
-      code = replaceJsUids(code, allBlocksState);
-      await nb.updateModel(blockUid, { jsSettings: { runJs: { code, version: 'v1' } } });
-      log(`      ~ JS: ${(bs.desc || bs.file).slice(0, 40)}`);
+      // Validate: no unfilled template placeholders
+      const unfilled = code.match(/\{\{(\w+)(?:\|\|[^}]*)?\}\}/g);
+      if (unfilled?.length) {
+        log(`      ✗ JS ${bs.file}: unfilled template params: ${unfilled.join(', ')}`);
+      } else {
+        code = ensureJsHeader(code, { desc: bs.desc, jsType: 'JSBlockModel', coll });
+        code = replaceJsUids(code, allBlocksState);
+        await nb.updateModel(blockUid, { jsSettings: { runJs: { code, version: 'v1' } } });
+        log(`      ~ JS: ${(bs.desc || bs.file).slice(0, 40)}`);
+      }
     }
   }
 

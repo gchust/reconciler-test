@@ -34,6 +34,11 @@ export async function deployJsItems(
     if (!fs.existsSync(jsPath)) continue;
 
     let code = fs.readFileSync(jsPath, 'utf8');
+    const unfilled = code.match(/\{\{(\w+)(?:\|\|[^}]*)?\}\}/g);
+    if (unfilled?.length) {
+      log(`      ✗ JS item ${jsSpec.file}: unfilled template params: ${unfilled.join(', ')}`);
+      continue;
+    }
     code = ensureJsHeader(code, { desc: jsSpec.desc, jsType: 'JSItemModel', coll });
     code = replaceJsUids(code, allBlocksState);
 
