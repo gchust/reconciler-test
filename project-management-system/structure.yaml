@@ -1,0 +1,532 @@
+module: Project Management 项目管理系统
+icon: projectoutlined
+collections:
+  nb_pm_projects:
+    title: 项目
+    titleField: name
+    fields:
+      - name: code
+        interface: input
+        title: 项目编号
+        required: true
+      - name: name
+        interface: input
+        title: 项目名称
+        required: true
+      - name: owner
+        interface: input
+        title: 项目负责人
+      - name: client_name
+        interface: input
+        title: 客户名称
+      - name: start_date
+        interface: dateOnly
+        title: 开始日期
+      - name: end_date
+        interface: dateOnly
+        title: 结束日期
+      - name: budget
+        interface: number
+        title: 项目预算
+        default: 0
+      - name: progress
+        interface: integer
+        title: 进度(%)
+        default: 0
+      - name: priority
+        interface: select
+        title: 优先级
+        default: medium
+        options:
+          - value: low
+            label: 低
+          - value: medium
+            label: 中
+          - value: high
+            label: 高
+          - value: critical
+            label: 紧急
+      - name: status
+        interface: select
+        title: 项目状态
+        default: planning
+        options:
+          - value: planning
+            label: 规划中
+          - value: active
+            label: 进行中
+          - value: on_hold
+            label: 已暂停
+          - value: completed
+            label: 已完成
+          - value: closed
+            label: 已关闭
+      - name: description
+        interface: textarea
+        title: 项目说明
+  nb_pm_tasks:
+    title: 任务
+    titleField: title
+    fields:
+      - name: task_no
+        interface: input
+        title: 任务编号
+        required: true
+      - name: title
+        interface: input
+        title: 任务标题
+        required: true
+      - name: project
+        interface: m2o
+        title: 所属项目
+        target: nb_pm_projects
+        required: true
+      - name: assignee
+        interface: input
+        title: 执行人
+      - name: planned_hours
+        interface: number
+        title: 计划工时
+        default: 0
+      - name: actual_hours
+        interface: number
+        title: 实际工时
+        default: 0
+      - name: start_date
+        interface: dateOnly
+        title: 开始日期
+      - name: due_date
+        interface: dateOnly
+        title: 截止日期
+      - name: priority
+        interface: select
+        title: 优先级
+        default: medium
+        options:
+          - value: low
+            label: 低
+          - value: medium
+            label: 中
+          - value: high
+            label: 高
+          - value: urgent
+            label: 紧急
+      - name: status
+        interface: select
+        title: 任务状态
+        default: todo
+        options:
+          - value: todo
+            label: 待开始
+          - value: in_progress
+            label: 进行中
+          - value: review
+            label: 待验收
+          - value: done
+            label: 已完成
+          - value: blocked
+            label: 已阻塞
+      - name: description
+        interface: textarea
+        title: 任务描述
+  nb_pm_members:
+    title: 项目成员
+    titleField: name
+    fields:
+      - name: employee_no
+        interface: input
+        title: 成员编号
+        required: true
+      - name: name
+        interface: input
+        title: 姓名
+        required: true
+      - name: role_name
+        interface: input
+        title: 岗位角色
+      - name: department
+        interface: input
+        title: 所属部门
+      - name: email
+        interface: email
+        title: 邮箱
+      - name: phone
+        interface: input
+        title: 手机号
+      - name: status
+        interface: select
+        title: 成员状态
+        default: active
+        options:
+          - value: active
+            label: 在岗
+          - value: busy
+            label: 忙碌
+          - value: leave
+            label: 请假
+          - value: inactive
+            label: 停用
+      - name: joined_at
+        interface: dateOnly
+        title: 加入日期
+      - name: notes
+        interface: textarea
+        title: 备注
+  nb_pm_milestones:
+    title: 里程碑
+    titleField: name
+    fields:
+      - name: name
+        interface: input
+        title: 里程碑名称
+        required: true
+      - name: project
+        interface: m2o
+        title: 所属项目
+        target: nb_pm_projects
+        required: true
+      - name: owner
+        interface: input
+        title: 负责人
+      - name: planned_date
+        interface: dateOnly
+        title: 计划完成日期
+      - name: completed_date
+        interface: dateOnly
+        title: 实际完成日期
+      - name: status
+        interface: select
+        title: 里程碑状态
+        default: pending
+        options:
+          - value: pending
+            label: 未开始
+          - value: in_progress
+            label: 进行中
+          - value: done
+            label: 已完成
+          - value: delayed
+            label: 已延期
+      - name: description
+        interface: textarea
+        title: 说明
+  nb_pm_time_entries:
+    title: 工时记录
+    titleField: entry_no
+    fields:
+      - name: entry_no
+        interface: input
+        title: 工时单号
+        required: true
+      - name: project
+        interface: m2o
+        title: 所属项目
+        target: nb_pm_projects
+        required: true
+      - name: task
+        interface: m2o
+        title: 关联任务
+        target: nb_pm_tasks
+      - name: member_name
+        interface: input
+        title: 填报人
+        required: true
+      - name: work_date
+        interface: dateOnly
+        title: 工作日期
+        required: true
+      - name: hours
+        interface: number
+        title: 工时
+        default: 0
+      - name: billable
+        interface: select
+        title: 是否计费
+        default: 'yes'
+        options:
+          - value: 'yes'
+            label: 是
+          - value: 'no'
+            label: 否
+      - name: status
+        interface: select
+        title: 审批状态
+        default: draft
+        options:
+          - value: draft
+            label: 草稿
+          - value: submitted
+            label: 已提交
+          - value: approved
+            label: 已批准
+          - value: rejected
+            label: 已驳回
+      - name: summary
+        interface: textarea
+        title: 工作内容
+pages:
+  - page: Dashboard
+    blocks:
+      - key: active_projects
+        type: table
+        coll: nb_pm_projects
+        title: 进行中的项目
+        fields:
+          - name
+          - owner
+          - client_name
+          - end_date
+          - progress
+          - status
+        actions:
+          - refresh
+        dataScope:
+          status: active
+        pageSize: 8
+      - key: my_tasks
+        type: table
+        coll: nb_pm_tasks
+        title: 待跟进任务
+        fields:
+          - title
+          - project
+          - assignee
+          - due_date
+          - priority
+          - status
+        actions:
+          - refresh
+        dataScope:
+          status:
+            $in:
+              - todo
+              - in_progress
+              - blocked
+        pageSize: 8
+      - key: upcoming_milestones
+        type: table
+        coll: nb_pm_milestones
+        title: 近期里程碑
+        fields:
+          - name
+          - project
+          - owner
+          - planned_date
+          - status
+        actions:
+          - refresh
+        dataScope:
+          status:
+            $in:
+              - pending
+              - in_progress
+              - delayed
+        pageSize: 8
+    icon: dashboardoutlined
+    layout:
+      - - active_projects
+      - - my_tasks: 14
+        - upcoming_milestones: 10
+  - page: Projects
+    blocks:
+      - key: filter
+        type: filterForm
+        coll: nb_pm_projects
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths:
+              - name
+              - code
+              - client_name
+              - owner
+          - status
+          - priority
+          - owner
+      - key: table
+        type: table
+        coll: nb_pm_projects
+        fields:
+          - name
+          - code
+          - owner
+          - client_name
+          - end_date
+          - progress
+          - priority
+          - status
+        actions:
+          - filter
+          - refresh
+          - addNew
+          - export
+        recordActions:
+          - edit
+          - view
+          - delete
+    icon: projectoutlined
+    coll: nb_pm_projects
+    layout:
+      - - filter
+      - - table
+  - page: Tasks
+    blocks:
+      - key: filter
+        type: filterForm
+        coll: nb_pm_tasks
+        fields:
+          - field: title
+            label: 搜索
+            filterPaths:
+              - title
+              - task_no
+              - assignee
+          - status
+          - priority
+          - project
+          - assignee
+      - key: table
+        type: table
+        coll: nb_pm_tasks
+        fields:
+          - title
+          - task_no
+          - project
+          - assignee
+          - due_date
+          - planned_hours
+          - actual_hours
+          - status
+        actions:
+          - filter
+          - refresh
+          - addNew
+          - export
+        recordActions:
+          - edit
+          - view
+          - delete
+    icon: profileoutlined
+    coll: nb_pm_tasks
+    layout:
+      - - filter
+      - - table
+  - page: Milestones
+    blocks:
+      - key: filter
+        type: filterForm
+        coll: nb_pm_milestones
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths:
+              - name
+              - owner
+          - status
+          - project
+          - owner
+      - key: table
+        type: table
+        coll: nb_pm_milestones
+        fields:
+          - name
+          - project
+          - owner
+          - planned_date
+          - completed_date
+          - status
+        actions:
+          - filter
+          - refresh
+          - addNew
+          - export
+        recordActions:
+          - edit
+          - view
+          - delete
+    icon: flagoutlined
+    coll: nb_pm_milestones
+    layout:
+      - - filter
+      - - table
+  - page: Members
+    blocks:
+      - key: filter
+        type: filterForm
+        coll: nb_pm_members
+        fields:
+          - field: name
+            label: 搜索
+            filterPaths:
+              - name
+              - employee_no
+              - email
+              - phone
+          - status
+          - department
+          - role_name
+      - key: table
+        type: table
+        coll: nb_pm_members
+        fields:
+          - name
+          - employee_no
+          - role_name
+          - department
+          - email
+          - phone
+          - status
+        actions:
+          - filter
+          - refresh
+          - addNew
+          - export
+        recordActions:
+          - edit
+          - view
+          - delete
+    icon: teamoutlined
+    coll: nb_pm_members
+    layout:
+      - - filter
+      - - table
+  - page: Time Entries
+    blocks:
+      - key: filter
+        type: filterForm
+        coll: nb_pm_time_entries
+        fields:
+          - field: entry_no
+            label: 搜索
+            filterPaths:
+              - entry_no
+              - member_name
+          - status
+          - project
+          - billable
+      - key: table
+        type: table
+        coll: nb_pm_time_entries
+        fields:
+          - entry_no
+          - project
+          - task
+          - member_name
+          - work_date
+          - hours
+          - billable
+          - status
+        actions:
+          - filter
+          - refresh
+          - addNew
+          - export
+        recordActions:
+          - edit
+          - view
+          - delete
+    icon: clockcircleoutlined
+    coll: nb_pm_time_entries
+    layout:
+      - - filter
+      - - table

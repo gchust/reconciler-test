@@ -1,3 +1,8 @@
+---
+name: nocobase-reconciler
+description: 使用 structure.yaml、enhance.yaml 和 state.yaml 驱动 NocoBase 页面骨架部署与增强的本地技能说明。
+---
+
 # NocoBase Reconciler — AI Skill Reference
 
 > 这个文件是给 AI agent 看的参考。概述了模块部署的能力和用法。
