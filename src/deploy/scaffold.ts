@@ -281,7 +281,7 @@ export function scaffold(
         content: {
           key: 'details', type: 'details', coll: collName,
           resource_binding: { filterByTk: '{{ctx.view.inputArgs.filterByTk}}' },
-          fields: [...sharedFields, 'createdAt'], field_layout: sharedLayout,
+          fields: sharedFields, field_layout: sharedLayout,
           actions: ['edit'],
         },
       }),
@@ -473,26 +473,35 @@ function generateCrudPage(
 
   fs.writeFileSync(path.join(pageDir, 'layout.yaml'), dumpYaml(layout));
 
-  // js/stats_filter.js — stats filter button group stub
-  const statsFilterJs = `// Stats Filter Block — quick filter buttons with counts
-// TODO: Replace SQL queries with real data from ${coll}
+  // js/stats_filter.js — stats filter with live SQL counts
+  const statsFilterJs = `/**
+ * Stats Filter Block
+ *
+ * @type JSItemModel
+ * @collection ${coll}
+ */
 const { useState, useEffect } = ctx.React;
 const h = ctx.React.createElement;
 
 const StatsFilter = () => {
   const [active, setActive] = useState('all');
-  const [counts, setCounts] = useState({ all: 0, active: 0, completed: 0 });
+  const [stats, setStats] = useState([]);
 
   useEffect(() => {
-    // TODO: fetch real counts via ctx.request or ctx.sql
-    setCounts({ all: 42, active: 28, completed: 14 });
+    (async () => {
+      try {
+        const total = await ctx.sql('SELECT count(*) AS cnt FROM ${coll}');
+        const byStatus = await ctx.sql("SELECT COALESCE(status, 'unknown') AS status, count(*) AS cnt FROM ${coll} GROUP BY status ORDER BY cnt DESC");
+        const items = [{ key: 'all', label: 'All', count: total?.[0]?.cnt || 0 }];
+        for (const row of (byStatus || [])) {
+          items.push({ key: row.status, label: row.status, count: row.cnt });
+        }
+        setStats(items);
+      } catch {
+        setStats([{ key: 'all', label: 'All', count: '-' }]);
+      }
+    })();
   }, []);
-
-  const buttons = [
-    { key: 'all', label: 'All', count: counts.all },
-    { key: 'active', label: 'Active', count: counts.active },
-    { key: 'completed', label: 'Completed', count: counts.completed },
-  ];
 
   const btnStyle = (isActive) => ({
     padding: '6px 16px', borderRadius: '6px', cursor: 'pointer', border: 'none',
@@ -502,7 +511,7 @@ const StatsFilter = () => {
   });
 
   return h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
-    ...buttons.map(b => h('button', {
+    ...stats.map(b => h('button', {
       key: b.key, style: btnStyle(active === b.key),
       onClick: () => setActive(b.key),
     }, b.label + ' (' + b.count + ')'))

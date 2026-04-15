@@ -411,13 +411,23 @@ function cmdScaffold(args: string[]) {
     process.exit(1);
   }
   const pagesIdx = args.indexOf('--pages');
-  const pages = pagesIdx >= 0 && args[pagesIdx + 1]
-    ? args[pagesIdx + 1].split(',').map(s => s.trim())
-    : ['Dashboard', 'Main'];
   const collIdx = args.indexOf('--collections');
   const collections = collIdx >= 0 && args[collIdx + 1]
     ? args[collIdx + 1].split(',').map(s => s.trim())
     : undefined;
+  let pages: string[];
+  if (pagesIdx >= 0 && args[pagesIdx + 1]) {
+    pages = args[pagesIdx + 1].split(',').map(s => s.trim());
+  } else if (collections?.length) {
+    // Auto-derive page names from collection names: nb_erp_purchase_orders → PurchaseOrders
+    const prefix = `nb_${name.toLowerCase()}_`;
+    pages = collections.map(c => {
+      const short = c.startsWith(prefix) ? c.slice(prefix.length) : c;
+      return short.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+    });
+  } else {
+    pages = ['Dashboard', 'Main'];
+  }
   scaffold(dir, name, pages, collections);
 }
 
