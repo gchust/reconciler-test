@@ -235,8 +235,10 @@ export async function fillBlock(
   // ── Chart config ──
   await deployChart(nb, blockUid, bs, mod, log);
 
-  // ── Actions (single pass — compose tracks → state skips → only creates missing) ──
-  await deployActions(nb, blockUid, bs, blockState, mod, log, actColUid, RECORD_ACTION_BLOCKS.has(btype));
+  // ── Actions — skip for chart/jsBlock/markdown (no data source → filter crashes) ──
+  if (!['chart', 'jsBlock', 'markdown'].includes(btype)) {
+    await deployActions(nb, blockUid, bs, blockState, mod, log, actColUid, RECORD_ACTION_BLOCKS.has(btype));
+  }
 
   // ── Auto-fill view/edit popup content (skip actions that have popup YAML files) ──
   if (btype === 'table' && coll) {

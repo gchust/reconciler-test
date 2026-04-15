@@ -128,21 +128,23 @@ export function toComposeBlock(
     block.fields = [...allFields].map(fp => ({ fieldPath: fp }));
   }
 
-  // ── Actions ──
-  const actions = (bs.actions || []).filter(a => {
-    const t = typeof a === 'string' ? a : (a as Record<string, unknown>).type as string;
-    return COMPOSE_ACTIONS.has(t);
-  });
-  const recordActions = (bs.recordActions || []).filter(a => {
-    const t = typeof a === 'string' ? a : (a as Record<string, unknown>).type as string;
-    return COMPOSE_ACTIONS.has(t);
-  });
+  // ── Actions (skip for chart/jsBlock/markdown — no data source) ──
+  if (!['chart', 'jsBlock', 'markdown', 'iframe'].includes(btype)) {
+    const actions = (bs.actions || []).filter(a => {
+      const t = typeof a === 'string' ? a : (a as Record<string, unknown>).type as string;
+      return COMPOSE_ACTIONS.has(t);
+    });
+    const recordActions = (bs.recordActions || []).filter(a => {
+      const t = typeof a === 'string' ? a : (a as Record<string, unknown>).type as string;
+      return COMPOSE_ACTIONS.has(t);
+    });
 
-  if (actions.length > 0) {
-    block.actions = actions.map(a => typeof a === 'string' ? { type: a } : a);
-  }
-  if (recordActions.length > 0) {
-    block.recordActions = recordActions.map(a => typeof a === 'string' ? { type: a } : a);
+    if (actions.length > 0) {
+      block.actions = actions.map(a => typeof a === 'string' ? { type: a } : a);
+    }
+    if (recordActions.length > 0) {
+      block.recordActions = recordActions.map(a => typeof a === 'string' ? { type: a } : a);
+    }
   }
 
   return block;
