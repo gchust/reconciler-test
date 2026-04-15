@@ -1,2 +1,0 @@
-sql_file: ./charts/time_entries_billable.sql
-render_file: ./charts/status_pie_render.js

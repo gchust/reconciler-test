@@ -1,2 +1,0 @@
-sql_file: ./charts/member_status.sql
-render_file: ./charts/status_donut_render.js

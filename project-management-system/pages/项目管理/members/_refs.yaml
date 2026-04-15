@@ -1,9 +1,0 @@
-_generated: true
-_readonly: Auto-generated. Edits will be overwritten.
-collections:
-  - nb_pm_members
-components: []
-popup_chain:
-  - collection: nb_pm_members
-    depth: 0
-    path: nb_pm_members

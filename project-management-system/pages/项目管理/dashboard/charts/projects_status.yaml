@@ -1,2 +1,0 @@
-sql_file: ./charts/projects_status.sql
-render_file: ./charts/status_pie_render.js

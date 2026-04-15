@@ -1,9 +1,0 @@
-_generated: true
-_readonly: Auto-generated. Edits will be overwritten.
-collections:
-  - nb_pm_milestones
-components: []
-popup_chain:
-  - collection: nb_pm_milestones
-    depth: 0
-    path: nb_pm_milestones
