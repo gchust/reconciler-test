@@ -1,7 +1,4 @@
 target: $dashboard.my_tasks.actions.addNew
-auto:
-  - edit
-  - detail
 view_field: title
 coll: nb_pm_tasks
 blocks:

@@ -1,7 +1,4 @@
 target: $time_entries.table.actions.addNew
-auto:
-  - edit
-  - detail
 view_field: entry_no
 coll: nb_pm_time_entries
 blocks:

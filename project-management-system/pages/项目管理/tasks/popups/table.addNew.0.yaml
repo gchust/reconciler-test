@@ -1,7 +1,4 @@
 target: $tasks.table.actions.addNew
-auto:
-  - edit
-  - detail
 view_field: title
 coll: nb_pm_tasks
 blocks:

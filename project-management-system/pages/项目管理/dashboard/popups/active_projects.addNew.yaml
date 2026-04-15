@@ -1,7 +1,4 @@
 target: $dashboard.active_projects.actions.addNew
-auto:
-  - edit
-  - detail
 view_field: name
 coll: nb_pm_projects
 blocks:

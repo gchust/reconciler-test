@@ -1,7 +1,4 @@
 target: $milestones.table.actions.addNew
-auto:
-  - edit
-  - detail
 view_field: name
 coll: nb_pm_milestones
 blocks:
